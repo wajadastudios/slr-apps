@@ -65,6 +65,9 @@ export async function sendInvoiceAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+
+  const { data: invoiceNumber } = await supabase.rpc("next_invoice_number");
+
   const { error } = await supabase
     .from("invoices")
     .update({
@@ -72,6 +75,7 @@ export async function sendInvoiceAction(formData: FormData) {
       status: "sent",
       approved_by: session.user.id,
       sent_at: new Date().toISOString(),
+      invoice_number: invoiceNumber,
     })
     .eq("id", invoice_id);
 

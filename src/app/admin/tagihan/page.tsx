@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { getSiteOrigin } from "@/lib/site-url";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
+import { InvoiceShareLinks } from "@/components/invoice-share-links";
 import { createInvoiceForStudentAction, sendInvoiceAction, markPaidAction } from "./actions";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -19,6 +21,7 @@ export default async function TagihanPage({
 }) {
   const { error } = await searchParams;
   const supabase = await createClient();
+  const origin = await getSiteOrigin();
 
   const [
     { data: invoices },
@@ -29,7 +32,7 @@ export default async function TagihanPage({
     supabase
       .from("invoices")
       .select(
-        "id, student_id, package_name, sessions_count, amount, status, student:student_id(full_name)"
+        "id, student_id, package_name, sessions_count, amount, status, student:student_id(full_name, parent:parent_id(email))"
       )
       .order("id", { ascending: false }),
     supabase
@@ -181,6 +184,7 @@ export default async function TagihanPage({
           {invoices?.map((inv) => {
             const student = inv.student as unknown as {
               full_name: string;
+              parent: { email: string } | null;
             } | null;
 
             return (
@@ -196,6 +200,16 @@ export default async function TagihanPage({
                   <p className="text-sm text-slate-600 dark:text-slate-400">
                     {STATUS_LABEL[inv.status] ?? inv.status}
                   </p>
+                  {(inv.status === "sent" || inv.status === "paid") && (
+                    <div className="mt-1">
+                      <InvoiceShareLinks
+                        origin={origin}
+                        invoiceId={inv.id}
+                        studentName={student?.full_name ?? ""}
+                        parentEmail={student?.parent?.email}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {inv.status === "draft" && (

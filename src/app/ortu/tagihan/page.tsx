@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
+import { getSiteOrigin } from "@/lib/site-url";
 import { GlassCard } from "@/components/ui/glass-card";
+import { InvoiceShareLinks } from "@/components/invoice-share-links";
 
 export default async function OrtuTagihanPage() {
   const supabase = await createClient();
+  const origin = await getSiteOrigin();
 
   // RLS already scopes this to the caller's own children and to
   // status in ('sent', 'paid') — drafts stay invisible.
@@ -20,10 +23,19 @@ export default async function OrtuTagihanPage() {
     const student = inv.student as unknown as { full_name: string } | null;
     return (
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-        <span className="font-medium text-slate-900 dark:text-white">
-          {student?.full_name} &mdash; {inv.package_name} ({inv.sessions_count}{" "}
-          sesi)
-        </span>
+        <div>
+          <p className="font-medium text-slate-900 dark:text-white">
+            {student?.full_name} &mdash; {inv.package_name} (
+            {inv.sessions_count} sesi)
+          </p>
+          <div className="mt-1">
+            <InvoiceShareLinks
+              origin={origin}
+              invoiceId={inv.id}
+              studentName={student?.full_name ?? ""}
+            />
+          </div>
+        </div>
         <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
           Rp{Number(inv.amount).toLocaleString("id-ID")}
         </span>
