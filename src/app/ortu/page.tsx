@@ -1,33 +1,46 @@
-import { redirect } from "next/navigation";
-import { getUserWithRole } from "@/lib/auth";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
-import { LogoutButton } from "@/components/logout-button";
 
-export default async function OrtuPage() {
-  const session = await getUserWithRole();
+export default async function OrtuDashboardPage() {
+  const supabase = await createClient();
 
-  if (!session || session.role !== "ortu") {
-    redirect("/login");
-  }
+  const { data: children } = await supabase
+    .from("students")
+    .select("id, full_name, birth_date, program:program_id(name)")
+    .order("full_name");
 
   return (
-    <div className="flex min-h-screen flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
-          Portal Orang Tua
-        </h1>
-        <LogoutButton />
-      </div>
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
+        Anak Saya
+      </h1>
 
-      <GlassCard>
-        <p className="text-slate-800 dark:text-slate-200">
-          Masuk sebagai <strong>{session.fullName ?? session.user.email}</strong>.
-        </p>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Progres anak dan tagihan bulanan akan tampil di sini pada tahap
-          berikutnya.
-        </p>
-      </GlassCard>
+      {(!children || children.length === 0) && (
+        <GlassCard>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Belum ada data anak terdaftar.
+          </p>
+        </GlassCard>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {children?.map((child) => {
+          const program = child.program as unknown as { name: string } | null;
+          return (
+            <Link key={child.id} href={`/ortu/anak/${child.id}`}>
+              <GlassCard className="transition-transform hover:scale-[1.02]">
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                  {child.full_name}
+                </p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  {program?.name ?? "Belum ada program"}
+                </p>
+              </GlassCard>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
