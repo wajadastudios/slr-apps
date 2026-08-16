@@ -10,6 +10,14 @@ export async function requireAdmin() {
   return session;
 }
 
+export async function requirePelatih() {
+  const session = await getUserWithRole();
+  if (!session || session.role !== "pelatih") {
+    throw new Error("Unauthorized");
+  }
+  return session;
+}
+
 export async function createAccount(
   role: "pelatih" | "ortu",
   formData: FormData
