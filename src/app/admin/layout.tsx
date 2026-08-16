@@ -11,6 +11,7 @@ const NAV = [
   { href: "/admin/program", label: "Program" },
   { href: "/admin/slot-jadwal", label: "Slot Jadwal" },
   { href: "/admin/jadwal", label: "Jadwal Murid" },
+  { href: "/admin/paket-harga", label: "Paket Harga" },
   { href: "/admin/tagihan", label: "Tagihan" },
 ];
 

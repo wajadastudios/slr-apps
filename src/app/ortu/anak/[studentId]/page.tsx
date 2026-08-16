@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
+import { GlassButton } from "@/components/ui/glass-button";
 import { ProgressTrend } from "@/components/progress-trend";
+import { setPackagePreferenceAction } from "./actions";
 
 const ATTENDANCE_LABEL: Record<string, string> = {
   hadir: "Hadir",
@@ -21,7 +23,9 @@ export default async function AnakDetailPage({
   // children — an empty result means access denied.
   const { data: student } = await supabase
     .from("students")
-    .select("id, full_name, birth_date, program:program_id(name, skill_template)")
+    .select(
+      "id, full_name, birth_date, program_id, next_package_preference_id, program:program_id(name, skill_template)"
+    )
     .eq("id", studentId)
     .single();
 
@@ -35,13 +39,47 @@ export default async function AnakDetailPage({
   } | null;
   const skillTemplate = program?.skill_template ?? [];
 
-  const { data: reports } = await supabase
-    .from("progress_reports")
-    .select(
-      "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls"
-    )
-    .eq("student_id", studentId)
-    .order("session_date", { ascending: false });
+  const [{ data: reports }, { data: invoices }, { data: availablePackages }] =
+    await Promise.all([
+      supabase
+        .from("progress_reports")
+        .select(
+          "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls"
+        )
+        .eq("student_id", studentId)
+        .order("session_date", { ascending: false }),
+      supabase
+        .from("invoices")
+        .select("sessions_count, status, created_at")
+        .eq("student_id", studentId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("program_packages")
+        .select("id, name, sessions_count, price, benefits")
+        .eq("program_id", student.program_id)
+        .eq("active", true)
+        .order("sessions_count"),
+    ]);
+
+  const hadirCount = (reports ?? []).filter((r) => r.attendance === "hadir").length;
+  const confirmedInvoices = (invoices ?? []).filter((i) =>
+    ["sent", "paid"].includes(i.status)
+  );
+  const totalConfirmedSessions = confirmedInvoices.reduce(
+    (sum, i) => sum + i.sessions_count,
+    0
+  );
+  const totalAllSessions = (invoices ?? []).reduce(
+    (sum, i) => sum + i.sessions_count,
+    0
+  );
+  const currentPackageSessions = confirmedInvoices[0]?.sessions_count ?? 0;
+  const remaining = totalConfirmedSessions - hadirCount;
+
+  const showRenewalBanner =
+    currentPackageSessions > 4 &&
+    remaining === 1 &&
+    totalAllSessions === totalConfirmedSessions;
 
   return (
     <div className="flex flex-col gap-6">
@@ -58,6 +96,55 @@ export default async function AnakDetailPage({
           </p>
         )}
       </div>
+
+      {showRenewalBanner && availablePackages && availablePackages.length > 0 && (
+        <GlassCard className="border-amber-300/40 bg-amber-100/20 dark:bg-amber-300/10">
+          <h2 className="mb-1 text-lg font-semibold text-slate-900 dark:text-white">
+            Sesi Terakhir di Paket Ini
+          </h2>
+          <p className="mb-4 text-sm text-slate-700 dark:text-slate-300">
+            Tinggal 1 sesi lagi di paket {student.full_name} saat ini. Pilih
+            paket untuk sesi berikutnya — pilihan Anda akan dilihat admin
+            saat menyiapkan tagihan berikutnya (admin tetap yang
+            mengonfirmasi & mengirim tagihannya).
+          </p>
+          <div className="flex flex-col gap-2">
+            {availablePackages.map((pkg) => (
+              <form
+                key={pkg.id}
+                action={setPackagePreferenceAction}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5"
+              >
+                <input type="hidden" name="student_id" value={studentId} />
+                <input type="hidden" name="program_package_id" value={pkg.id} />
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-white">
+                    {pkg.name} &middot; {pkg.sessions_count} sesi &middot; Rp
+                    {Number(pkg.price).toLocaleString("id-ID")}
+                  </p>
+                  {pkg.benefits && pkg.benefits.length > 0 && (
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      {pkg.benefits.join(" · ")}
+                    </p>
+                  )}
+                </div>
+                <GlassButton
+                  type="submit"
+                  className={`px-4 py-2 text-sm ${
+                    pkg.id === student.next_package_preference_id
+                      ? "border-blue-400/60 bg-blue-400/30"
+                      : ""
+                  }`}
+                >
+                  {pkg.id === student.next_package_preference_id
+                    ? "Dipilih"
+                    : "Pilih Paket Ini"}
+                </GlassButton>
+              </form>
+            ))}
+          </div>
+        </GlassCard>
+      )}
 
       <ProgressTrend skillTemplate={skillTemplate} reports={reports ?? []} />
 

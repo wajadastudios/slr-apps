@@ -1,14 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 
-const SESSIONS_PER_PACKAGE = 4;
-
-function packageLabel(n: number) {
-  const start = (n - 1) * SESSIONS_PER_PACKAGE + 1;
-  const end = n * SESSIONS_PER_PACKAGE;
-  return `Paket ${n} (sesi ${start}–${end})`;
-}
-
 export default async function OrtuTagihanPage() {
   const supabase = await createClient();
 
@@ -17,9 +9,9 @@ export default async function OrtuTagihanPage() {
   const { data: invoices } = await supabase
     .from("invoices")
     .select(
-      "id, package_number, amount, status, student:student_id(full_name)"
+      "id, package_name, sessions_count, amount, status, student:student_id(full_name)"
     )
-    .order("package_number", { ascending: false });
+    .order("id", { ascending: false });
 
   const belumBayar = (invoices ?? []).filter((i) => i.status === "sent");
   const sudahBayar = (invoices ?? []).filter((i) => i.status === "paid");
@@ -29,7 +21,8 @@ export default async function OrtuTagihanPage() {
     return (
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3">
         <span className="font-medium text-slate-900 dark:text-white">
-          {student?.full_name} &mdash; {packageLabel(inv.package_number)}
+          {student?.full_name} &mdash; {inv.package_name} ({inv.sessions_count}{" "}
+          sesi)
         </span>
         <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
           Rp{Number(inv.amount).toLocaleString("id-ID")}

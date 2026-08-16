@@ -5,57 +5,48 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-const SESSIONS_PER_PACKAGE = 4;
-
-export async function generateInvoicesAction() {
+export async function createInvoiceForStudentAction(formData: FormData) {
   await requireAdmin();
+
+  const student_id = String(formData.get("student_id") ?? "");
+  const program_package_id = String(formData.get("program_package_id") ?? "");
+
+  if (!student_id || !program_package_id) {
+    redirect(
+      `/admin/tagihan?error=${encodeURIComponent("Murid dan paket wajib dipilih.")}`
+    );
+  }
 
   const supabase = await createClient();
 
-  const { data: students } = await supabase
-    .from("students")
-    .select("id")
-    .eq("active", true);
+  const { data: pkg } = await supabase
+    .from("program_packages")
+    .select("name, sessions_count, price")
+    .eq("id", program_package_id)
+    .single();
 
-  if (students && students.length > 0) {
-    const { data: hadirReports } = await supabase
-      .from("progress_reports")
-      .select("student_id")
-      .eq("attendance", "hadir");
-
-    const hadirCount = new Map<string, number>();
-    for (const r of hadirReports ?? []) {
-      hadirCount.set(r.student_id, (hadirCount.get(r.student_id) ?? 0) + 1);
-    }
-
-    const rows: {
-      student_id: string;
-      package_number: number;
-      amount: number;
-      status: "draft";
-    }[] = [];
-
-    for (const s of students) {
-      const eligiblePackages = Math.floor(
-        (hadirCount.get(s.id) ?? 0) / SESSIONS_PER_PACKAGE
-      );
-      for (let pkg = 1; pkg <= eligiblePackages; pkg++) {
-        rows.push({
-          student_id: s.id,
-          package_number: pkg,
-          amount: 0,
-          status: "draft",
-        });
-      }
-    }
-
-    if (rows.length > 0) {
-      await supabase.from("invoices").upsert(rows, {
-        onConflict: "student_id,package_number",
-        ignoreDuplicates: true,
-      });
-    }
+  if (!pkg) {
+    redirect(`/admin/tagihan?error=${encodeURIComponent("Paket tidak ditemukan.")}`);
   }
+
+  const { error } = await supabase.from("invoices").insert({
+    student_id,
+    program_package_id,
+    package_name: pkg!.name,
+    sessions_count: pkg!.sessions_count,
+    amount: pkg!.price,
+    status: "draft",
+  });
+
+  if (error) {
+    redirect(`/admin/tagihan?error=${encodeURIComponent(error.message)}`);
+  }
+
+  // Clear the parent's renewal preference now that it's been acted on.
+  await supabase
+    .from("students")
+    .update({ next_package_preference_id: null })
+    .eq("id", student_id);
 
   revalidatePath("/admin/tagihan");
   redirect("/admin/tagihan");
