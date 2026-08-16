@@ -9,7 +9,8 @@ const NAV = [
   { href: "/admin/orang-tua", label: "Orang Tua" },
   { href: "/admin/murid", label: "Murid" },
   { href: "/admin/program", label: "Program" },
-  { href: "/admin/jadwal", label: "Jadwal" },
+  { href: "/admin/slot-jadwal", label: "Slot Jadwal" },
+  { href: "/admin/jadwal", label: "Jadwal Murid" },
 ];
 
 export default async function AdminLayout({

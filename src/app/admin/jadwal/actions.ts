@@ -5,40 +5,54 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createJadwalAction(formData: FormData) {
+export async function enrollStudentAction(formData: FormData) {
   await requireAdmin();
 
-  const pelatih_id = String(formData.get("pelatih_id") ?? "");
   const student_id = String(formData.get("student_id") ?? "");
-  const day_of_week = String(formData.get("day_of_week") ?? "");
-  const start_time = String(formData.get("start_time") ?? "") || null;
+  const slot_id = String(formData.get("slot_id") ?? "");
 
-  if (!pelatih_id || !student_id || day_of_week === "") {
+  if (!student_id || !slot_id) {
     redirect(
-      `/admin/jadwal?error=${encodeURIComponent("Pelatih, murid, dan hari wajib diisi.")}`
+      `/admin/jadwal?error=${encodeURIComponent("Murid dan slot jadwal wajib dipilih.")}`
     );
   }
 
   const supabase = await createClient();
 
-  const { data: student } = await supabase
-    .from("students")
-    .select("program_id")
-    .eq("id", student_id)
+  const { data: slot } = await supabase
+    .from("class_slots")
+    .select("capacity")
+    .eq("id", slot_id)
     .single();
 
+  if (!slot) {
+    redirect(`/admin/jadwal?error=${encodeURIComponent("Slot jadwal tidak ditemukan.")}`);
+  }
+
+  const { count } = await supabase
+    .from("schedules")
+    .select("*", { count: "exact", head: true })
+    .eq("slot_id", slot_id);
+
+  if ((count ?? 0) >= slot!.capacity) {
+    redirect(
+      `/admin/jadwal?error=${encodeURIComponent("Slot jadwal ini sudah penuh.")}`
+    );
+  }
+
   const { error } = await supabase.from("schedules").insert({
-    pelatih_id,
     student_id,
-    program_id: student?.program_id ?? null,
-    day_of_week: Number(day_of_week),
-    start_time,
+    slot_id,
   });
 
   if (error) {
-    redirect(`/admin/jadwal?error=${encodeURIComponent(error.message)}`);
+    const message = error.code === "23505"
+      ? "Murid ini sudah terdaftar di slot jadwal tersebut."
+      : error.message;
+    redirect(`/admin/jadwal?error=${encodeURIComponent(message)}`);
   }
 
   revalidatePath("/admin/jadwal");
+  revalidatePath("/admin/slot-jadwal");
   redirect("/admin/jadwal");
 }

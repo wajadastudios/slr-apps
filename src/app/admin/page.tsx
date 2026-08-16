@@ -19,11 +19,12 @@ async function countRows(
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
 
-  const [pelatih, ortu, murid, program, jadwal] = await Promise.all([
+  const [pelatih, ortu, murid, program, slotJadwal, jadwal] = await Promise.all([
     countRows(supabase, "users", { role: "pelatih" }),
     countRows(supabase, "users", { role: "ortu" }),
     countRows(supabase, "students", { active: true }),
     countRows(supabase, "programs"),
+    countRows(supabase, "class_slots"),
     countRows(supabase, "schedules"),
   ]);
 
@@ -32,11 +33,12 @@ export default async function AdminDashboardPage() {
     { label: "Orang Tua", value: ortu },
     { label: "Murid Aktif", value: murid },
     { label: "Program", value: program },
-    { label: "Jadwal", value: jadwal },
+    { label: "Slot Jadwal", value: slotJadwal },
+    { label: "Murid Terjadwal", value: jadwal },
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
       {tiles.map((tile) => (
         <GlassCard key={tile.label} className="text-center">
           <p className="text-3xl font-semibold text-slate-900 dark:text-white">
