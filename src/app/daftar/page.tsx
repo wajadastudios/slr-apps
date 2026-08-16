@@ -4,6 +4,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
+import { WaterBg } from "@/components/water-bg";
 import { submitRegistrationAction } from "./actions";
 
 export default async function DaftarPage({
@@ -14,14 +15,21 @@ export default async function DaftarPage({
   const { error, success } = await searchParams;
   const supabase = await createClient();
 
-  const { data: programs } = await supabase
-    .from("programs")
-    .select("id, name")
-    .order("name");
+  const [{ data: programs }, { data: gallery }] = await Promise.all([
+    supabase.from("programs").select("id, name").order("name"),
+    supabase
+      .from("gallery_items")
+      .select("media_url, media_type")
+      .order("created_at", { ascending: false })
+      .limit(1),
+  ]);
+
+  const heroImage = gallery?.find((g) => g.media_type === "image")?.media_url;
 
   if (success) {
     return (
-      <div className="flex min-h-screen flex-1 items-center justify-center p-6">
+      <div className="relative flex min-h-screen flex-1 items-center justify-center overflow-hidden p-6">
+        <WaterBg imageUrl={heroImage} />
         <GlassCard className="w-full max-w-md text-center">
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
             Pendaftaran Diterima
@@ -39,7 +47,8 @@ export default async function DaftarPage({
   }
 
   return (
-    <div className="flex min-h-screen flex-1 items-center justify-center p-6">
+    <div className="relative flex min-h-screen flex-1 items-center justify-center overflow-hidden p-6">
+      <WaterBg imageUrl={heroImage} />
       <GlassCard className="w-full max-w-lg">
         <h1 className="mb-1 text-2xl font-semibold text-slate-900 dark:text-white">
           Daftar Member Baru
