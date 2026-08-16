@@ -24,6 +24,12 @@ export default async function OrtuLayout({
           >
             Ringkasan
           </Link>
+          <Link
+            href="/ortu/tagihan"
+            className="rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/40 dark:text-slate-200 dark:hover:bg-white/10"
+          >
+            Tagihan
+          </Link>
         </nav>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-700 dark:text-slate-300">
