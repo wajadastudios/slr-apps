@@ -110,6 +110,36 @@ as $$
   select role from public.users where id = auth.uid();
 $$;
 
+-- Helpers for the students <-> schedules cross-checks. Both tables have a
+-- policy that queries the other, so a direct EXISTS subquery would trigger
+-- infinite RLS recursion. SECURITY DEFINER bypasses RLS inside the function
+-- body, breaking the cycle.
+create or replace function public.pelatih_teaches_student(p_student_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.schedules s
+    where s.student_id = p_student_id and s.pelatih_id = auth.uid()
+  );
+$$;
+
+create or replace function public.parent_owns_student(p_student_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.students st
+    where st.id = p_student_id and st.parent_id = auth.uid()
+  );
+$$;
+
 -- Auto-create a public.users row whenever a new auth user is created.
 -- Role/full_name can be passed via the auth user's metadata at creation time;
 -- defaults to 'ortu' if not provided.
@@ -182,13 +212,7 @@ create policy "ortu can read own children"
 drop policy if exists "pelatih can read assigned students" on public.students;
 create policy "pelatih can read assigned students"
   on public.students for select
-  using (
-    exists (
-      select 1 from public.schedules s
-      where s.student_id = students.id
-        and s.pelatih_id = auth.uid()
-    )
-  );
+  using (public.pelatih_teaches_student(students.id));
 
 drop policy if exists "admin full access to students" on public.students;
 create policy "admin full access to students"
@@ -205,13 +229,7 @@ create policy "pelatih can read own schedules"
 drop policy if exists "ortu can read schedules for own children" on public.schedules;
 create policy "ortu can read schedules for own children"
   on public.schedules for select
-  using (
-    exists (
-      select 1 from public.students st
-      where st.id = schedules.student_id
-        and st.parent_id = auth.uid()
-    )
-  );
+  using (public.parent_owns_student(schedules.student_id));
 
 drop policy if exists "admin full access to schedules" on public.schedules;
 create policy "admin full access to schedules"

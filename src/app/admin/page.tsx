@@ -1,33 +1,52 @@
-import { redirect } from "next/navigation";
-import { getUserWithRole } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
-import { LogoutButton } from "@/components/logout-button";
 
-export default async function AdminPage() {
-  const session = await getUserWithRole();
-
-  if (!session || session.role !== "admin") {
-    redirect("/login");
+async function countRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  table: string,
+  match?: Record<string, unknown>
+) {
+  let query = supabase.from(table).select("*", { count: "exact", head: true });
+  if (match) {
+    for (const [key, value] of Object.entries(match)) {
+      query = query.eq(key, value);
+    }
   }
+  const { count } = await query;
+  return count ?? 0;
+}
+
+export default async function AdminDashboardPage() {
+  const supabase = await createClient();
+
+  const [pelatih, ortu, murid, program, jadwal] = await Promise.all([
+    countRows(supabase, "users", { role: "pelatih" }),
+    countRows(supabase, "users", { role: "ortu" }),
+    countRows(supabase, "students", { active: true }),
+    countRows(supabase, "programs"),
+    countRows(supabase, "schedules"),
+  ]);
+
+  const tiles = [
+    { label: "Pelatih", value: pelatih },
+    { label: "Orang Tua", value: ortu },
+    { label: "Murid Aktif", value: murid },
+    { label: "Program", value: program },
+    { label: "Jadwal", value: jadwal },
+  ];
 
   return (
-    <div className="flex min-h-screen flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
-          Admin Panel
-        </h1>
-        <LogoutButton />
-      </div>
-
-      <GlassCard>
-        <p className="text-slate-800 dark:text-slate-200">
-          Masuk sebagai <strong>{session.fullName ?? session.user.email}</strong>.
-        </p>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-          Fondasi & auth sudah aktif. Modul kelola pelatih, murid, jadwal,
-          tagihan, dan konten landing page akan dibangun di tahap berikutnya.
-        </p>
-      </GlassCard>
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      {tiles.map((tile) => (
+        <GlassCard key={tile.label} className="text-center">
+          <p className="text-3xl font-semibold text-slate-900 dark:text-white">
+            {tile.value}
+          </p>
+          <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+            {tile.label}
+          </p>
+        </GlassCard>
+      ))}
     </div>
   );
 }
