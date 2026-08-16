@@ -2,8 +2,20 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
+import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { createTestimonialAction, toggleTestimonialPublishedAction } from "./actions";
+
+function Stars({ rating }: { rating: number }) {
+  return (
+    <span className="text-amber-500" aria-label={`${rating} dari 5 bintang`}>
+      {"★".repeat(rating)}
+      <span className="text-slate-300 dark:text-slate-600">
+        {"★".repeat(5 - rating)}
+      </span>
+    </span>
+  );
+}
 
 export default async function TestimoniPage({
   searchParams,
@@ -15,7 +27,7 @@ export default async function TestimoniPage({
 
   const { data: testimonials } = await supabase
     .from("testimonials")
-    .select("id, author_name, content, photo_url, published, created_at")
+    .select("id, author_name, content, rating, photo_url, published, created_at")
     .order("created_at", { ascending: false });
 
   return (
@@ -43,6 +55,19 @@ export default async function TestimoniPage({
                 className="text-sm text-slate-700 dark:text-slate-300"
               />
             </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800 dark:text-slate-200">
+              Rating (opsional)
+            </label>
+            <GlassSelect name="rating" defaultValue="" className="sm:w-48">
+              <option value="">Tanpa rating</option>
+              {[5, 4, 3, 2, 1].map((n) => (
+                <option key={n} value={n}>
+                  {n} Bintang
+                </option>
+              ))}
+            </GlassSelect>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800 dark:text-slate-200">
@@ -89,6 +114,11 @@ export default async function TestimoniPage({
                     </span>
                   )}
                 </p>
+                {t.rating && (
+                  <p className="text-sm">
+                    <Stars rating={t.rating} />
+                  </p>
+                )}
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   {t.content}
                 </p>

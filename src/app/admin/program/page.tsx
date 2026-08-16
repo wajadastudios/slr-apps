@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
+import { GlassInput } from "@/components/ui/glass-input";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
 import { updateSkillTemplateAction } from "./actions";
@@ -9,7 +10,7 @@ export default async function ProgramPage() {
 
   const { data: programs } = await supabase
     .from("programs")
-    .select("id, name, description, skill_template")
+    .select("id, name, description, badge, skill_template")
     .order("name");
 
   return (
@@ -31,6 +32,14 @@ export default async function ProgramPage() {
           >
             <input type="hidden" name="id" value={program.id} />
             <label className="text-sm text-slate-800 dark:text-slate-200">
+              Badge singkat (opsional, tampil di landing page)
+            </label>
+            <GlassInput
+              name="badge"
+              placeholder="Contoh: Ibu hamil trimester 2-3"
+              defaultValue={program.badge ?? ""}
+            />
+            <label className="mt-2 text-sm text-slate-800 dark:text-slate-200">
               Checklist skill (satu per baris)
             </label>
             <GlassTextarea

@@ -10,6 +10,8 @@ export async function createTestimonialAction(formData: FormData) {
 
   const author_name = String(formData.get("author_name") ?? "").trim();
   const content = String(formData.get("content") ?? "").trim();
+  const ratingRaw = String(formData.get("rating") ?? "");
+  const rating = ratingRaw ? Number(ratingRaw) : null;
   const photo = formData.get("photo");
 
   if (!author_name || !content) {
@@ -38,6 +40,7 @@ export async function createTestimonialAction(formData: FormData) {
   const { error } = await supabase.from("testimonials").insert({
     author_name,
     content,
+    rating,
     photo_url,
     published: true,
   });

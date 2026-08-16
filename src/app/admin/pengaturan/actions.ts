@@ -5,7 +5,17 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-const KEYS = ["address", "phone", "email", "operating_hours"] as const;
+const KEYS = [
+  "address",
+  "phone",
+  "email",
+  "operating_hours",
+  "stat_families",
+  "stat_years",
+  "stat_trainers",
+  "stat_rating",
+  "about_text",
+] as const;
 
 export async function saveSiteSettingsAction(formData: FormData) {
   await requireAdmin();
