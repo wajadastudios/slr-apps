@@ -5,17 +5,10 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-export async function generateInvoicesAction(formData: FormData) {
+const SESSIONS_PER_PACKAGE = 4;
+
+export async function generateInvoicesAction() {
   await requireAdmin();
-
-  const period_month = Number(formData.get("period_month") ?? "");
-  const period_year = Number(formData.get("period_year") ?? "");
-
-  if (!period_month || !period_year) {
-    redirect(
-      `/admin/tagihan?error=${encodeURIComponent("Bulan dan tahun wajib diisi.")}`
-    );
-  }
 
   const supabase = await createClient();
 
@@ -25,20 +18,43 @@ export async function generateInvoicesAction(formData: FormData) {
     .eq("active", true);
 
   if (students && students.length > 0) {
-    const rows = students.map((s) => ({
-      student_id: s.id,
-      period_month,
-      period_year,
-      amount: 0,
-      status: "draft" as const,
-    }));
+    const { data: hadirReports } = await supabase
+      .from("progress_reports")
+      .select("student_id")
+      .eq("attendance", "hadir");
 
-    await supabase
-      .from("invoices")
-      .upsert(rows, {
-        onConflict: "student_id,period_month,period_year",
+    const hadirCount = new Map<string, number>();
+    for (const r of hadirReports ?? []) {
+      hadirCount.set(r.student_id, (hadirCount.get(r.student_id) ?? 0) + 1);
+    }
+
+    const rows: {
+      student_id: string;
+      package_number: number;
+      amount: number;
+      status: "draft";
+    }[] = [];
+
+    for (const s of students) {
+      const eligiblePackages = Math.floor(
+        (hadirCount.get(s.id) ?? 0) / SESSIONS_PER_PACKAGE
+      );
+      for (let pkg = 1; pkg <= eligiblePackages; pkg++) {
+        rows.push({
+          student_id: s.id,
+          package_number: pkg,
+          amount: 0,
+          status: "draft",
+        });
+      }
+    }
+
+    if (rows.length > 0) {
+      await supabase.from("invoices").upsert(rows, {
+        onConflict: "student_id,package_number",
         ignoreDuplicates: true,
       });
+    }
   }
 
   revalidatePath("/admin/tagihan");
