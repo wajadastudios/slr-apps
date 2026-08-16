@@ -13,6 +13,10 @@ const NAV = [
   { href: "/admin/jadwal", label: "Jadwal Murid" },
   { href: "/admin/paket-harga", label: "Paket Harga" },
   { href: "/admin/tagihan", label: "Tagihan" },
+  { href: "/admin/pendaftar", label: "Pendaftar" },
+  { href: "/admin/testimoni", label: "Testimoni" },
+  { href: "/admin/galeri", label: "Galeri" },
+  { href: "/admin/pengaturan", label: "Pengaturan" },
 ];
 
 export default async function AdminLayout({
