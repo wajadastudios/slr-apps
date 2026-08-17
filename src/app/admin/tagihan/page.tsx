@@ -189,7 +189,7 @@ export default async function TagihanPage({
                   </>
                 }
                 secondary={
-                  <span className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1">
                     <span>{STATUS_LABEL[inv.status] ?? inv.status}</span>
                     {(inv.status === "sent" || inv.status === "paid") && (
                       <InvoiceShareLinks
@@ -199,7 +199,7 @@ export default async function TagihanPage({
                         parentEmail={student?.parent?.email}
                       />
                     )}
-                  </span>
+                  </div>
                 }
                 action={
                   <>

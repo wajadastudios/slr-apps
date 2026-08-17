@@ -23,9 +23,9 @@ export function DataRow({
       )}
     >
       <div className="min-w-0">
-        <p className="truncate font-medium text-[#17263D]">{primary}</p>
+        <div className="truncate font-medium text-[#17263D]">{primary}</div>
         {secondary && (
-          <p className="truncate text-sm text-slate-600">{secondary}</p>
+          <div className="text-sm text-slate-600">{secondary}</div>
         )}
       </div>
       {action && (
