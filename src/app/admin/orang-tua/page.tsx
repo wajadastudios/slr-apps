@@ -17,7 +17,7 @@ export default async function OrangTuaPage({
 
   const { data: ortuList } = await supabase
     .from("users")
-    .select("id, full_name, email, created_at")
+    .select("id, full_name, email, phone, address, created_at, students(full_name)")
     .eq("role", "ortu")
     .order("created_at", { ascending: false });
 
@@ -58,9 +58,25 @@ export default async function OrangTuaPage({
           {(!ortuList || ortuList.length === 0) && (
             <p className="text-sm text-slate-600">Belum ada orang tua.</p>
           )}
-          {ortuList?.map((o) => (
-            <DataRow key={o.id} primary={o.full_name} secondary={o.email} />
-          ))}
+          {ortuList?.map((o) => {
+            const children = (o.students as unknown as { full_name: string }[]) ?? [];
+            return (
+              <DataRow
+                key={o.id}
+                primary={o.full_name}
+                secondary={
+                  <>
+                    {o.email} &middot; {o.phone || "-"} &middot; {o.address || "-"}
+                    <br />
+                    Anak:{" "}
+                    {children.length > 0
+                      ? children.map((c) => c.full_name).join(", ")
+                      : "-"}
+                  </>
+                }
+              />
+            );
+          })}
         </div>
       </GlassCard>
     </div>

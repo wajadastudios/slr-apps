@@ -72,6 +72,21 @@ export function RegistrationForm({
         </div>
       )}
 
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="flex flex-1 flex-col gap-1.5">
+          <label className="text-sm text-slate-800">
+            {mode === "anak" ? "Tempat Lahir Anak" : "Tempat Lahir"}
+          </label>
+          <GlassInput name="birth_place" required />
+        </div>
+        <div className="flex flex-1 flex-col gap-1.5">
+          <label className="text-sm text-slate-800">
+            {mode === "anak" ? "Tanggal Lahir Anak" : "Tanggal Lahir"}
+          </label>
+          <GlassInput name="birth_date" type="date" required />
+        </div>
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <label className="text-sm text-slate-800">Email</label>
         <GlassInput name="parent_email" type="email" required />

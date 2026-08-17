@@ -21,7 +21,7 @@ export async function approveRegistrationAction(formData: FormData) {
 
   const { data: registration } = await supabase
     .from("registrations")
-    .select("child_name, parent_name, program_id")
+    .select("child_name, parent_name, program_id, birth_place, birth_date")
     .eq("id", registration_id)
     .single();
 
@@ -53,6 +53,8 @@ export async function approveRegistrationAction(formData: FormData) {
     full_name: registration!.child_name,
     parent_id: newUser.id,
     program_id: registration!.program_id,
+    birth_place: registration!.birth_place,
+    birth_date: registration!.birth_date,
   });
 
   await supabase

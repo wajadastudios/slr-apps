@@ -36,7 +36,7 @@ export default async function MuridPage({
     <div className="flex flex-col gap-6">
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Tambah Siswa</h2>
-        <form action={createMuridAction} className="grid gap-4 sm:grid-cols-4">
+        <form action={createMuridAction} className="grid gap-4 sm:grid-cols-5">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Nama Anak</label>
             <GlassInput name="full_name" required />
@@ -44,6 +44,10 @@ export default async function MuridPage({
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Tanggal Lahir</label>
             <GlassInput name="birth_date" type="date" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Tempat Lahir</label>
+            <GlassInput name="birth_place" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Orang Tua</label>
@@ -70,19 +74,19 @@ export default async function MuridPage({
             </GlassSelect>
           </div>
           {error && (
-            <p className="text-sm text-red-700 sm:col-span-4">
+            <p className="text-sm text-red-700 sm:col-span-5">
               {decodeURIComponent(error)}
             </p>
           )}
           {(!parents || parents.length === 0) && (
-            <p className="text-sm text-amber-700 sm:col-span-4">
+            <p className="text-sm text-amber-700 sm:col-span-5">
               Belum ada akun orang tua — tambahkan dulu di halaman Orang Tua.
             </p>
           )}
           <GlassButton
             type="submit"
             disabled={!parents || parents.length === 0}
-            className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] sm:col-span-4 sm:w-fit"
+            className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] sm:col-span-5 sm:w-fit"
           >
             Tambah Siswa
           </GlassButton>

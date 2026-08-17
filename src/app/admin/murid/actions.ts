@@ -10,6 +10,7 @@ export async function createMuridAction(formData: FormData) {
 
   const full_name = String(formData.get("full_name") ?? "").trim();
   const birth_date = String(formData.get("birth_date") ?? "") || null;
+  const birth_place = String(formData.get("birth_place") ?? "").trim() || null;
   const parent_id = String(formData.get("parent_id") ?? "");
   const program_id = String(formData.get("program_id") ?? "") || null;
 
@@ -23,6 +24,7 @@ export async function createMuridAction(formData: FormData) {
   const { error } = await supabase.from("students").insert({
     full_name,
     birth_date,
+    birth_place,
     parent_id,
     program_id,
   });
