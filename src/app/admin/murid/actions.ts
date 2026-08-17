@@ -2,25 +2,69 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/create-account";
+import { requireAdmin, createAccount } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
 export async function createMuridAction(formData: FormData) {
   await requireAdmin();
 
+  const mode = String(formData.get("mode") ?? "anak");
   const full_name = String(formData.get("full_name") ?? "").trim();
   const birth_date = String(formData.get("birth_date") ?? "") || null;
   const birth_place = String(formData.get("birth_place") ?? "").trim() || null;
-  const parent_id = String(formData.get("parent_id") ?? "");
   const program_id = String(formData.get("program_id") ?? "") || null;
 
-  if (!full_name || !parent_id) {
+  if (!full_name) {
+    redirect(`/admin/murid?error=${encodeURIComponent("Nama wajib diisi.")}`);
+  }
+
+  const supabase = await createClient();
+
+  if (mode === "diri") {
+    const email = String(formData.get("email") ?? "").trim();
+
+    const { error: accountError } = await createAccount("ortu", formData);
+    if (accountError) {
+      redirect(`/admin/murid?error=${encodeURIComponent(accountError)}`);
+    }
+
+    const { data: newUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("email", email)
+      .single();
+
+    if (!newUser) {
+      redirect(
+        `/admin/murid?error=${encodeURIComponent("Akun dibuat, tapi siswa gagal ditautkan. Tambahkan manual di halaman Orang Tua.")}`
+      );
+    }
+
+    const { error } = await supabase.from("students").insert({
+      full_name,
+      birth_date,
+      birth_place,
+      parent_id: newUser.id,
+      program_id,
+    });
+
+    if (error) {
+      redirect(`/admin/murid?error=${encodeURIComponent(error.message)}`);
+    }
+
+    revalidatePath("/admin/murid");
+    revalidatePath("/admin/orang-tua");
+    redirect("/admin/murid");
+  }
+
+  const parent_id = String(formData.get("parent_id") ?? "");
+
+  if (!parent_id) {
     redirect(
       `/admin/murid?error=${encodeURIComponent("Nama anak dan orang tua wajib diisi.")}`
     );
   }
 
-  const supabase = await createClient();
   const { error } = await supabase.from("students").insert({
     full_name,
     birth_date,
