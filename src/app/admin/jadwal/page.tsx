@@ -21,14 +21,14 @@ export default async function JadwalMuridPage({
       supabase
         .from("schedules")
         .select(
-          "id, student:student_id(full_name), slot:slot_id(label, day_of_week, start_time, programs:program_id(name), pelatih:pelatih_id(full_name, title))"
+          "id, student:student_id(full_name), slot:slot_id(label, location, day_of_week, start_time, programs:program_id(name), pelatih:pelatih_id(full_name, title))"
         )
         .order("created_at", { ascending: false }),
       supabase.from("students").select("id, full_name").order("full_name"),
       supabase
         .from("class_slots")
         .select(
-          "id, label, day_of_week, start_time, capacity, programs:program_id(name), pelatih:pelatih_id(full_name, title)"
+          "id, label, location, day_of_week, start_time, capacity, programs:program_id(name), pelatih:pelatih_id(full_name, title)"
         )
         .order("day_of_week")
         .order("start_time"),
@@ -58,7 +58,10 @@ export default async function JadwalMuridPage({
       : "-";
     const labelText = `${DAYS[s.day_of_week]}, ${s.start_time} — ${program}${
       s.label ? ` (${s.label})` : ""
-    } — ${pelatih} — sisa ${Math.max(s.capacity - filled, 0)}/${s.capacity}`;
+    } — ${pelatih}${s.location ? ` — ${s.location}` : ""} — sisa ${Math.max(
+      s.capacity - filled,
+      0
+    )}/${s.capacity}`;
     return { id: s.id, label: labelText, full };
   });
 
@@ -130,6 +133,7 @@ export default async function JadwalMuridPage({
           {enrollments?.map((e) => {
             const slot = e.slot as unknown as {
               label: string | null;
+              location: string | null;
               day_of_week: number;
               start_time: string;
               programs: { name: string } | null;
@@ -151,7 +155,9 @@ export default async function JadwalMuridPage({
                   slot
                     ? `${DAYS[slot.day_of_week]}, ${slot.start_time} — ${
                         slot.programs?.name
-                      }${slot.label ? ` (${slot.label})` : ""} — ${pelatihLabel}`
+                      }${slot.label ? ` (${slot.label})` : ""} — ${pelatihLabel}${
+                        slot.location ? ` — ${slot.location}` : ""
+                      }`
                     : "-"
                 }
               />

@@ -22,7 +22,7 @@ export default async function SlotJadwalPage({
       supabase
         .from("class_slots")
         .select(
-          "id, label, day_of_week, start_time, capacity, programs:program_id(name), pelatih:pelatih_id(full_name, title)"
+          "id, label, location, day_of_week, start_time, capacity, programs:program_id(name), pelatih:pelatih_id(full_name, title)"
         )
         .order("day_of_week")
         .order("start_time"),
@@ -46,7 +46,7 @@ export default async function SlotJadwalPage({
     <div className="flex flex-col gap-6">
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Tambah Slot Jadwal</h2>
-        <form action={createSlotAction} className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <form action={createSlotAction} className="grid gap-4 sm:grid-cols-3 lg:grid-cols-7">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Program</label>
             <GlassSelect name="program_id" required defaultValue="">
@@ -78,6 +78,10 @@ export default async function SlotJadwalPage({
             <GlassInput name="label" placeholder="Grup / Private" />
           </div>
           <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Lokasi Kolam (opsional)</label>
+            <GlassInput name="location" placeholder="Kolam A / Cabang Selatan" />
+          </div>
+          <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Hari</label>
             <GlassSelect name="day_of_week" required defaultValue="">
               <option value="" disabled>
@@ -99,12 +103,12 @@ export default async function SlotJadwalPage({
             <GlassInput name="capacity" type="number" min={1} required />
           </div>
           {error && (
-            <p className="text-sm text-red-700 sm:col-span-3 lg:col-span-6">
+            <p className="text-sm text-red-700 sm:col-span-3 lg:col-span-7">
               {decodeURIComponent(error)}
             </p>
           )}
           {!canCreate && (
-            <p className="text-sm text-amber-700 sm:col-span-3 lg:col-span-6">
+            <p className="text-sm text-amber-700 sm:col-span-3 lg:col-span-7">
               Butuh minimal satu pengajar terlebih dahulu sebelum membuat slot
               jadwal.
             </p>
@@ -112,7 +116,7 @@ export default async function SlotJadwalPage({
           <GlassButton
             type="submit"
             disabled={!canCreate}
-            className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] sm:col-span-3 sm:w-fit lg:col-span-6"
+            className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] sm:col-span-3 sm:w-fit lg:col-span-7"
           >
             Tambah Slot
           </GlassButton>
@@ -154,6 +158,7 @@ export default async function SlotJadwalPage({
                     <span className={full ? "text-red-700" : ""}>
                       terisi {filled}/{s.capacity}
                     </span>
+                    {s.location ? <> &middot; {s.location}</> : null}
                   </>
                 }
               />

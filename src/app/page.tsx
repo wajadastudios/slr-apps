@@ -65,7 +65,7 @@ export default async function Home() {
     supabase
       .from("class_slots")
       .select(
-        "id, pelatih_id, label, day_of_week, start_time, capacity, program:program_id(name)"
+        "id, pelatih_id, label, location, day_of_week, start_time, capacity, program:program_id(name)"
       )
       .order("day_of_week")
       .order("start_time"),
@@ -328,6 +328,7 @@ export default async function Home() {
                   </p>
                   <p className="text-sm text-slate-600">
                     Pengajar: {pelatihName ?? "-"}
+                    {s.location ? ` · ${s.location}` : ""}
                   </p>
                 </div>
                 <span

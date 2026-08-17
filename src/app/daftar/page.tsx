@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
-import { GlassInput } from "@/components/ui/glass-input";
-import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { WaterBg } from "@/components/water-bg";
-import { submitRegistrationAction } from "./actions";
+import { RegistrationForm } from "@/components/registration-form";
 
 export default async function DaftarPage({
   searchParams,
@@ -61,72 +59,13 @@ export default async function DaftarPage({
           Isi data di bawah, admin akan meninjau pendaftaran Anda.
         </p>
 
-        <form action={submitRegistrationAction} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">
-              Nama Anak/Peserta
-            </label>
-            <GlassInput name="child_name" required />
-          </div>
+        {error && (
+          <p className="mb-4 text-sm text-red-700">
+            {decodeURIComponent(error)}
+          </p>
+        )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-slate-800">
-                Nama Orang Tua
-              </label>
-              <GlassInput name="parent_name" required />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-slate-800">
-                Email
-              </label>
-              <GlassInput name="parent_email" type="email" required />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">
-              Nomor Telepon/WhatsApp
-            </label>
-            <GlassInput name="parent_phone" />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">
-              Program
-            </label>
-            <GlassSelect name="program_id" required defaultValue="">
-              <option value="" disabled>
-                Pilih program
-              </option>
-              {programs?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </GlassSelect>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">
-              Jadwal yang Diminati (opsional)
-            </label>
-            <GlassInput
-              name="preferred_schedule"
-              placeholder="Contoh: Sabtu pagi"
-            />
-          </div>
-
-          {error && (
-            <p className="text-sm text-red-700">
-              {decodeURIComponent(error)}
-            </p>
-          )}
-
-          <GlassButton type="submit" className="mt-2">
-            Kirim Pendaftaran
-          </GlassButton>
-        </form>
+        <RegistrationForm programs={programs ?? []} />
       </GlassCard>
     </div>
   );

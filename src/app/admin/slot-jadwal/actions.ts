@@ -11,6 +11,7 @@ export async function createSlotAction(formData: FormData) {
   const program_id = String(formData.get("program_id") ?? "");
   const pelatih_id = String(formData.get("pelatih_id") ?? "");
   const label = String(formData.get("label") ?? "").trim() || null;
+  const location = String(formData.get("location") ?? "").trim() || null;
   const day_of_week = String(formData.get("day_of_week") ?? "");
   const start_time = String(formData.get("start_time") ?? "");
   const capacity = Number(formData.get("capacity") ?? "");
@@ -35,6 +36,7 @@ export async function createSlotAction(formData: FormData) {
     program_id,
     pelatih_id,
     label,
+    location,
     day_of_week: Number(day_of_week),
     start_time,
     capacity,
