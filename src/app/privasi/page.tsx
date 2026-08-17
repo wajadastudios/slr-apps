@@ -30,7 +30,7 @@ export default async function PrivasiPage() {
               mengumpulkan: nama dan tanggal lahir anak/peserta, nama, email,
               dan nomor telepon/WhatsApp orang tua, data kehadiran dan
               catatan perkembangan per sesi (termasuk foto/video kegiatan
-              yang diunggah pelatih), serta riwayat tagihan dan pembayaran.
+              yang diunggah pengajar), serta riwayat tagihan dan pembayaran.
             </p>
           </section>
 
@@ -52,7 +52,7 @@ export default async function PrivasiPage() {
             </h2>
             <p>
               Data disimpan di penyedia layanan cloud (Supabase) dan dibatasi
-              aksesnya sesuai peran — pelatih hanya melihat murid yang
+              aksesnya sesuai peran — pengajar hanya melihat siswa yang
               diajarnya, orang tua hanya melihat data anaknya sendiri, dan
               admin mengelola operasional secara keseluruhan.
             </p>

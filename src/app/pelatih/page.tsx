@@ -41,7 +41,7 @@ export default async function PelatihDashboardPage() {
       <GlassCard>
         {sorted.length === 0 && (
           <p className="text-sm text-slate-600">
-            Belum ada murid yang dijadwalkan untuk Anda.
+            Belum ada siswa yang dijadwalkan untuk Anda.
           </p>
         )}
         <div className="flex flex-col gap-2">

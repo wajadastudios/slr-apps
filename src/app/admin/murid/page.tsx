@@ -35,7 +35,7 @@ export default async function MuridPage({
   return (
     <div className="flex flex-col gap-6">
       <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>Tambah Murid</h2>
+        <h2 className={`mb-4 ${HEADING}`}>Tambah Siswa</h2>
         <form action={createMuridAction} className="grid gap-4 sm:grid-cols-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Nama Anak</label>
@@ -84,16 +84,16 @@ export default async function MuridPage({
             disabled={!parents || parents.length === 0}
             className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] sm:col-span-4 sm:w-fit"
           >
-            Tambah Murid
+            Tambah Siswa
           </GlassButton>
         </form>
       </GlassCard>
 
       <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>Daftar Murid</h2>
+        <h2 className={`mb-4 ${HEADING}`}>Daftar Siswa</h2>
         <div className="flex flex-col gap-2">
           {(!students || students.length === 0) && (
-            <p className="text-sm text-slate-600">Belum ada murid.</p>
+            <p className="text-sm text-slate-600">Belum ada siswa.</p>
           )}
           {students?.map((s) => (
             <DataRow

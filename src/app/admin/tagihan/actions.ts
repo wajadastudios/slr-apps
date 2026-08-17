@@ -13,7 +13,7 @@ export async function createInvoiceForStudentAction(formData: FormData) {
 
   if (!student_id || !program_package_id) {
     redirect(
-      `/admin/tagihan?error=${encodeURIComponent("Murid dan paket wajib dipilih.")}`
+      `/admin/tagihan?error=${encodeURIComponent("Siswa dan paket wajib dipilih.")}`
     );
   }
 

@@ -22,7 +22,7 @@ export default async function GaleriPage({
   return (
     <div className="flex flex-col gap-6">
       <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>Tambah Dokumentasi</h2>
+        <h2 className={`mb-4 ${HEADING}`}>Tambah Galeri</h2>
         <form
           action={addGalleryItemAction}
           className="flex flex-wrap items-end gap-4"
@@ -58,10 +58,10 @@ export default async function GaleriPage({
       </GlassCard>
 
       <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>Galeri Dokumentasi</h2>
+        <h2 className={`mb-4 ${HEADING}`}>Galeri</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {(!items || items.length === 0) && (
-            <p className="text-sm text-slate-600">Belum ada dokumentasi.</p>
+            <p className="text-sm text-slate-600">Belum ada foto/video.</p>
           )}
           {items?.map((item) => (
             <div

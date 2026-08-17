@@ -103,7 +103,7 @@ export function InvoicePdf({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ditagihkan Kepada</Text>
           <Text style={styles.value}>{parentName}</Text>
-          <Text>Murid: {studentName}</Text>
+          <Text>Siswa: {studentName}</Text>
         </View>
 
         <View style={styles.section}>

@@ -13,7 +13,7 @@ export async function enrollStudentAction(formData: FormData) {
 
   if (!student_id || !slot_id) {
     redirect(
-      `/admin/jadwal?error=${encodeURIComponent("Murid dan slot jadwal wajib dipilih.")}`
+      `/admin/jadwal?error=${encodeURIComponent("Siswa dan slot jadwal wajib dipilih.")}`
     );
   }
 
@@ -47,7 +47,7 @@ export async function enrollStudentAction(formData: FormData) {
 
   if (error) {
     const message = error.code === "23505"
-      ? "Murid ini sudah terdaftar di slot jadwal tersebut."
+      ? "Siswa ini sudah terdaftar di slot jadwal tersebut."
       : error.message;
     redirect(`/admin/jadwal?error=${encodeURIComponent(message)}`);
   }

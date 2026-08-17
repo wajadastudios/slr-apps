@@ -12,8 +12,8 @@ const NAV_GROUPS: { label: string | null; items: { href: string; label: string }
   {
     label: "Orang",
     items: [
-      { href: "/admin/murid", label: "Murid" },
-      { href: "/admin/pelatih", label: "Pelatih" },
+      { href: "/admin/murid", label: "Siswa" },
+      { href: "/admin/pelatih", label: "Pengajar" },
       { href: "/admin/orang-tua", label: "Orang Tua" },
       { href: "/admin/pendaftar", label: "Pendaftar" },
     ],
@@ -23,7 +23,7 @@ const NAV_GROUPS: { label: string | null; items: { href: string; label: string }
     items: [
       { href: "/admin/program", label: "Program" },
       { href: "/admin/slot-jadwal", label: "Slot Jadwal" },
-      { href: "/admin/jadwal", label: "Jadwal Murid" },
+      { href: "/admin/jadwal", label: "Jadwal Siswa" },
       { href: "/admin/paket-harga", label: "Paket Harga" },
     ],
   },

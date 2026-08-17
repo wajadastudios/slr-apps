@@ -69,7 +69,7 @@ export default async function PengaturanPage({
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">
-              Pelatih Bersertifikat
+              Pengajar Bersertifikat
             </label>
             <GlassInput
               name="stat_trainers"

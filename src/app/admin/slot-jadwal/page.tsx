@@ -61,10 +61,10 @@ export default async function SlotJadwalPage({
             </GlassSelect>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">Pelatih</label>
+            <label className="text-sm text-slate-800">Pengajar</label>
             <GlassSelect name="pelatih_id" required defaultValue="">
               <option value="" disabled>
-                Pilih pelatih
+                Pilih pengajar
               </option>
               {pelatihList?.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -105,7 +105,7 @@ export default async function SlotJadwalPage({
           )}
           {!canCreate && (
             <p className="text-sm text-amber-700 sm:col-span-3 lg:col-span-6">
-              Butuh minimal satu pelatih terlebih dahulu sebelum membuat slot
+              Butuh minimal satu pengajar terlebih dahulu sebelum membuat slot
               jadwal.
             </p>
           )}

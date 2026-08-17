@@ -60,8 +60,8 @@ export default async function SyaratPage() {
             </h2>
             <p>
               Orang tua/wali bertanggung jawab menginformasikan kondisi
-              kesehatan anak/peserta yang relevan kepada pelatih sebelum
-              sesi dimulai. SLR menyediakan pelatih bersertifikat namun
+              kesehatan anak/peserta yang relevan kepada pengajar sebelum
+              sesi dimulai. SLR menyediakan pengajar bersertifikat namun
               keselamatan di air tetap memerlukan kerja sama semua pihak.
             </p>
           </section>

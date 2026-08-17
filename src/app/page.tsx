@@ -102,7 +102,7 @@ export default async function Home() {
   const stats = [
     { label: "Keluarga Aktif", value: get("stat_families") },
     { label: "Berdiri & Beroperasi", value: get("stat_years") },
-    { label: "Pelatih Bersertifikat", value: get("stat_trainers") },
+    { label: "Pengajar Bersertifikat", value: get("stat_trainers") },
     { label: "Rating Kepuasan", value: get("stat_rating") },
   ].filter((s) => s.value);
 
@@ -201,7 +201,7 @@ export default async function Home() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={heroImage}
-                  alt="Sesi renang bersama pelatih SLR"
+                  alt="Sesi renang bersama pengajar SLR"
                   className="aspect-[4/3] w-full object-cover"
                 />
               ) : (
@@ -213,7 +213,7 @@ export default async function Home() {
                 </div>
               )}
               <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-[#17263D] shadow-sm backdrop-blur-md">
-                🏅 Pelatih Bersertifikat SLR
+                🏅 Pengajar Bersertifikat SLR
               </span>
             </div>
 
@@ -326,7 +326,7 @@ export default async function Home() {
                     {s.label ? ` (${s.label})` : ""}
                   </p>
                   <p className="text-sm text-slate-600">
-                    Pelatih: {pelatihName ?? "-"}
+                    Pengajar: {pelatihName ?? "-"}
                   </p>
                 </div>
                 <span
@@ -501,7 +501,7 @@ export default async function Home() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[#55D6A6]">✅</span>
-                Pelatih bersertifikat dengan rasio kelas kecil
+                Pengajar bersertifikat dengan rasio kelas kecil
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[#55D6A6]">✅</span>

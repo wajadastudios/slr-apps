@@ -45,7 +45,7 @@ export async function approveRegistrationAction(formData: FormData) {
 
   if (!newUser) {
     redirect(
-      `/admin/pendaftar?error=${encodeURIComponent("Akun dibuat, tapi murid gagal ditautkan. Tambahkan manual di halaman Murid.")}`
+      `/admin/pendaftar?error=${encodeURIComponent("Akun dibuat, tapi siswa gagal ditautkan. Tambahkan manual di halaman Siswa.")}`
     );
   }
 

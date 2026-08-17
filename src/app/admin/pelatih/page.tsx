@@ -24,7 +24,7 @@ export default async function PelatihPage({
   return (
     <div className="flex flex-col gap-6">
       <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>Tambah Pelatih</h2>
+        <h2 className={`mb-4 ${HEADING}`}>Tambah Pengajar</h2>
         <form action={createPelatihAction} className="grid gap-4 sm:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Nama</label>
@@ -47,16 +47,16 @@ export default async function PelatihPage({
             type="submit"
             className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] sm:col-span-3 sm:w-fit"
           >
-            Tambah Pelatih
+            Tambah Pengajar
           </GlassButton>
         </form>
       </GlassCard>
 
       <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>Daftar Pelatih</h2>
+        <h2 className={`mb-4 ${HEADING}`}>Daftar Pengajar</h2>
         <div className="flex flex-col gap-2">
           {(!pelatihList || pelatihList.length === 0) && (
-            <p className="text-sm text-slate-600">Belum ada pelatih.</p>
+            <p className="text-sm text-slate-600">Belum ada pengajar.</p>
           )}
           {pelatihList?.map((p) => (
             <DataRow key={p.id} primary={p.full_name} secondary={p.email} />

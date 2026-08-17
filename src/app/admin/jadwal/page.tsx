@@ -60,16 +60,16 @@ export default async function JadwalMuridPage({
   return (
     <div className="flex flex-col gap-6">
       <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>Daftarkan Murid ke Slot Jadwal</h2>
+        <h2 className={`mb-4 ${HEADING}`}>Daftarkan Siswa ke Slot Jadwal</h2>
         <form
           action={enrollStudentAction}
           className="grid gap-4 sm:grid-cols-2"
         >
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">Murid</label>
+            <label className="text-sm text-slate-800">Siswa</label>
             <GlassSelect name="student_id" required defaultValue="">
               <option value="" disabled>
-                Pilih murid
+                Pilih siswa
               </option>
               {students?.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -113,11 +113,11 @@ export default async function JadwalMuridPage({
       </GlassCard>
 
       <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>Daftar Jadwal Murid</h2>
+        <h2 className={`mb-4 ${HEADING}`}>Daftar Jadwal Siswa</h2>
         <div className="flex flex-col gap-2">
           {(!enrollments || enrollments.length === 0) && (
             <p className="text-sm text-slate-600">
-              Belum ada murid terdaftar di jadwal.
+              Belum ada siswa terdaftar di jadwal.
             </p>
           )}
           {enrollments?.map((e) => {

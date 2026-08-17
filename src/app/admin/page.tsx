@@ -29,12 +29,12 @@ export default async function AdminDashboardPage() {
   ]);
 
   const tiles = [
-    { label: "Pelatih", value: pelatih },
+    { label: "Pengajar", value: pelatih },
     { label: "Orang Tua", value: ortu },
-    { label: "Murid Aktif", value: murid },
+    { label: "Siswa Aktif", value: murid },
     { label: "Program", value: program },
     { label: "Slot Jadwal", value: slotJadwal },
-    { label: "Murid Terjadwal", value: jadwal },
+    { label: "Siswa Terjadwal", value: jadwal },
   ];
 
   return (
