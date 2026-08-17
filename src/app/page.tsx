@@ -48,6 +48,7 @@ export default async function Home() {
     supabase
       .from("programs")
       .select("id, name, description, badge")
+      .eq("active", true)
       .order("name"),
     supabase
       .from("testimonials")

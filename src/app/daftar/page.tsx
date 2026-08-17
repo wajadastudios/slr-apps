@@ -16,7 +16,11 @@ export default async function DaftarPage({
   const supabase = await createClient();
 
   const [{ data: programs }, { data: gallery }] = await Promise.all([
-    supabase.from("programs").select("id, name").order("name"),
+    supabase
+      .from("programs")
+      .select("id, name")
+      .eq("active", true)
+      .order("name"),
     supabase
       .from("gallery_items")
       .select("media_url, media_type")

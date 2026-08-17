@@ -12,15 +12,17 @@ export async function createPackageAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const sessions_count = Number(formData.get("sessions_count") ?? "");
   const price = Number(formData.get("price") ?? "");
-  const benefitsRaw = String(formData.get("benefits") ?? "");
-  const benefits = benefitsRaw
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  let benefits: string[] = [];
+  try {
+    const parsed = JSON.parse(String(formData.get("benefits") ?? "[]"));
+    if (Array.isArray(parsed)) benefits = parsed.filter((s) => typeof s === "string");
+  } catch {
+    benefits = [];
+  }
 
   if (!program_id || !name || !sessions_count || sessions_count < 1 || price < 0) {
     redirect(
-      `/admin/paket-harga?error=${encodeURIComponent(
+      `/admin/paket-harga?id=${program_id}&error=${encodeURIComponent(
         "Program, nama, jumlah sesi (min 1), dan harga wajib diisi dengan benar."
       )}`
     );
@@ -36,12 +38,14 @@ export async function createPackageAction(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/admin/paket-harga?error=${encodeURIComponent(error.message)}`);
+    redirect(
+      `/admin/paket-harga?id=${program_id}&error=${encodeURIComponent(error.message)}`
+    );
   }
 
   revalidatePath("/admin/paket-harga");
   revalidatePath("/admin/tagihan");
-  redirect("/admin/paket-harga");
+  redirect(`/admin/paket-harga?id=${program_id}`);
 }
 
 export async function togglePackageActiveAction(formData: FormData) {
