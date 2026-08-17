@@ -1,11 +1,16 @@
 import { redirect } from "next/navigation";
 import { getUserWithRole } from "@/lib/auth";
-import { PortalTopNav } from "@/components/portal-top-nav";
+import { PortalSidebar } from "@/components/portal-sidebar";
 
-const NAV_ITEMS = [
-  { href: "/ortu", label: "Ringkasan" },
-  { href: "/ortu/tagihan", label: "Tagihan" },
-  { href: "/ortu/pengaturan", label: "Pengaturan" },
+const NAV_GROUPS = [
+  {
+    label: null,
+    items: [
+      { href: "/ortu", label: "Ringkasan" },
+      { href: "/ortu/tagihan", label: "Tagihan" },
+      { href: "/ortu/pengaturan", label: "Pengaturan" },
+    ],
+  },
 ];
 
 export default async function OrtuLayout({
@@ -20,13 +25,13 @@ export default async function OrtuLayout({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
-      <PortalTopNav
-        navItems={NAV_ITEMS}
-        userLabel={session.fullName ?? session.user.email ?? ""}
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 lg:flex-row lg:gap-6 lg:p-6">
+      <PortalSidebar
+        navGroups={NAV_GROUPS}
         homeHref="/ortu"
+        userLabel={session.fullName ?? session.user.email ?? ""}
       />
-      {children}
+      <main className="mx-auto w-full max-w-6xl flex-1">{children}</main>
     </div>
   );
 }

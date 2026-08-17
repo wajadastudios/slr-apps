@@ -40,7 +40,7 @@ export default function LupaPasswordPage() {
       <WaterBg imageUrl={undefined} />
       <GlassCard className="w-full max-w-sm">
         <Link href="/" className="mb-4 flex flex-col items-center gap-2">
-          <Image src="/logo.png" alt="Sari Les Renang" width={48} height={48} />
+          <Image src="/logo.png" alt="Sari Les Renang" width={96} height={96} />
           <h1 className="font-[family-name:var(--font-quicksand)] text-xl font-bold text-[#17263D]">
             Sari Les Renang
           </h1>

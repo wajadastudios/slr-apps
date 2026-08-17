@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { getUserWithRole } from "@/lib/auth";
-import { PortalTopNav } from "@/components/portal-top-nav";
+import { PortalSidebar } from "@/components/portal-sidebar";
 
-const NAV_ITEMS = [{ href: "/pelatih", label: "Ringkasan" }];
+const NAV_GROUPS = [
+  { label: null, items: [{ href: "/pelatih", label: "Ringkasan" }] },
+];
 
 export default async function PelatihLayout({
   children,
@@ -15,20 +17,16 @@ export default async function PelatihLayout({
     redirect("/login");
   }
 
+  const userLabel = session.fullName
+    ? session.title
+      ? `${session.title} ${session.fullName}`
+      : session.fullName
+    : session.user.email ?? "";
+
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
-      <PortalTopNav
-        navItems={NAV_ITEMS}
-        userLabel={
-          session.fullName
-            ? session.title
-              ? `${session.title} ${session.fullName}`
-              : session.fullName
-            : session.user.email ?? ""
-        }
-        homeHref="/pelatih"
-      />
-      {children}
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 lg:flex-row lg:gap-6 lg:p-6">
+      <PortalSidebar navGroups={NAV_GROUPS} homeHref="/pelatih" userLabel={userLabel} />
+      <main className="mx-auto w-full max-w-6xl flex-1">{children}</main>
     </div>
   );
 }
