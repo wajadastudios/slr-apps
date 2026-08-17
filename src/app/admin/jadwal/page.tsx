@@ -21,14 +21,14 @@ export default async function JadwalMuridPage({
       supabase
         .from("schedules")
         .select(
-          "id, student:student_id(full_name), slot:slot_id(label, day_of_week, start_time, programs:program_id(name), pelatih:pelatih_id(full_name))"
+          "id, student:student_id(full_name), slot:slot_id(label, day_of_week, start_time, programs:program_id(name), pelatih:pelatih_id(full_name, title))"
         )
         .order("created_at", { ascending: false }),
       supabase.from("students").select("id, full_name").order("full_name"),
       supabase
         .from("class_slots")
         .select(
-          "id, label, day_of_week, start_time, capacity, programs:program_id(name), pelatih:pelatih_id(full_name)"
+          "id, label, day_of_week, start_time, capacity, programs:program_id(name), pelatih:pelatih_id(full_name, title)"
         )
         .order("day_of_week")
         .order("start_time"),
@@ -47,8 +47,15 @@ export default async function JadwalMuridPage({
     const filled = filledCount.get(s.id) ?? 0;
     const full = filled >= s.capacity;
     const program = (s.programs as unknown as { name: string } | null)?.name;
-    const pelatih = (s.pelatih as unknown as { full_name: string } | null)
-      ?.full_name;
+    const pelatihRow = s.pelatih as unknown as {
+      full_name: string;
+      title: string | null;
+    } | null;
+    const pelatih = pelatihRow
+      ? pelatihRow.title
+        ? `${pelatihRow.title} ${pelatihRow.full_name}`
+        : pelatihRow.full_name
+      : "-";
     const labelText = `${DAYS[s.day_of_week]}, ${s.start_time} — ${program}${
       s.label ? ` (${s.label})` : ""
     } — ${pelatih} — sisa ${Math.max(s.capacity - filled, 0)}/${s.capacity}`;
@@ -126,8 +133,13 @@ export default async function JadwalMuridPage({
               day_of_week: number;
               start_time: string;
               programs: { name: string } | null;
-              pelatih: { full_name: string } | null;
+              pelatih: { full_name: string; title: string | null } | null;
             } | null;
+            const pelatihLabel = slot?.pelatih
+              ? slot.pelatih.title
+                ? `${slot.pelatih.title} ${slot.pelatih.full_name}`
+                : slot.pelatih.full_name
+              : "-";
             return (
               <DataRow
                 key={e.id}
@@ -139,9 +151,7 @@ export default async function JadwalMuridPage({
                   slot
                     ? `${DAYS[slot.day_of_week]}, ${slot.start_time} — ${
                         slot.programs?.name
-                      }${slot.label ? ` (${slot.label})` : ""} — ${
-                        slot.pelatih?.full_name ?? "-"
-                      }`
+                      }${slot.label ? ` (${slot.label})` : ""} — ${pelatihLabel}`
                     : "-"
                 }
               />

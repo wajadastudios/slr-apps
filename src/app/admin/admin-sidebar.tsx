@@ -13,6 +13,7 @@ const NAV_GROUPS: { label: string | null; items: { href: string; label: string }
     label: "Orang",
     items: [
       { href: "/admin/murid", label: "Siswa" },
+      { href: "/admin/laporan", label: "Laporan" },
       { href: "/admin/pelatih", label: "Pengajar" },
       { href: "/admin/orang-tua", label: "Orang Tua" },
       { href: "/admin/pendaftar", label: "Pendaftar" },

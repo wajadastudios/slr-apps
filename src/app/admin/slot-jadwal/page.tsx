@@ -22,13 +22,13 @@ export default async function SlotJadwalPage({
       supabase
         .from("class_slots")
         .select(
-          "id, label, day_of_week, start_time, capacity, programs:program_id(name), pelatih:pelatih_id(full_name)"
+          "id, label, day_of_week, start_time, capacity, programs:program_id(name), pelatih:pelatih_id(full_name, title)"
         )
         .order("day_of_week")
         .order("start_time"),
       supabase
         .from("users")
-        .select("id, full_name")
+        .select("id, full_name, title")
         .eq("role", "pelatih")
         .order("full_name"),
       supabase.from("programs").select("id, name").order("name"),
@@ -68,7 +68,7 @@ export default async function SlotJadwalPage({
               </option>
               {pelatihList?.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.full_name}
+                  {p.title ? `${p.title} ${p.full_name}` : p.full_name}
                 </option>
               ))}
             </GlassSelect>
@@ -140,8 +140,16 @@ export default async function SlotJadwalPage({
                 }
                 secondary={
                   <>
-                    {(s.pelatih as unknown as { full_name: string } | null)
-                      ?.full_name ?? "-"}{" "}
+                    {(() => {
+                      const pelatih = s.pelatih as unknown as {
+                        full_name: string;
+                        title: string | null;
+                      } | null;
+                      if (!pelatih) return "-";
+                      return pelatih.title
+                        ? `${pelatih.title} ${pelatih.full_name}`
+                        : pelatih.full_name;
+                    })()}{" "}
                     &middot;{" "}
                     <span className={full ? "text-red-700" : ""}>
                       terisi {filled}/{s.capacity}

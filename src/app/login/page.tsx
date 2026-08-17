@@ -93,6 +93,13 @@ export default function LoginPage() {
         </form>
 
         <Link
+          href="/lupa-password"
+          className="mt-4 block text-center text-sm text-[#35C5D0] hover:underline"
+        >
+          Lupa password?
+        </Link>
+
+        <Link
           href="/"
           className="mt-4 block text-center text-sm text-slate-600 hover:underline"
         >

@@ -19,7 +19,13 @@ export default async function PelatihLayout({
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
       <PortalTopNav
         navItems={NAV_ITEMS}
-        userLabel={session.fullName ?? session.user.email ?? ""}
+        userLabel={
+          session.fullName
+            ? session.title
+              ? `${session.title} ${session.fullName}`
+              : session.fullName
+            : session.user.email ?? ""
+        }
         homeHref="/pelatih"
       />
       {children}

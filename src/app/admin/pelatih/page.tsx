@@ -3,7 +3,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
-import { createPelatihAction } from "./actions";
+import { createPelatihAction, updatePelatihTitleAction } from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -17,7 +17,7 @@ export default async function PelatihPage({
 
   const { data: pelatihList } = await supabase
     .from("users")
-    .select("id, full_name, email, created_at")
+    .select("id, full_name, email, title, created_at")
     .eq("role", "pelatih")
     .order("created_at", { ascending: false });
 
@@ -25,10 +25,16 @@ export default async function PelatihPage({
     <div className="flex flex-col gap-6">
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Tambah Pengajar</h2>
-        <form action={createPelatihAction} className="grid gap-4 sm:grid-cols-3">
+        <form action={createPelatihAction} className="grid gap-4 sm:grid-cols-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Nama</label>
             <GlassInput name="full_name" required />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">
+              Sapaan (opsional)
+            </label>
+            <GlassInput name="title" placeholder="Ms / Mr / Coach" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Email</label>
@@ -39,13 +45,13 @@ export default async function PelatihPage({
             <GlassInput name="password" type="text" required minLength={6} />
           </div>
           {error && (
-            <p className="text-sm text-red-700 sm:col-span-3">
+            <p className="text-sm text-red-700 sm:col-span-4">
               {decodeURIComponent(error)}
             </p>
           )}
           <GlassButton
             type="submit"
-            className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] sm:col-span-3 sm:w-fit"
+            className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] sm:col-span-4 sm:w-fit"
           >
             Tambah Pengajar
           </GlassButton>
@@ -59,7 +65,28 @@ export default async function PelatihPage({
             <p className="text-sm text-slate-600">Belum ada pengajar.</p>
           )}
           {pelatihList?.map((p) => (
-            <DataRow key={p.id} primary={p.full_name} secondary={p.email} />
+            <DataRow
+              key={p.id}
+              primary={p.title ? `${p.title} ${p.full_name}` : p.full_name}
+              secondary={p.email}
+              action={
+                <form
+                  action={updatePelatihTitleAction}
+                  className="flex items-center gap-2"
+                >
+                  <input type="hidden" name="id" value={p.id} />
+                  <GlassInput
+                    name="title"
+                    defaultValue={p.title ?? ""}
+                    placeholder="Sapaan"
+                    className="w-28 px-3 py-1.5 text-sm"
+                  />
+                  <GlassButton type="submit" className="px-3 py-1.5 text-xs">
+                    Simpan
+                  </GlassButton>
+                </form>
+              }
+            />
           ))}
         </div>
       </GlassCard>

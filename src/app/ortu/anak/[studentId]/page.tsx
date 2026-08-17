@@ -20,7 +20,7 @@ export default async function AnakDetailPage({
   const { data: student } = await supabase
     .from("students")
     .select(
-      "id, full_name, birth_date, program_id, next_package_preference_id, program:program_id(name, skill_template)"
+      "id, full_name, nickname, birth_date, program_id, next_package_preference_id, program:program_id(name, skill_template)"
     )
     .eq("id", studentId)
     .single();
@@ -80,6 +80,9 @@ export default async function AnakDetailPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
+        <p className="text-sm text-slate-600">
+          Hi, {student.nickname || student.full_name} 👋
+        </p>
         <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">
           {student.full_name}{" "}
           <span className="text-base font-normal text-slate-600">

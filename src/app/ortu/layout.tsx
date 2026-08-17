@@ -5,6 +5,7 @@ import { PortalTopNav } from "@/components/portal-top-nav";
 const NAV_ITEMS = [
   { href: "/ortu", label: "Ringkasan" },
   { href: "/ortu/tagihan", label: "Tagihan" },
+  { href: "/ortu/pengaturan", label: "Pengaturan" },
 ];
 
 export default async function OrtuLayout({

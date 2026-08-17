@@ -7,7 +7,7 @@ export default async function OrtuDashboardPage() {
 
   const { data: children } = await supabase
     .from("students")
-    .select("id, full_name, birth_date, program:program_id(name)")
+    .select("id, full_name, nickname, birth_date, program:program_id(name)")
     .order("full_name");
 
   return (
@@ -31,7 +31,7 @@ export default async function OrtuDashboardPage() {
             <Link key={child.id} href={`/ortu/anak/${child.id}`}>
               <GlassCard className="transition-transform hover:scale-[1.02] hover:border-[#35C5D0]/50">
                 <p className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
-                  {child.full_name}
+                  {child.nickname || child.full_name}
                 </p>
                 <p className="text-sm text-slate-600">
                   {program?.name ?? "Belum ada program"}
