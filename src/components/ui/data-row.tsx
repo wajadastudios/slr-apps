@@ -17,19 +17,19 @@ export function DataRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-white/30 bg-white/40 px-4 py-2.5 transition-colors",
+        "grid grid-cols-1 items-center gap-3 rounded-xl border border-white/30 bg-white/40 px-4 py-2.5 transition-colors sm:grid-cols-[minmax(0,1fr)_auto]",
         muted && "opacity-60",
         className
       )}
     >
       <div className="min-w-0">
-        <div className="truncate font-medium text-[#17263D]">{primary}</div>
+        <div className="font-medium text-[#17263D] sm:truncate">{primary}</div>
         {secondary && (
           <div className="text-sm text-slate-600">{secondary}</div>
         )}
       </div>
       {action && (
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
           {action}
         </div>
       )}
