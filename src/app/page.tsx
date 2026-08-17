@@ -8,23 +8,28 @@ import { WhatsappFab } from "@/components/whatsapp-fab";
 import { DAYS } from "@/lib/days";
 
 const NAV = [
-  { href: "#kelas", label: "Kelas" },
-  { href: "#jadwal", label: "Jadwal" },
-  { href: "#harga", label: "Harga" },
+  { href: "#kelas", label: "Program" },
+  { href: "#tentang", label: "Tentang Kami" },
   { href: "#testimoni", label: "Testimoni" },
-  { href: "#galeri", label: "Galeri" },
   { href: "#kontak", label: "Kontak" },
 ];
 
+const HEADING_FONT = "font-[family-name:var(--font-quicksand)]";
+
 function Stars({ rating }: { rating: number }) {
   return (
-    <span className="text-amber-500" aria-label={`${rating} dari 5 bintang`}>
+    <span className="text-[#FFC800]" aria-label={`${rating} dari 5 bintang`}>
       {"★".repeat(rating)}
-      <span className="text-slate-300 dark:text-slate-600">
-        {"★".repeat(5 - rating)}
-      </span>
+      <span className="text-slate-300">{"★".repeat(5 - rating)}</span>
     </span>
   );
+}
+
+function programIcon(name: string) {
+  const n = name.toLowerCase();
+  if (n.includes("aquanatal") || n.includes("hamil")) return "🤰";
+  if (n.includes("hydro")) return "💧";
+  return "🏊";
 }
 
 export default async function Home() {
@@ -104,99 +109,194 @@ export default async function Home() {
   const aboutText = get("about_text");
 
   return (
-    <div className="relative flex min-h-screen flex-col gap-16 pb-20">
+    <div className="relative flex min-h-screen flex-col gap-16 overflow-hidden bg-gradient-to-b from-[#DDF7FA] via-[#EEF9FB] to-[#FEFCE8] pb-20 font-[family-name:var(--font-plus-jakarta)]">
       <WhatsappFab phone={get("phone")} />
 
       {/* Sticky nav */}
-      <div className="sticky top-4 z-40 mx-auto w-full max-w-3xl px-4">
-        <nav className="flex flex-wrap items-center justify-center gap-1 rounded-2xl border border-white/30 bg-white/50 px-3 py-2.5 shadow-[0_8px_32px_rgba(31,38,135,0.1)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/50">
-          <Link href="/" className="mr-2 flex items-center gap-1.5 pl-1">
+      <div className="sticky top-4 z-40 mx-auto w-full max-w-5xl px-4">
+        <nav className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/30 bg-white/50 px-4 py-2.5 shadow-[0_8px_32px_rgba(31,38,135,0.1)] backdrop-blur-xl">
+          <Link href="/" className="flex items-center gap-1.5 pl-1">
             <Image src="/logo.png" alt="Sari Les Renang" width={24} height={24} />
-            <span className="hidden text-sm font-bold text-slate-900 dark:text-white sm:inline">
+            <span className={`${HEADING_FONT} text-sm font-bold text-[#17263D]`}>
               Sari Les Renang
             </span>
           </Link>
-          {NAV.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/50 dark:text-slate-200 dark:hover:bg-white/10"
+          <div className="flex flex-wrap items-center gap-1">
+            {NAV.map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/50"
+              >
+                {item.label}
+              </a>
+            ))}
+            <Link
+              href="/login"
+              className="rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/50"
             >
-              {item.label}
-            </a>
-          ))}
-          <Link
-            href="/login"
-            className="rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/50 dark:text-slate-200 dark:hover:bg-white/10"
-          >
-            Masuk
-          </Link>
+              Masuk
+            </Link>
+            <Link href="/daftar">
+              <GlassButton className="!border-[#35C5D0]/60 !bg-[#35C5D0] px-4 py-1.5 text-sm font-semibold !text-white hover:!bg-[#2bb0ba]">
+                Daftar Kelas Trial
+              </GlassButton>
+            </Link>
+          </div>
         </nav>
       </div>
 
       {/* Hero */}
-      <section className="relative flex flex-col items-center gap-6 overflow-hidden px-6 pt-12 pb-24 text-center">
-        <WaterBg imageUrl={heroImage} />
-        <h1 className="text-4xl font-bold sm:text-5xl">
-          <span className="text-slate-900 dark:text-white">Belajar Renang,</span>{" "}
-          <span className="text-amber-500">Tumbuh</span>{" "}
-          <span className="text-teal-600 dark:text-teal-300">Bersama di Air</span>
-        </h1>
-        <p className="max-w-xl text-lg text-slate-800 dark:text-slate-100">
-          Program renang anak, aquanatal, dan hydrotherapy — dirancang untuk
-          mendampingi setiap tahap perjalanan keluarga Anda, dipantau
-          langsung lewat laporan perkembangan setiap sesi.
-        </p>
-        <div className="flex flex-wrap justify-center gap-3">
-          <Link href="/daftar">
-            <GlassButton className="border-teal-400/60 bg-teal-500/90 px-8 py-3 text-base font-semibold text-white hover:bg-teal-500">
-              Daftar Kelas Trial &rarr;
-            </GlassButton>
-          </Link>
-          <a href="#kelas">
-            <GlassButton className="px-8 py-3 text-base">
-              Lihat Program
-            </GlassButton>
-          </a>
-        </div>
+      <section className="relative overflow-hidden px-6 pt-8 pb-16">
+        <WaterBg imageUrl={undefined} />
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-14 lg:grid-cols-2">
+          {/* Text column */}
+          <div className="flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/60 px-4 py-1.5 text-xs font-semibold text-[#1a8f99] shadow-sm backdrop-blur-md">
+              🦆 Pendaftaran Kelas Trial Terbuka
+            </span>
+            <h1 className={`${HEADING_FONT} text-4xl font-bold leading-tight sm:text-5xl`}>
+              <span className="text-[#17263D]">Belajar Renang,</span>
+              <br />
+              <span className="text-[#FFC800]">Tumbuh</span>
+              <br />
+              <span className="text-[#35C5D0]">Bersama di Air</span>
+            </h1>
+            <p className="max-w-lg text-lg text-slate-700">
+              Program renang anak, aquanatal, dan hydrotherapy — dirancang
+              untuk mendampingi setiap tahap perjalanan keluarga Anda.
+              Dipantau langsung lewat platform digital SLR.
+            </p>
+            <div className="flex flex-wrap justify-center gap-3 lg:justify-start">
+              <Link href="/daftar">
+                <GlassButton className="!border-[#35C5D0]/60 !bg-[#35C5D0] px-8 py-3 text-base font-semibold !text-white hover:!bg-[#2bb0ba]">
+                  Daftar Kelas Trial &rarr;
+                </GlassButton>
+              </Link>
+              <a href="#kelas">
+                <GlassButton className="px-8 py-3 text-base">
+                  Lihat Program
+                </GlassButton>
+              </a>
+            </div>
 
-        {stats.length > 0 && (
-          <div className="mt-4 grid w-full max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
-            {stats.map((s) => (
-              <GlassCard key={s.label} className="text-center">
-                <p className="text-2xl font-bold text-teal-600 dark:text-teal-300">
-                  {s.value}
-                </p>
-                <p className="text-xs text-slate-700 dark:text-slate-300">
-                  {s.label}
-                </p>
-              </GlassCard>
-            ))}
+            {stats.length > 0 && (
+              <div className="mt-2 grid w-full max-w-xl grid-cols-2 gap-3 sm:grid-cols-4">
+                {stats.map((s) => (
+                  <GlassCard key={s.label} className="text-center">
+                    <p className="text-2xl font-bold text-[#35C5D0]">
+                      {s.value}
+                    </p>
+                    <p className="text-xs text-slate-700">{s.label}</p>
+                  </GlassCard>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Photo + dashboard preview column */}
+          <div className="relative mx-auto w-full max-w-md pb-16 lg:pb-24">
+            <div className="relative overflow-hidden rounded-3xl border border-white/40 shadow-[0_20px_60px_rgba(23,38,61,0.25)]">
+              {heroImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={heroImage}
+                  alt="Sesi renang bersama pelatih SLR"
+                  className="aspect-[4/3] w-full object-cover"
+                />
+              ) : (
+                <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#35C5D0] via-[#7ee0d8] to-[#FFE585] text-center">
+                  <span className="text-5xl">🦆</span>
+                  <span className="px-6 text-sm font-medium text-white/90">
+                    Foto sesi renang akan segera tersedia
+                  </span>
+                </div>
+              )}
+              <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-[#17263D] shadow-sm backdrop-blur-md">
+                🏅 Pelatih Bersertifikat SLR
+              </span>
+            </div>
+
+            {/* Floating dashboard mock */}
+            <div className="absolute -bottom-2 left-1/2 w-[92%] -translate-x-1/2 rounded-2xl border border-white/50 bg-white/85 p-4 shadow-[0_16px_40px_rgba(23,38,61,0.2)] backdrop-blur-xl">
+              <p className="text-sm font-semibold text-[#17263D]">
+                Selamat pagi, Bunda Rania 👋
+              </p>
+              <p className="mb-3 text-xs text-slate-500">
+                Azka &middot; Baby Swim Level 2
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-left">
+                <div className="rounded-xl bg-[#EEF9FB] p-2">
+                  <p className="text-[10px] text-slate-500">Kehadiran</p>
+                  <p className="text-sm font-semibold text-[#35C5D0]">8 / 8 sesi</p>
+                </div>
+                <div className="rounded-xl bg-[#EEF9FB] p-2">
+                  <p className="text-[10px] text-slate-500">Tagihan</p>
+                  <p className="text-sm font-semibold text-[#55D6A6]">Lunas</p>
+                </div>
+                <div className="rounded-xl bg-[#EEF9FB] p-2">
+                  <p className="text-[10px] text-slate-500">Progress</p>
+                  <p className="text-sm font-semibold text-[#35C5D0]">72%</p>
+                </div>
+                <div className="rounded-xl bg-[#EEF9FB] p-2">
+                  <p className="text-[10px] text-slate-500">Laporan</p>
+                  <p className="text-sm font-semibold text-[#55D6A6]">Tersedia</p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <div className="mb-1 flex items-center justify-between text-[10px] text-slate-500">
+                  <span>Skill Renang Azka</span>
+                  <span>72%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-[#35C5D0] to-[#55D6A6]" />
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-[#FFF8E1] p-2">
+                <span className="text-base">📅</span>
+                <p className="text-[11px] font-medium text-[#17263D]">
+                  Sesi Berikutnya: Rabu &middot; 09.00&ndash;09.45 WIB &middot; Coach Sari
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Programs */}
-      <section id="kelas" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
-        <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
-          Jenis &amp; Deskripsi Kelas
+      <section id="kelas" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6 text-center">
+        <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D] sm:text-3xl`}>
+          Program Renang SLR
         </h2>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <p className="mx-auto max-w-xl text-sm text-slate-600">
+          Kurikulum berbasis milestone perkembangan, dari pengenalan air
+          hingga penguasaan teknik renang.
+        </p>
+        <div className="mt-2 grid gap-4 text-left sm:grid-cols-3">
           {programs?.map((p) => (
-            <GlassCard key={p.id}>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                {p.name}
-              </h3>
+            <GlassCard key={p.id} className="relative">
               {p.badge && (
-                <span className="mt-1 inline-block rounded-full bg-teal-500/15 px-2.5 py-0.5 text-xs font-medium text-teal-700 dark:text-teal-300">
+                <span className="absolute right-4 top-4 rounded-full bg-gradient-to-r from-[#35C5D0] to-[#55D6A6] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                   {p.badge}
                 </span>
               )}
+              <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#EEF9FB] text-lg">
+                {programIcon(p.name)}
+              </span>
+              <h3 className="text-lg font-semibold text-[#17263D]">
+                {p.name}
+              </h3>
               {p.description && (
-                <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                <p className="mt-2 text-sm text-slate-600">
                   {p.description}
                 </p>
               )}
+              <a
+                href="/daftar"
+                className="mt-3 inline-block text-sm font-medium text-[#35C5D0] hover:underline"
+              >
+                Pelajari lebih lanjut &rarr;
+              </a>
             </GlassCard>
           ))}
         </div>
@@ -204,12 +304,12 @@ export default async function Home() {
 
       {/* Jadwal Tersedia */}
       <section id="jadwal" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
-        <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
+        <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
           Jadwal Tersedia
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {(!slots || slots.length === 0) && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-slate-600">
               Jadwal akan segera diumumkan.
             </p>
           )}
@@ -221,19 +321,19 @@ export default async function Home() {
             return (
               <GlassCard key={s.id} className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-slate-900 dark:text-white">
+                  <p className="font-medium text-[#17263D]">
                     {DAYS[s.day_of_week]}, {s.start_time} &mdash; {program?.name}
                     {s.label ? ` (${s.label})` : ""}
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-sm text-slate-600">
                     Pelatih: {pelatihName ?? "-"}
                   </p>
                 </div>
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-medium ${
                     full
-                      ? "bg-red-500/20 text-red-700 dark:text-red-300"
-                      : "bg-green-500/20 text-green-700 dark:text-green-300"
+                      ? "bg-red-500/20 text-red-700"
+                      : "bg-[#55D6A6]/20 text-[#1a8f6f]"
                   }`}
                 >
                   {full ? "Penuh" : `Sisa ${s.capacity - filled}`}
@@ -246,7 +346,7 @@ export default async function Home() {
 
       {/* Harga & Paket */}
       <section id="harga" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
-        <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
+        <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
           Harga &amp; Paket
         </h2>
         <div className="flex flex-col gap-4">
@@ -255,23 +355,23 @@ export default async function Home() {
             if (progPackages.length === 0) return null;
             return (
               <GlassCard key={p.id}>
-                <h3 className="mb-3 text-lg font-semibold text-slate-900 dark:text-white">
+                <h3 className="mb-3 text-lg font-semibold text-[#17263D]">
                   {p.name}
                 </h3>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {progPackages.map((pkg) => (
                     <div
                       key={pkg.id}
-                      className="rounded-xl border border-teal-300/40 bg-teal-100/20 p-3 dark:bg-teal-300/10"
+                      className="rounded-xl border border-[#35C5D0]/30 bg-[#EEF9FB] p-3"
                     >
-                      <p className="font-medium text-slate-900 dark:text-white">
+                      <p className="font-medium text-[#17263D]">
                         {pkg.name} &middot; {pkg.sessions_count} sesi
                       </p>
-                      <p className="text-lg font-semibold text-slate-900 dark:text-white">
+                      <p className="text-lg font-semibold text-[#17263D]">
                         Rp{Number(pkg.price).toLocaleString("id-ID")}
                       </p>
                       {pkg.benefits && pkg.benefits.length > 0 && (
-                        <ul className="mt-1 list-inside list-disc text-sm text-slate-600 dark:text-slate-400">
+                        <ul className="mt-1 list-inside list-disc text-sm text-slate-600">
                           {pkg.benefits.map((b: string, i: number) => (
                             <li key={i}>{b}</li>
                           ))}
@@ -284,7 +384,7 @@ export default async function Home() {
             );
           })}
           {packages && packages.length === 0 && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-slate-600">
               Info harga akan segera diumumkan.
             </p>
           )}
@@ -293,32 +393,41 @@ export default async function Home() {
 
       {/* Testimonials */}
       {testimonials && testimonials.length > 0 && (
-        <section id="testimoni" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
-          <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
-            Kata Mereka
+        <section id="testimoni" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6 text-center">
+          <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
+            Kata Keluarga SLR
           </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <p className="mx-auto max-w-md text-sm text-slate-600">
+            Pengalaman nyata dari orang tua dan peserta program kami.
+          </p>
+          <div className="mt-2 grid gap-4 text-left sm:grid-cols-2 lg:grid-cols-3">
             {testimonials.map((t, i) => (
               <GlassCard key={i}>
-                {t.photo_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={t.photo_url}
-                    alt={t.author_name}
-                    className="mb-3 h-32 w-full rounded-xl object-cover"
-                  />
-                )}
                 {t.rating && (
                   <p className="mb-1">
                     <Stars rating={t.rating} />
                   </p>
                 )}
-                <p className="text-sm text-slate-700 dark:text-slate-300">
+                <p className="text-sm text-slate-700">
                   &ldquo;{t.content}&rdquo;
                 </p>
-                <p className="mt-2 text-sm font-medium text-slate-900 dark:text-white">
-                  &mdash; {t.author_name}
-                </p>
+                <div className="mt-4 flex items-center gap-3">
+                  {t.photo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={t.photo_url}
+                      alt={t.author_name}
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#EEF9FB] text-sm font-semibold text-[#35C5D0]">
+                      {t.author_name.charAt(0)}
+                    </div>
+                  )}
+                  <p className="text-sm font-medium text-[#17263D]">
+                    {t.author_name}
+                  </p>
+                </div>
               </GlassCard>
             ))}
           </div>
@@ -328,7 +437,7 @@ export default async function Home() {
       {/* Gallery */}
       {gallery && gallery.length > 0 && (
         <section id="galeri" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
-          <h2 className="text-2xl font-semibold text-slate-900 dark:text-white">
+          <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
             Galeri
           </h2>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -355,45 +464,90 @@ export default async function Home() {
       )}
 
       {/* Tentang Kami */}
-      {aboutText && (
-        <section className="mx-auto w-full max-w-3xl px-6">
-          <GlassCard>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-300">
+      <section id="tentang" className="mx-auto w-full max-w-4xl scroll-mt-24 px-6">
+        <GlassCard className="grid gap-0 overflow-hidden p-0 sm:grid-cols-2">
+          <div className="relative min-h-[220px] sm:min-h-full">
+            {heroImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={heroImage}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#35C5D0] to-[#55D6A6] text-5xl">
+                🏊
+              </div>
+            )}
+          </div>
+          <div className="p-6 sm:p-8">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#35C5D0]">
               Tentang Kami
             </p>
-            <p className="whitespace-pre-line text-sm text-slate-700 dark:text-slate-300">
-              {aboutText}
-            </p>
-          </GlassCard>
-        </section>
-      )}
+            <h2 className={`${HEADING_FONT} text-2xl font-bold leading-snug text-[#17263D]`}>
+              Bukan sekadar kolam renang &mdash; tempat keluarga tumbuh
+              bersama
+            </h2>
+            {aboutText && (
+              <p className="mt-3 whitespace-pre-line text-sm text-slate-700">
+                {aboutText}
+              </p>
+            )}
+            <ul className="mt-4 flex flex-col gap-2 text-sm text-slate-700">
+              <li className="flex items-start gap-2">
+                <span className="text-[#55D6A6]">✅</span>
+                Kolam higienis &mdash; air diuji dan dijaga standar
+                kebersihan harian
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#55D6A6]">✅</span>
+                Pelatih bersertifikat dengan rasio kelas kecil
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[#55D6A6]">✅</span>
+                Laporan progres digital dapat diakses orang tua setiap sesi
+              </li>
+            </ul>
+          </div>
+        </GlassCard>
+      </section>
 
       {/* CTA banner */}
       <section className="mx-auto w-full max-w-3xl px-6">
-        <GlassCard className="flex flex-col items-center gap-3 border-teal-300/40 bg-teal-50/30 text-center dark:bg-teal-400/10">
-          <Image src="/logo.png" alt="Sari Les Renang" width={56} height={56} />
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+        <GlassCard className="relative flex flex-col items-center gap-3 overflow-hidden border-[#35C5D0]/30 bg-gradient-to-br from-[#EEF9FB] to-[#FEFCE8] text-center">
+          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[#35C5D0]/20 blur-2xl" />
+          <div className="absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-[#FFC800]/20 blur-2xl" />
+          <span className="relative text-4xl">🐥👪</span>
+          <h2 className={`${HEADING_FONT} relative text-2xl font-bold text-[#17263D]`}>
             Siap Memulai Petualangan di Air Bersama SLR?
           </h2>
-          <p className="max-w-md text-sm text-slate-700 dark:text-slate-300">
-            Daftar kelas trial dan temukan program yang paling cocok untuk
-            keluarga Anda.
+          <p className="relative max-w-md text-sm text-slate-700">
+            Daftar kelas trial dan temukan program renang yang tepat untuk
+            keluarga Anda. Tanpa komitmen, tanpa biaya pendaftaran.
           </p>
-          <Link href="/daftar">
-            <GlassButton className="border-teal-400/60 bg-teal-500/90 px-8 py-3 text-base font-semibold text-white hover:bg-teal-500">
-              Daftar Kelas Trial
-            </GlassButton>
-          </Link>
+          <div className="relative flex flex-wrap items-center justify-center gap-4">
+            <Link href="/daftar">
+              <GlassButton className="!border-[#35C5D0]/60 !bg-[#35C5D0] px-8 py-3 text-base font-semibold !text-white hover:!bg-[#2bb0ba]">
+                Daftar Kelas Trial &rarr;
+              </GlassButton>
+            </Link>
+            <a
+              href="#kontak"
+              className="text-sm font-semibold text-[#17263D] hover:underline"
+            >
+              Hubungi Kami
+            </a>
+          </div>
         </GlassCard>
       </section>
 
       {/* Contact */}
       <section id="kontak" className="mx-auto w-full max-w-2xl scroll-mt-24 px-6">
         <GlassCard className="text-center">
-          <h2 className="mb-3 text-2xl font-semibold text-slate-900 dark:text-white">
+          <h2 className={`${HEADING_FONT} mb-3 text-2xl font-bold text-[#17263D]`}>
             Lokasi &amp; Kontak
           </h2>
-          <div className="flex flex-col gap-1 text-sm text-slate-700 dark:text-slate-300">
+          <div className="flex flex-col gap-1 text-sm text-slate-700">
             {get("address") && <p>{get("address")}</p>}
             {get("phone") && <p>Telepon/WhatsApp: {get("phone")}</p>}
             {get("email") && <p>Email: {get("email")}</p>}
@@ -401,7 +555,7 @@ export default async function Home() {
           </div>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link href="/daftar">
-              <GlassButton className="border-teal-400/60 bg-teal-500/90 font-semibold text-white hover:bg-teal-500">
+              <GlassButton className="!border-[#35C5D0]/60 !bg-[#35C5D0] font-semibold !text-white hover:!bg-[#2bb0ba]">
                 Daftar Member Baru
               </GlassButton>
             </Link>
@@ -413,18 +567,18 @@ export default async function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="mx-auto flex w-full max-w-4xl flex-col items-center gap-2 border-t border-white/20 px-6 pt-8 text-center">
+      <footer className="mx-auto flex w-full max-w-4xl flex-col items-center gap-2 border-t border-white/30 px-6 pt-8 text-center">
         <div className="flex items-center gap-2">
           <Image src="/logo.png" alt="Sari Les Renang" width={20} height={20} />
-          <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+          <span className={`${HEADING_FONT} text-sm font-semibold text-[#17263D]`}>
             Sari Les Renang
           </span>
         </div>
-        <p className="text-xs text-slate-600 dark:text-slate-400">
+        <p className="text-xs text-slate-600">
           &copy; {new Date().getFullYear()} Sari Les Renang. Semua hak
           dilindungi.
         </p>
-        <div className="flex gap-4 text-xs text-slate-600 dark:text-slate-400">
+        <div className="flex gap-4 text-xs text-slate-600">
           <Link href="/privasi" className="hover:underline">
             Kebijakan Privasi
           </Link>

@@ -2,7 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassButton } from "@/components/ui/glass-button";
+import { DataRow } from "@/components/ui/data-row";
 import { approveRegistrationAction, rejectRegistrationAction } from "./actions";
+
+const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Menunggu",
@@ -31,37 +34,31 @@ export default async function PendaftarPage({
   return (
     <div className="flex flex-col gap-6">
       {error && (
-        <p className="text-sm text-red-700 dark:text-red-300">
-          {decodeURIComponent(error)}
-        </p>
+        <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>
       )}
 
       <GlassCard>
-        <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-          Menunggu Persetujuan
-        </h2>
-        <div className="flex flex-col gap-4">
+        <h2 className={`mb-4 ${HEADING}`}>Menunggu Persetujuan</h2>
+        <div className="flex flex-col gap-3">
           {pending.length === 0 && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Tidak ada pendaftar baru.
-            </p>
+            <p className="text-sm text-slate-600">Tidak ada pendaftar baru.</p>
           )}
           {pending.map((r) => {
             const program = r.program as unknown as { name: string } | null;
             return (
               <div
                 key={r.id}
-                className="rounded-xl border border-white/20 bg-white/10 p-4"
+                className="rounded-xl border border-white/30 bg-white/40 p-4"
               >
-                <p className="font-medium text-slate-900 dark:text-white">
+                <p className="font-medium text-[#17263D]">
                   {r.child_name} &middot; {program?.name ?? "-"}
                 </p>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-slate-600">
                   Orang tua: {r.parent_name} ({r.parent_email}
                   {r.parent_phone ? `, ${r.parent_phone}` : ""})
                 </p>
                 {r.preferred_schedule && (
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-sm text-slate-600">
                     Jadwal diminati: {r.preferred_schedule}
                   </p>
                 )}
@@ -74,7 +71,7 @@ export default async function PendaftarPage({
                     <input type="hidden" name="registration_id" value={r.id} />
                     <input type="hidden" name="full_name" value={r.parent_name} />
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-slate-700 dark:text-slate-300">
+                      <label className="text-xs text-slate-700">
                         Email Akun
                       </label>
                       <GlassInput
@@ -86,7 +83,7 @@ export default async function PendaftarPage({
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-slate-700 dark:text-slate-300">
+                      <label className="text-xs text-slate-700">
                         Password Awal
                       </label>
                       <GlassInput
@@ -97,7 +94,10 @@ export default async function PendaftarPage({
                         className="w-40"
                       />
                     </div>
-                    <GlassButton type="submit" className="px-4 py-2 text-sm">
+                    <GlassButton
+                      type="submit"
+                      className="!bg-[#35C5D0] px-4 py-2 text-sm !text-white hover:!bg-[#2bb0ba]"
+                    >
                       Setujui &amp; Buat Akun
                     </GlassButton>
                   </form>
@@ -116,29 +116,23 @@ export default async function PendaftarPage({
       </GlassCard>
 
       <GlassCard>
-        <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-          Riwayat Pendaftar
-        </h2>
+        <h2 className={`mb-4 ${HEADING}`}>Riwayat Pendaftar</h2>
         <div className="flex flex-col gap-2">
           {others.length === 0 && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Belum ada.
-            </p>
+            <p className="text-sm text-slate-600">Belum ada.</p>
           )}
           {others.map((r) => {
             const program = r.program as unknown as { name: string } | null;
             return (
-              <div
+              <DataRow
                 key={r.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5"
-              >
-                <span className="font-medium text-slate-900 dark:text-white">
-                  {r.child_name} &middot; {program?.name ?? "-"}
-                </span>
-                <span className="text-sm text-slate-600 dark:text-slate-400">
-                  {STATUS_LABEL[r.status] ?? r.status}
-                </span>
-              </div>
+                primary={
+                  <>
+                    {r.child_name} &middot; {program?.name ?? "-"}
+                  </>
+                }
+                secondary={STATUS_LABEL[r.status] ?? r.status}
+              />
             );
           })}
         </div>

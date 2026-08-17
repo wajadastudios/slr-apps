@@ -2,8 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
+import { DataRow } from "@/components/ui/data-row";
 import { DAYS } from "@/lib/days";
 import { enrollStudentAction } from "./actions";
+
+const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
 export default async function JadwalMuridPage({
   searchParams,
@@ -57,17 +60,13 @@ export default async function JadwalMuridPage({
   return (
     <div className="flex flex-col gap-6">
       <GlassCard>
-        <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-          Daftarkan Murid ke Slot Jadwal
-        </h2>
+        <h2 className={`mb-4 ${HEADING}`}>Daftarkan Murid ke Slot Jadwal</h2>
         <form
           action={enrollStudentAction}
           className="grid gap-4 sm:grid-cols-2"
         >
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800 dark:text-slate-200">
-              Murid
-            </label>
+            <label className="text-sm text-slate-800">Murid</label>
             <GlassSelect name="student_id" required defaultValue="">
               <option value="" disabled>
                 Pilih murid
@@ -80,9 +79,7 @@ export default async function JadwalMuridPage({
             </GlassSelect>
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800 dark:text-slate-200">
-              Slot Jadwal
-            </label>
+            <label className="text-sm text-slate-800">Slot Jadwal</label>
             <GlassSelect name="slot_id" required defaultValue="">
               <option value="" disabled>
                 Pilih slot jadwal
@@ -96,19 +93,19 @@ export default async function JadwalMuridPage({
             </GlassSelect>
           </div>
           {error && (
-            <p className="sm:col-span-2 text-sm text-red-700 dark:text-red-300">
+            <p className="text-sm text-red-700 sm:col-span-2">
               {decodeURIComponent(error)}
             </p>
           )}
           {(!slots || slots.length === 0) && (
-            <p className="sm:col-span-2 text-sm text-amber-700 dark:text-amber-300">
+            <p className="text-sm text-amber-700 sm:col-span-2">
               Belum ada slot jadwal — buat dulu di halaman Slot Jadwal.
             </p>
           )}
           <GlassButton
             type="submit"
             disabled={!canEnroll}
-            className="sm:col-span-2 sm:w-fit"
+            className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] sm:col-span-2 sm:w-fit"
           >
             Daftarkan
           </GlassButton>
@@ -116,12 +113,10 @@ export default async function JadwalMuridPage({
       </GlassCard>
 
       <GlassCard>
-        <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-          Daftar Jadwal Murid
-        </h2>
+        <h2 className={`mb-4 ${HEADING}`}>Daftar Jadwal Murid</h2>
         <div className="flex flex-col gap-2">
           {(!enrollments || enrollments.length === 0) && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-slate-600">
               Belum ada murid terdaftar di jadwal.
             </p>
           )}
@@ -134,24 +129,22 @@ export default async function JadwalMuridPage({
               pelatih: { full_name: string } | null;
             } | null;
             return (
-              <div
+              <DataRow
                 key={e.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5"
-              >
-                <span className="font-medium text-slate-900 dark:text-white">
-                  {(e.student as unknown as { full_name: string } | null)
-                    ?.full_name ?? "-"}
-                </span>
-                <span className="text-sm text-slate-600 dark:text-slate-400">
-                  {slot
+                primary={
+                  (e.student as unknown as { full_name: string } | null)
+                    ?.full_name ?? "-"
+                }
+                secondary={
+                  slot
                     ? `${DAYS[slot.day_of_week]}, ${slot.start_time} — ${
                         slot.programs?.name
                       }${slot.label ? ` (${slot.label})` : ""} — ${
                         slot.pelatih?.full_name ?? "-"
                       }`
-                    : "-"}
-                </span>
-              </div>
+                    : "-"
+                }
+              />
             );
           })}
         </div>

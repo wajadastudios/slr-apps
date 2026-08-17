@@ -12,13 +12,13 @@ export default async function OrtuDashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
+      <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">
         Anak Saya
       </h1>
 
       {(!children || children.length === 0) && (
         <GlassCard>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-slate-600">
             Belum ada data anak terdaftar.
           </p>
         </GlassCard>
@@ -29,11 +29,11 @@ export default async function OrtuDashboardPage() {
           const program = child.program as unknown as { name: string } | null;
           return (
             <Link key={child.id} href={`/ortu/anak/${child.id}`}>
-              <GlassCard className="transition-transform hover:scale-[1.02]">
-                <p className="text-lg font-semibold text-slate-900 dark:text-white">
+              <GlassCard className="transition-transform hover:scale-[1.02] hover:border-[#35C5D0]/50">
+                <p className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
                   {child.full_name}
                 </p>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+                <p className="text-sm text-slate-600">
                   {program?.name ?? "Belum ada program"}
                 </p>
               </GlassCard>

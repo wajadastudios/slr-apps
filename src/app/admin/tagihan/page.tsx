@@ -4,8 +4,11 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
+import { DataRow } from "@/components/ui/data-row";
 import { InvoiceShareLinks } from "@/components/invoice-share-links";
 import { createInvoiceForStudentAction, sendInvoiceAction, markPaidAction } from "./actions";
+
+const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
@@ -79,80 +82,73 @@ export default async function TagihanPage({
   return (
     <div className="flex flex-col gap-6">
       <GlassCard>
-        <h2 className="mb-2 text-lg font-semibold text-slate-900 dark:text-white">
-          Murid Siap Ditagih
-        </h2>
-        <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
+        <h2 className={`mb-2 ${HEADING}`}>Murid Siap Ditagih</h2>
+        <p className="mb-4 text-sm text-slate-600">
           Muncul saat sesi hadir murid melebihi jumlah sesi yang sudah pernah
           ditagihkan. Pilih paket untuk membuat draft tagihan berikutnya.
         </p>
         {error && (
-          <p className="mb-3 text-sm text-red-700 dark:text-red-300">
+          <p className="mb-3 text-sm text-red-700">
             {decodeURIComponent(error)}
           </p>
         )}
 
         {dueStudents.length === 0 && (
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-sm text-slate-600">
             Belum ada murid yang siap ditagih.
           </p>
         )}
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2">
           {dueStudents.map((s) => {
             const options = packagesByProgram.get(s.program_id) ?? [];
             return (
-              <form
-                key={s.id}
-                action={createInvoiceForStudentAction}
-                className="flex flex-wrap items-end gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-3"
-              >
+              <form key={s.id} action={createInvoiceForStudentAction}>
                 <input type="hidden" name="student_id" value={s.id} />
-                <div>
-                  <p className="font-medium text-slate-900 dark:text-white">
-                    {s.full_name}
-                  </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    {hadirCount.get(s.id) ?? 0} sesi hadir &middot;{" "}
-                    {sessionsAccounted.get(s.id) ?? 0} sesi sudah ditagih
-                  </p>
-                </div>
-                <GlassSelect
-                  name="program_package_id"
-                  required
-                  defaultValue={s.next_package_preference_id ?? ""}
-                  className="min-w-[220px]"
-                >
-                  <option value="" disabled>
-                    Pilih paket
-                  </option>
-                  {options?.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} &middot; {p.sessions_count} sesi &middot; Rp
-                      {Number(p.price).toLocaleString("id-ID")}
-                      {p.id === s.next_package_preference_id
-                        ? " (pilihan orang tua)"
-                        : ""}
-                    </option>
-                  ))}
-                </GlassSelect>
-                <GlassButton
-                  type="submit"
-                  disabled={!options || options.length === 0}
-                  className="px-4 py-2 text-sm"
-                >
-                  Buat Tagihan
-                </GlassButton>
+                <DataRow
+                  primary={s.full_name}
+                  secondary={`${hadirCount.get(s.id) ?? 0} sesi hadir · ${
+                    sessionsAccounted.get(s.id) ?? 0
+                  } sesi sudah ditagih`}
+                  action={
+                    <>
+                      <GlassSelect
+                        name="program_package_id"
+                        required
+                        defaultValue={s.next_package_preference_id ?? ""}
+                        className="min-w-[200px]"
+                      >
+                        <option value="" disabled>
+                          Pilih paket
+                        </option>
+                        {options?.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} &middot; {p.sessions_count} sesi &middot;
+                            Rp{Number(p.price).toLocaleString("id-ID")}
+                            {p.id === s.next_package_preference_id
+                              ? " (pilihan orang tua)"
+                              : ""}
+                          </option>
+                        ))}
+                      </GlassSelect>
+                      <GlassButton
+                        type="submit"
+                        disabled={!options || options.length === 0}
+                        className="!bg-[#35C5D0] px-4 py-2 text-sm !text-white hover:!bg-[#2bb0ba]"
+                      >
+                        Buat Tagihan
+                      </GlassButton>
+                    </>
+                  }
+                />
               </form>
             );
           })}
         </div>
 
         {notDueStudents.length > 0 && (
-          <div className="mt-4 border-t border-white/20 pt-4">
-            <p className="mb-2 text-sm text-slate-800 dark:text-slate-200">
-              Progres murid lain:
-            </p>
+          <div className="mt-4 border-t border-white/30 pt-4">
+            <p className="mb-2 text-sm text-slate-800">Progres murid lain:</p>
             <div className="flex flex-wrap gap-2">
               {notDueStudents.map((s) => {
                 const total = sessionsAccounted.get(s.id) ?? 0;
@@ -160,7 +156,7 @@ export default async function TagihanPage({
                 return (
                   <span
                     key={s.id}
-                    className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-slate-700 dark:text-slate-300"
+                    className="rounded-full border border-white/30 bg-white/40 px-3 py-1 text-xs text-slate-700"
                   >
                     {s.full_name}: {total > 0 ? `${attended}/${total} sesi` : "belum ada paket"}
                   </span>
@@ -172,14 +168,10 @@ export default async function TagihanPage({
       </GlassCard>
 
       <GlassCard>
-        <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-          Daftar Tagihan
-        </h2>
-        <div className="flex flex-col gap-3">
+        <h2 className={`mb-4 ${HEADING}`}>Daftar Tagihan</h2>
+        <div className="flex flex-col gap-2">
           {(!invoices || invoices.length === 0) && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Belum ada tagihan.
-            </p>
+            <p className="text-sm text-slate-600">Belum ada tagihan.</p>
           )}
           {invoices?.map((inv) => {
             const student = inv.student as unknown as {
@@ -188,71 +180,78 @@ export default async function TagihanPage({
             } | null;
 
             return (
-              <div
+              <DataRow
                 key={inv.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-3"
-              >
-                <div>
-                  <p className="font-medium text-slate-900 dark:text-white">
+                primary={
+                  <>
                     {student?.full_name} &mdash; {inv.package_name} (
                     {inv.sessions_count} sesi)
-                  </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    {STATUS_LABEL[inv.status] ?? inv.status}
-                  </p>
-                  {(inv.status === "sent" || inv.status === "paid") && (
-                    <div className="mt-1">
+                  </>
+                }
+                secondary={
+                  <span className="flex flex-col gap-1">
+                    <span>{STATUS_LABEL[inv.status] ?? inv.status}</span>
+                    {(inv.status === "sent" || inv.status === "paid") && (
                       <InvoiceShareLinks
                         origin={origin}
                         invoiceId={inv.id}
                         studentName={student?.full_name ?? ""}
                         parentEmail={student?.parent?.email}
                       />
-                    </div>
-                  )}
-                </div>
-
-                {inv.status === "draft" && (
-                  <form
-                    action={sendInvoiceAction}
-                    className="flex items-center gap-2"
-                  >
-                    <input type="hidden" name="invoice_id" value={inv.id} />
-                    <GlassInput
-                      name="amount"
-                      type="number"
-                      min={1}
-                      placeholder="Nominal (Rp)"
-                      defaultValue={inv.amount > 0 ? inv.amount : undefined}
-                      className="w-36"
-                      required
-                    />
-                    <GlassButton type="submit" className="px-4 py-2 text-sm">
-                      Setujui &amp; Kirim
-                    </GlassButton>
-                  </form>
-                )}
-
-                {inv.status === "sent" && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">
-                      Rp{Number(inv.amount).toLocaleString("id-ID")}
-                    </span>
-                    <form action={markPaidAction}>
-                      <input type="hidden" name="invoice_id" value={inv.id} />
-                      <GlassButton type="submit" className="px-4 py-2 text-sm">
-                        Tandai Sudah Bayar
-                      </GlassButton>
-                    </form>
-                  </div>
-                )}
-
-                {inv.status === "paid" && (
-                  <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                    Rp{Number(inv.amount).toLocaleString("id-ID")} &mdash; Lunas
+                    )}
                   </span>
-                )}
-              </div>
+                }
+                action={
+                  <>
+                    {inv.status === "draft" && (
+                      <form
+                        action={sendInvoiceAction}
+                        className="flex items-center gap-2"
+                      >
+                        <input type="hidden" name="invoice_id" value={inv.id} />
+                        <GlassInput
+                          name="amount"
+                          type="number"
+                          min={1}
+                          placeholder="Nominal (Rp)"
+                          defaultValue={inv.amount > 0 ? inv.amount : undefined}
+                          className="w-32"
+                          required
+                        />
+                        <GlassButton
+                          type="submit"
+                          className="!bg-[#35C5D0] px-4 py-2 text-sm !text-white hover:!bg-[#2bb0ba]"
+                        >
+                          Setujui &amp; Kirim
+                        </GlassButton>
+                      </form>
+                    )}
+
+                    {inv.status === "sent" && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-[#17263D]">
+                          Rp{Number(inv.amount).toLocaleString("id-ID")}
+                        </span>
+                        <form action={markPaidAction}>
+                          <input type="hidden" name="invoice_id" value={inv.id} />
+                          <GlassButton
+                            type="submit"
+                            className="!bg-[#35C5D0] px-4 py-2 text-sm !text-white hover:!bg-[#2bb0ba]"
+                          >
+                            Tandai Sudah Bayar
+                          </GlassButton>
+                        </form>
+                      </div>
+                    )}
+
+                    {inv.status === "paid" && (
+                      <span className="text-sm font-medium text-[#1a8f6f]">
+                        Rp{Number(inv.amount).toLocaleString("id-ID")} &mdash; Lunas
+                      </span>
+                    )}
+                  </>
+                }
+              />
             );
           })}
         </div>

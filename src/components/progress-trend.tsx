@@ -34,7 +34,7 @@ export function ProgressTrend({
   if (skillsWithData.length === 0) {
     return (
       <GlassCard>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
+        <p className="text-sm text-slate-600">
           Belum ada data skor untuk ditampilkan sebagai tren.
         </p>
       </GlassCard>
@@ -43,7 +43,7 @@ export function ProgressTrend({
 
   return (
     <GlassCard>
-      <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
+      <h2 className="mb-4 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
         Tren Perkembangan
       </h2>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -72,10 +72,8 @@ export function ProgressTrend({
           return (
             <div key={skill}>
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-sm text-slate-700 dark:text-slate-300">
-                  {skill}
-                </span>
-                <span className="text-sm font-medium text-slate-900 dark:text-white">
+                <span className="text-sm text-slate-700">{skill}</span>
+                <span className="text-sm font-medium text-[#17263D]">
                   {latest.score}/5
                 </span>
               </div>
@@ -89,7 +87,7 @@ export function ProgressTrend({
                     fill="none"
                     stroke="currentColor"
                     strokeWidth={2}
-                    className="text-blue-500/80 dark:text-blue-300/80"
+                    className="text-[#35C5D0]"
                   />
                 )}
                 {coords.map((c, idx) => (
@@ -98,7 +96,7 @@ export function ProgressTrend({
                     cx={c.x}
                     cy={c.y}
                     r={3}
-                    className="fill-blue-600 dark:fill-blue-300"
+                    className="fill-[#55D6A6]"
                   />
                 ))}
               </svg>

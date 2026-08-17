@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSiteOrigin } from "@/lib/site-url";
 import { GlassCard } from "@/components/ui/glass-card";
+import { DataRow } from "@/components/ui/data-row";
 import { InvoiceShareLinks } from "@/components/invoice-share-links";
+
+const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
 export default async function OrtuTagihanPage() {
   const supabase = await createClient();
@@ -22,40 +25,40 @@ export default async function OrtuTagihanPage() {
   function InvoiceRow({ inv }: { inv: (typeof belumBayar)[number] }) {
     const student = inv.student as unknown as { full_name: string } | null;
     return (
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3">
-        <div>
-          <p className="font-medium text-slate-900 dark:text-white">
+      <DataRow
+        primary={
+          <>
             {student?.full_name} &mdash; {inv.package_name} (
             {inv.sessions_count} sesi)
-          </p>
-          <div className="mt-1">
-            <InvoiceShareLinks
-              origin={origin}
-              invoiceId={inv.id}
-              studentName={student?.full_name ?? ""}
-            />
-          </div>
-        </div>
-        <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
-          Rp{Number(inv.amount).toLocaleString("id-ID")}
-        </span>
-      </div>
+          </>
+        }
+        secondary={
+          <InvoiceShareLinks
+            origin={origin}
+            invoiceId={inv.id}
+            studentName={student?.full_name ?? ""}
+          />
+        }
+        action={
+          <span className="min-w-[110px] text-right text-sm font-medium text-[#17263D]">
+            Rp{Number(inv.amount).toLocaleString("id-ID")}
+          </span>
+        }
+      />
     );
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
+      <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">
         Tagihan
       </h1>
 
       <GlassCard>
-        <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-          Belum Dibayar
-        </h2>
+        <h2 className={`mb-4 ${HEADING}`}>Belum Dibayar</h2>
         <div className="flex flex-col gap-2">
           {belumBayar.length === 0 && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-slate-600">
               Tidak ada tagihan yang belum dibayar.
             </p>
           )}
@@ -66,12 +69,10 @@ export default async function OrtuTagihanPage() {
       </GlassCard>
 
       <GlassCard>
-        <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-          Riwayat Pembayaran
-        </h2>
+        <h2 className={`mb-4 ${HEADING}`}>Riwayat Pembayaran</h2>
         <div className="flex flex-col gap-2">
           {sudahBayar.length === 0 && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-slate-600">
               Belum ada riwayat pembayaran.
             </p>
           )}

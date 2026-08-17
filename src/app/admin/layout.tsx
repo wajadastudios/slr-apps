@@ -1,23 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getUserWithRole } from "@/lib/auth";
-import { LogoutButton } from "@/components/logout-button";
-
-const NAV = [
-  { href: "/admin", label: "Ringkasan" },
-  { href: "/admin/pelatih", label: "Pelatih" },
-  { href: "/admin/orang-tua", label: "Orang Tua" },
-  { href: "/admin/murid", label: "Murid" },
-  { href: "/admin/program", label: "Program" },
-  { href: "/admin/slot-jadwal", label: "Slot Jadwal" },
-  { href: "/admin/jadwal", label: "Jadwal Murid" },
-  { href: "/admin/paket-harga", label: "Paket Harga" },
-  { href: "/admin/tagihan", label: "Tagihan" },
-  { href: "/admin/pendaftar", label: "Pendaftar" },
-  { href: "/admin/testimoni", label: "Testimoni" },
-  { href: "/admin/galeri", label: "Galeri" },
-  { href: "/admin/pengaturan", label: "Pengaturan" },
-];
+import { AdminSidebar } from "./admin-sidebar";
 
 export default async function AdminLayout({
   children,
@@ -31,28 +14,9 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col gap-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white/30 bg-white/20 px-5 py-4 shadow-[0_8px_32px_rgba(31,38,135,0.15)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
-        <nav className="flex flex-wrap gap-2">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/40 dark:text-slate-200 dark:hover:bg-white/10"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-700 dark:text-slate-300">
-            {session.fullName ?? session.user.email}
-          </span>
-          <LogoutButton />
-        </div>
-      </div>
-
-      {children}
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 lg:flex-row lg:gap-6 lg:p-6">
+      <AdminSidebar userLabel={session.fullName ?? session.user.email ?? ""} />
+      <main className="mx-auto w-full max-w-6xl flex-1">{children}</main>
     </div>
   );
 }

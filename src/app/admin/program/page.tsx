@@ -17,11 +17,11 @@ export default async function ProgramPage() {
     <div className="flex flex-col gap-6">
       {programs?.map((program) => (
         <GlassCard key={program.id}>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+          <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
             {program.name}
           </h2>
           {program.description && (
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            <p className="mt-1 text-sm text-slate-600">
               {program.description}
             </p>
           )}
@@ -31,7 +31,7 @@ export default async function ProgramPage() {
             className="mt-4 flex flex-col gap-2"
           >
             <input type="hidden" name="id" value={program.id} />
-            <label className="text-sm text-slate-800 dark:text-slate-200">
+            <label className="text-sm text-slate-800">
               Badge singkat (opsional, tampil di landing page)
             </label>
             <GlassInput
@@ -39,7 +39,7 @@ export default async function ProgramPage() {
               placeholder="Contoh: Ibu hamil trimester 2-3"
               defaultValue={program.badge ?? ""}
             />
-            <label className="mt-2 text-sm text-slate-800 dark:text-slate-200">
+            <label className="mt-2 text-sm text-slate-800">
               Checklist skill (satu per baris)
             </label>
             <GlassTextarea
@@ -49,7 +49,10 @@ export default async function ProgramPage() {
                 (program.skill_template as unknown as string[]) ?? []
               ).join("\n")}
             />
-            <GlassButton type="submit" className="w-fit">
+            <GlassButton
+              type="submit"
+              className="!bg-[#35C5D0] w-fit !text-white hover:!bg-[#2bb0ba]"
+            >
               Simpan
             </GlassButton>
           </form>

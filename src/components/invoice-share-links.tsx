@@ -17,7 +17,7 @@ export function InvoiceShareLinks({
   )}&body=${encodeURIComponent(message)}`;
 
   const linkClass =
-    "text-xs text-blue-700 underline dark:text-blue-300 whitespace-nowrap";
+    "text-xs text-[#35C5D0] underline whitespace-nowrap";
 
   return (
     <div className="flex flex-wrap gap-3">

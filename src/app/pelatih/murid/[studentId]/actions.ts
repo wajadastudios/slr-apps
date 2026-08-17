@@ -25,23 +25,28 @@ export async function createReportAction(formData: FormData) {
 
   const supabase = await createClient();
 
-  // Re-derive the skill list server-side (don't trust field names from the
-  // client) so scores line up with the student's current program template.
-  const { data: student } = await supabase
-    .from("students")
-    .select("program:program_id(skill_template)")
-    .eq("id", student_id)
-    .single();
-
-  const skillTemplate =
-    ((student?.program as unknown as { skill_template: string[] } | null)
-      ?.skill_template as string[] | undefined) ?? [];
+  // Indicators are pelatih-customizable (not limited to the program's
+  // skill_template) — parse the client-submitted list and sanitize each
+  // entry rather than trusting it verbatim.
+  let parsedScores: unknown;
+  try {
+    parsedScores = JSON.parse(String(formData.get("scores_json") ?? "[]"));
+  } catch {
+    parsedScores = [];
+  }
 
   const scores: Record<string, number> = {};
-  skillTemplate.forEach((skill, i) => {
-    const value = Number(formData.get(`score_${i}`) ?? "");
-    if (value) scores[skill] = value;
-  });
+  if (Array.isArray(parsedScores)) {
+    for (const item of parsedScores.slice(0, 20)) {
+      if (!item || typeof item !== "object") continue;
+      const name = String((item as { name?: unknown }).name ?? "").trim();
+      if (!name) continue;
+      const rawScore = Number((item as { score?: unknown }).score);
+      if (!Number.isFinite(rawScore)) continue;
+      const score = Math.min(5, Math.max(0.5, Math.round(rawScore * 2) / 2));
+      scores[name] = score;
+    }
+  }
 
   const files = formData
     .getAll("media")

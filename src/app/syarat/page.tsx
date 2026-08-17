@@ -12,17 +12,17 @@ export default async function SyaratPage() {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 p-6">
       <GlassCard>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
+        <h1 className="text-2xl font-semibold text-slate-900">
           Syarat &amp; Ketentuan
         </h1>
-        <p className="mt-2 rounded-xl border border-amber-400/40 bg-amber-100/30 px-4 py-2 text-sm text-amber-800 dark:bg-amber-400/10 dark:text-amber-200">
+        <p className="mt-2 rounded-xl border border-amber-400/40 bg-amber-100/30 px-4 py-2 text-sm text-amber-800">
           ⚠️ Ini draf awal, belum direview oleh profesional hukum. Jangan
           dijadikan acuan hukum final sebelum ditinjau.
         </p>
 
-        <div className="mt-6 flex flex-col gap-4 text-sm text-slate-700 dark:text-slate-300">
+        <div className="mt-6 flex flex-col gap-4 text-sm text-slate-700">
           <section>
-            <h2 className="mb-1 font-semibold text-slate-900 dark:text-white">
+            <h2 className="mb-1 font-semibold text-slate-900">
               1. Pendaftaran
             </h2>
             <p>
@@ -33,7 +33,7 @@ export default async function SyaratPage() {
           </section>
 
           <section>
-            <h2 className="mb-1 font-semibold text-slate-900 dark:text-white">
+            <h2 className="mb-1 font-semibold text-slate-900">
               2. Pembayaran &amp; Tagihan
             </h2>
             <p>
@@ -45,7 +45,7 @@ export default async function SyaratPage() {
           </section>
 
           <section>
-            <h2 className="mb-1 font-semibold text-slate-900 dark:text-white">
+            <h2 className="mb-1 font-semibold text-slate-900">
               3. Reschedule &amp; Pembatalan
             </h2>
             <p>
@@ -55,7 +55,7 @@ export default async function SyaratPage() {
           </section>
 
           <section>
-            <h2 className="mb-1 font-semibold text-slate-900 dark:text-white">
+            <h2 className="mb-1 font-semibold text-slate-900">
               4. Tanggung Jawab Peserta
             </h2>
             <p>
@@ -67,7 +67,7 @@ export default async function SyaratPage() {
           </section>
 
           <section>
-            <h2 className="mb-1 font-semibold text-slate-900 dark:text-white">
+            <h2 className="mb-1 font-semibold text-slate-900">
               5. Perubahan Ketentuan
             </h2>
             <p>
@@ -77,7 +77,7 @@ export default async function SyaratPage() {
           </section>
 
           <section>
-            <h2 className="mb-1 font-semibold text-slate-900 dark:text-white">
+            <h2 className="mb-1 font-semibold text-slate-900">
               6. Kontak
             </h2>
             <p>{email || "Hubungi admin Sari Les Renang."}</p>
@@ -86,7 +86,7 @@ export default async function SyaratPage() {
 
         <Link
           href="/"
-          className="mt-6 inline-block text-sm text-blue-700 underline dark:text-blue-300"
+          className="mt-6 inline-block text-sm text-[#35C5D0] underline"
         >
           &larr; Kembali ke Beranda
         </Link>

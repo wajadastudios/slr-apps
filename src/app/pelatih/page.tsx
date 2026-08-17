@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
+import { GlassButton } from "@/components/ui/glass-button";
+import { DataRow } from "@/components/ui/data-row";
 import { DAYS } from "@/lib/days";
 
 export default async function PelatihDashboardPage() {
@@ -31,43 +33,43 @@ export default async function PelatihDashboardPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
+    <div className="flex flex-col gap-4">
+      <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">
         Jadwal Mengajar
       </h1>
 
-      {sorted.length === 0 && (
-        <GlassCard>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+      <GlassCard>
+        {sorted.length === 0 && (
+          <p className="text-sm text-slate-600">
             Belum ada murid yang dijadwalkan untuk Anda.
           </p>
-        </GlassCard>
-      )}
-
-      {sorted.map((row) => (
-        <GlassCard key={row.id}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="font-medium text-slate-900 dark:text-white">
-                {row.slot ? DAYS[row.slot.day_of_week] : "-"}
-                {row.slot ? `, ${row.slot.start_time}` : ""} &mdash;{" "}
-                {row.slot?.programs?.name}
-                {row.slot?.label ? ` (${row.slot.label})` : ""}
-              </p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                {row.student?.full_name}
-              </p>
-            </div>
-            {row.student && (
-              <Link href={`/pelatih/murid/${row.student.id}`}>
-                <span className="rounded-2xl border border-white/30 bg-white/30 px-4 py-2 text-sm font-medium text-slate-900 backdrop-blur-xl transition-all hover:bg-white/40 dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/20">
-                  Isi Laporan
-                </span>
-              </Link>
-            )}
-          </div>
-        </GlassCard>
-      ))}
+        )}
+        <div className="flex flex-col gap-2">
+          {sorted.map((row) => (
+            <DataRow
+              key={row.id}
+              primary={
+                <>
+                  {row.slot ? DAYS[row.slot.day_of_week] : "-"}
+                  {row.slot ? `, ${row.slot.start_time}` : ""} &mdash;{" "}
+                  {row.slot?.programs?.name}
+                  {row.slot?.label ? ` (${row.slot.label})` : ""}
+                </>
+              }
+              secondary={row.student?.full_name}
+              action={
+                row.student && (
+                  <Link href={`/pelatih/murid/${row.student.id}`}>
+                    <GlassButton className="px-4 py-2 text-sm">
+                      Isi Laporan
+                    </GlassButton>
+                  </Link>
+                )
+              }
+            />
+          ))}
+        </div>
+      </GlassCard>
     </div>
   );
 }

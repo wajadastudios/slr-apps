@@ -41,12 +41,10 @@ export default async function AdminDashboardPage() {
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
       {tiles.map((tile) => (
         <GlassCard key={tile.label} className="text-center">
-          <p className="text-3xl font-semibold text-slate-900 dark:text-white">
+          <p className="font-[family-name:var(--font-quicksand)] text-3xl font-bold text-[#35C5D0]">
             {tile.value}
           </p>
-          <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-            {tile.label}
-          </p>
+          <p className="mt-1 text-sm text-slate-700">{tile.label}</p>
         </GlassCard>
       ))}
     </div>

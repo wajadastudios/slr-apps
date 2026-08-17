@@ -2,14 +2,10 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
+import { DataRow } from "@/components/ui/data-row";
 import { ProgressTrend } from "@/components/progress-trend";
+import { ReportHistoryCard } from "@/components/report-history-card";
 import { setPackagePreferenceAction } from "./actions";
-
-const ATTENDANCE_LABEL: Record<string, string> = {
-  hadir: "Hadir",
-  izin: "Izin",
-  sakit: "Sakit",
-};
 
 export default async function AnakDetailPage({
   params,
@@ -84,132 +80,75 @@ export default async function AnakDetailPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
+        <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">
           {student.full_name}{" "}
-          <span className="text-base font-normal text-slate-600 dark:text-slate-400">
+          <span className="text-base font-normal text-slate-600">
             &mdash; {program?.name ?? "Belum ada program"}
           </span>
         </h1>
         {student.birth_date && (
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Lahir: {student.birth_date}
-          </p>
+          <p className="text-sm text-slate-600">Lahir: {student.birth_date}</p>
         )}
       </div>
 
       {showRenewalBanner && availablePackages && availablePackages.length > 0 && (
-        <GlassCard className="border-amber-300/40 bg-amber-100/20 dark:bg-amber-300/10">
-          <h2 className="mb-1 text-lg font-semibold text-slate-900 dark:text-white">
+        <GlassCard className="border-[#FFC800]/40 bg-[#FFF8E1]">
+          <h2 className="mb-1 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
             Sesi Terakhir di Paket Ini
           </h2>
-          <p className="mb-4 text-sm text-slate-700 dark:text-slate-300">
+          <p className="mb-4 text-sm text-slate-700">
             Tinggal 1 sesi lagi di paket {student.full_name} saat ini. Pilih
             paket untuk sesi berikutnya — pilihan Anda akan dilihat admin
             saat menyiapkan tagihan berikutnya (admin tetap yang
             mengonfirmasi & mengirim tagihannya).
           </p>
           <div className="flex flex-col gap-2">
-            {availablePackages.map((pkg) => (
-              <form
-                key={pkg.id}
-                action={setPackagePreferenceAction}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5"
-              >
-                <input type="hidden" name="student_id" value={studentId} />
-                <input type="hidden" name="program_package_id" value={pkg.id} />
-                <div>
-                  <p className="font-medium text-slate-900 dark:text-white">
-                    {pkg.name} &middot; {pkg.sessions_count} sesi &middot; Rp
-                    {Number(pkg.price).toLocaleString("id-ID")}
-                  </p>
-                  {pkg.benefits && pkg.benefits.length > 0 && (
-                    <p className="text-sm text-slate-600 dark:text-slate-400">
-                      {pkg.benefits.join(" · ")}
-                    </p>
-                  )}
-                </div>
-                <GlassButton
-                  type="submit"
-                  className={`px-4 py-2 text-sm ${
-                    pkg.id === student.next_package_preference_id
-                      ? "border-blue-400/60 bg-blue-400/30"
-                      : ""
-                  }`}
-                >
-                  {pkg.id === student.next_package_preference_id
-                    ? "Dipilih"
-                    : "Pilih Paket Ini"}
-                </GlassButton>
-              </form>
-            ))}
+            {availablePackages.map((pkg) => {
+              const selected = pkg.id === student.next_package_preference_id;
+              return (
+                <form key={pkg.id} action={setPackagePreferenceAction}>
+                  <input type="hidden" name="student_id" value={studentId} />
+                  <input
+                    type="hidden"
+                    name="program_package_id"
+                    value={pkg.id}
+                  />
+                  <DataRow
+                    className={selected ? "border-[#35C5D0]/60 bg-[#EEF9FB]" : undefined}
+                    primary={
+                      <>
+                        {pkg.name} &middot; {pkg.sessions_count} sesi
+                        &middot; Rp{Number(pkg.price).toLocaleString("id-ID")}
+                      </>
+                    }
+                    secondary={
+                      pkg.benefits && pkg.benefits.length > 0
+                        ? pkg.benefits.join(" · ")
+                        : undefined
+                    }
+                    action={
+                      <GlassButton
+                        type="submit"
+                        className={
+                          selected
+                            ? "!bg-[#35C5D0] px-4 py-2 text-sm !text-white"
+                            : "px-4 py-2 text-sm"
+                        }
+                      >
+                        {selected ? "Dipilih" : "Pilih Paket Ini"}
+                      </GlassButton>
+                    }
+                  />
+                </form>
+              );
+            })}
           </div>
         </GlassCard>
       )}
 
       <ProgressTrend skillTemplate={skillTemplate} reports={reports ?? []} />
 
-      <GlassCard>
-        <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-          Riwayat Laporan
-        </h2>
-        <div className="flex flex-col gap-3">
-          {(!reports || reports.length === 0) && (
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Belum ada laporan.
-            </p>
-          )}
-          {reports?.map((r) => {
-            const scores = (r.scores as Record<string, number>) ?? {};
-            return (
-              <div
-                key={r.id}
-                className="rounded-xl border border-white/20 bg-white/10 px-4 py-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium text-slate-900 dark:text-white">
-                    Sesi {r.session_number ?? "-"} &mdash; {r.session_date}
-                  </span>
-                  <span className="text-sm text-slate-600 dark:text-slate-400">
-                    {ATTENDANCE_LABEL[r.attendance ?? ""] ?? r.attendance}
-                  </span>
-                </div>
-                {Object.keys(scores).length > 0 && (
-                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-                    {Object.entries(scores)
-                      .map(([skill, score]) => `${skill}: ${score}`)
-                      .join(" · ")}
-                  </p>
-                )}
-                {r.notes && (
-                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-                    {r.notes}
-                  </p>
-                )}
-                {r.next_focus && (
-                  <p className="mt-1 text-sm italic text-slate-600 dark:text-slate-400">
-                    Fokus berikutnya: {r.next_focus}
-                  </p>
-                )}
-                {r.media_urls && r.media_urls.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {r.media_urls.map((url: string) => (
-                      <a
-                        key={url}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-700 underline dark:text-blue-300"
-                      >
-                        Lampiran
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </GlassCard>
+      <ReportHistoryCard reports={reports ?? []} />
     </div>
   );
 }

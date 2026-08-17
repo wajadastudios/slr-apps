@@ -5,6 +5,8 @@ import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
 import { saveSiteSettingsAction } from "./actions";
 
+const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
+
 export default async function PengaturanPage({
   searchParams,
 }: {
@@ -22,34 +24,24 @@ export default async function PengaturanPage({
 
   return (
     <GlassCard>
-      <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
-        Info Kontak & Lokasi (tampil di landing page)
-      </h2>
-      <form action={saveSiteSettingsAction} className="flex flex-col gap-4">
+      <h2 className={HEADING}>Info Kontak &amp; Lokasi (tampil di landing page)</h2>
+      <form action={saveSiteSettingsAction} className="mt-4 flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm text-slate-800 dark:text-slate-200">
-            Alamat
-          </label>
+          <label className="text-sm text-slate-800">Alamat</label>
           <GlassTextarea name="address" rows={2} defaultValue={get("address")} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800 dark:text-slate-200">
-              Nomor Telepon
-            </label>
+            <label className="text-sm text-slate-800">Nomor Telepon</label>
             <GlassInput name="phone" defaultValue={get("phone")} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800 dark:text-slate-200">
-              Email
-            </label>
+            <label className="text-sm text-slate-800">Email</label>
             <GlassInput name="email" type="email" defaultValue={get("email")} />
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm text-slate-800 dark:text-slate-200">
-            Jam Operasional
-          </label>
+          <label className="text-sm text-slate-800">Jam Operasional</label>
           <GlassInput
             name="operating_hours"
             placeholder="Senin-Sabtu, 08:00-17:00"
@@ -57,14 +49,10 @@ export default async function PengaturanPage({
           />
         </div>
 
-        <h2 className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">
-          Statistik Hero (landing page)
-        </h2>
+        <h2 className={`mt-2 ${HEADING}`}>Statistik Hero (landing page)</h2>
         <div className="grid gap-4 sm:grid-cols-4">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800 dark:text-slate-200">
-              Keluarga Aktif
-            </label>
+            <label className="text-sm text-slate-800">Keluarga Aktif</label>
             <GlassInput
               name="stat_families"
               placeholder="100+"
@@ -72,9 +60,7 @@ export default async function PengaturanPage({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800 dark:text-slate-200">
-              Lama Berdiri
-            </label>
+            <label className="text-sm text-slate-800">Lama Berdiri</label>
             <GlassInput
               name="stat_years"
               placeholder="5 Thn"
@@ -82,7 +68,7 @@ export default async function PengaturanPage({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800 dark:text-slate-200">
+            <label className="text-sm text-slate-800">
               Pelatih Bersertifikat
             </label>
             <GlassInput
@@ -92,9 +78,7 @@ export default async function PengaturanPage({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800 dark:text-slate-200">
-              Rating Kepuasan
-            </label>
+            <label className="text-sm text-slate-800">Rating Kepuasan</label>
             <GlassInput
               name="stat_rating"
               placeholder="4.9"
@@ -107,13 +91,9 @@ export default async function PengaturanPage({
           disembunyikan di landing page.
         </p>
 
-        <h2 className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">
-          Tentang Kami (landing page)
-        </h2>
+        <h2 className={`mt-2 ${HEADING}`}>Tentang Kami (landing page)</h2>
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm text-slate-800 dark:text-slate-200">
-            Cerita Singkat
-          </label>
+          <label className="text-sm text-slate-800">Cerita Singkat</label>
           <GlassTextarea
             name="about_text"
             rows={4}
@@ -123,16 +103,13 @@ export default async function PengaturanPage({
         </div>
 
         {error && (
-          <p className="text-sm text-red-700 dark:text-red-300">
-            {decodeURIComponent(error)}
-          </p>
+          <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>
         )}
-        {saved && (
-          <p className="text-sm text-green-700 dark:text-green-300">
-            Tersimpan.
-          </p>
-        )}
-        <GlassButton type="submit" className="w-fit">
+        {saved && <p className="text-sm text-[#1a8f6f]">Tersimpan.</p>}
+        <GlassButton
+          type="submit"
+          className="!bg-[#35C5D0] w-fit !text-white hover:!bg-[#2bb0ba]"
+        >
           Simpan
         </GlassButton>
       </form>
