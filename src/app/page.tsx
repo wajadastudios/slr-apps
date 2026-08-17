@@ -103,7 +103,6 @@ export default async function Home() {
   const stats = [
     { label: "Keluarga Aktif", value: get("stat_families") },
     { label: "Berdiri & Beroperasi", value: get("stat_years") },
-    { label: "Pengajar Bersertifikat", value: get("stat_trainers") },
     { label: "Rating Kepuasan", value: get("stat_rating") },
   ].filter((s) => s.value);
 
@@ -183,7 +182,7 @@ export default async function Home() {
             </div>
 
             {stats.length > 0 && (
-              <div className="mt-2 grid w-full max-w-xl grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="mt-2 grid w-full max-w-xl grid-cols-2 gap-3 sm:grid-cols-3">
                 {stats.map((s) => (
                   <GlassCard key={s.label} className="text-center">
                     <p className="text-2xl font-bold text-[#35C5D0]">
@@ -511,16 +510,32 @@ export default async function Home() {
                 Laporan progres digital dapat diakses orang tua setiap sesi
               </li>
             </ul>
-            {founderCertifications && (
-              <div className="mt-4 rounded-2xl border border-[#FFC800]/40 bg-[#FFC800]/10 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#a67c00]">
-                  🏅 Sertifikasi Founder
-                </p>
-                <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
+            <div className="mt-4 rounded-2xl border border-[#FFC800]/40 bg-[#FFC800]/10 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#a67c00]">
+                Bersertifikasi oleh:
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-5">
+                <Image
+                  src="/Logo AASM.png"
+                  alt="AASM — Association Aquatic of Sport Medicine"
+                  width={140}
+                  height={44}
+                  className="h-9 w-auto object-contain"
+                />
+                <Image
+                  src="/Akuatik_Indonesia_HD_transparent.png"
+                  alt="Akuatik Indonesia"
+                  width={44}
+                  height={44}
+                  className="h-11 w-auto object-contain"
+                />
+              </div>
+              {founderCertifications && (
+                <p className="mt-2 whitespace-pre-line text-sm text-slate-700">
                   {founderCertifications}
                 </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </GlassCard>
       </section>

@@ -50,7 +50,7 @@ export default async function PengaturanPage({
         </div>
 
         <h2 className={`mt-2 ${HEADING}`}>Statistik Hero (landing page)</h2>
-        <div className="grid gap-4 sm:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Keluarga Aktif</label>
             <GlassInput
@@ -65,16 +65,6 @@ export default async function PengaturanPage({
               name="stat_years"
               placeholder="5 Thn"
               defaultValue={get("stat_years")}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">
-              Pengajar Bersertifikat
-            </label>
-            <GlassInput
-              name="stat_trainers"
-              placeholder="10+"
-              defaultValue={get("stat_trainers")}
             />
           </div>
           <div className="flex flex-col gap-1.5">

@@ -12,7 +12,6 @@ const KEYS = [
   "operating_hours",
   "stat_families",
   "stat_years",
-  "stat_trainers",
   "stat_rating",
   "about_text",
   "founder_certifications",
