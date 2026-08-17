@@ -4,10 +4,12 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { EditableListField } from "@/components/ui/editable-list-field";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import {
   createProgramAction,
   updateSkillTemplateAction,
   toggleProgramActiveAction,
+  deleteProgramAction,
 } from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
@@ -99,17 +101,28 @@ export default async function ProgramPage({
                 </span>
               )}
             </h2>
-            <form action={toggleProgramActiveAction}>
-              <input type="hidden" name="id" value={selected.id} />
-              <input
-                type="hidden"
-                name="next_active"
-                value={(!selected.active).toString()}
-              />
-              <GlassButton type="submit" className="px-4 py-2 text-sm">
-                {selected.active ? "Nonaktifkan" : "Aktifkan"}
-              </GlassButton>
-            </form>
+            <div className="flex flex-wrap items-center gap-2">
+              <form action={toggleProgramActiveAction}>
+                <input type="hidden" name="id" value={selected.id} />
+                <input
+                  type="hidden"
+                  name="next_active"
+                  value={(!selected.active).toString()}
+                />
+                <GlassButton type="submit" className="px-4 py-2 text-sm">
+                  {selected.active ? "Nonaktifkan" : "Aktifkan"}
+                </GlassButton>
+              </form>
+              <form action={deleteProgramAction}>
+                <input type="hidden" name="id" value={selected.id} />
+                <ConfirmSubmitButton
+                  message="Menghapus program ini juga akan menghapus semua paket harga di bawahnya. Lanjutkan?"
+                  className="!border-red-300 !bg-red-500/10 px-4 py-2 text-sm !text-red-700 hover:!bg-red-500/20"
+                >
+                  Hapus
+                </ConfirmSubmitButton>
+              </form>
+            </div>
           </div>
 
           <form

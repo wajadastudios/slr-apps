@@ -3,7 +3,12 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
-import { createPelatihAction, updatePelatihTitleAction } from "./actions";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import {
+  createPelatihAction,
+  updatePelatihTitleAction,
+  deletePelatihAction,
+} from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -70,21 +75,32 @@ export default async function PelatihPage({
               primary={p.title ? `${p.title} ${p.full_name}` : p.full_name}
               secondary={p.email}
               action={
-                <form
-                  action={updatePelatihTitleAction}
-                  className="flex items-center gap-2"
-                >
-                  <input type="hidden" name="id" value={p.id} />
-                  <GlassInput
-                    name="title"
-                    defaultValue={p.title ?? ""}
-                    placeholder="Sapaan"
-                    className="w-28 px-3 py-1.5 text-sm"
-                  />
-                  <GlassButton type="submit" className="px-3 py-1.5 text-xs">
-                    Simpan
-                  </GlassButton>
-                </form>
+                <>
+                  <form
+                    action={updatePelatihTitleAction}
+                    className="flex items-center gap-2"
+                  >
+                    <input type="hidden" name="id" value={p.id} />
+                    <GlassInput
+                      name="title"
+                      defaultValue={p.title ?? ""}
+                      placeholder="Sapaan"
+                      className="w-28 px-3 py-1.5 text-sm"
+                    />
+                    <GlassButton type="submit" className="px-3 py-1.5 text-xs">
+                      Simpan
+                    </GlassButton>
+                  </form>
+                  <form action={deletePelatihAction}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <ConfirmSubmitButton
+                      message="Menghapus pengajar ini akan menghapus akun dan riwayat laporan yang pernah ia buat. Lanjutkan?"
+                      className="!border-red-300 !bg-red-500/10 px-3 py-1.5 text-xs !text-red-700 hover:!bg-red-500/20"
+                    >
+                      Hapus
+                    </ConfirmSubmitButton>
+                  </form>
+                </>
               }
             />
           ))}

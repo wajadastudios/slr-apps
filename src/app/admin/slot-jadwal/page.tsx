@@ -4,8 +4,9 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import { DAYS } from "@/lib/days";
-import { createSlotAction } from "./actions";
+import { createSlotAction, deleteSlotAction } from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -160,6 +161,21 @@ export default async function SlotJadwalPage({
                     </span>
                     {s.location ? <> &middot; {s.location}</> : null}
                   </>
+                }
+                action={
+                  <form action={deleteSlotAction}>
+                    <input type="hidden" name="id" value={s.id} />
+                    <ConfirmSubmitButton
+                      message={
+                        filled > 0
+                          ? `Slot ini memiliki ${filled} siswa terdaftar. Menghapusnya akan mengeluarkan mereka dari jadwal ini. Lanjutkan?`
+                          : "Hapus slot jadwal ini?"
+                      }
+                      className="!border-red-300 !bg-red-500/10 px-4 py-2 text-sm !text-red-700 hover:!bg-red-500/20"
+                    >
+                      Hapus
+                    </ConfirmSubmitButton>
+                  </form>
                 }
               />
             );

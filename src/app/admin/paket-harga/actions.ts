@@ -63,3 +63,26 @@ export async function togglePackageActiveAction(formData: FormData) {
   revalidatePath("/admin/paket-harga");
   revalidatePath("/admin/tagihan");
 }
+
+export async function deletePackageAction(formData: FormData) {
+  await requireAdmin();
+
+  const package_id = String(formData.get("package_id") ?? "");
+  const program_id = String(formData.get("program_id") ?? "");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("program_packages")
+    .delete()
+    .eq("id", package_id);
+
+  if (error) {
+    redirect(
+      `/admin/paket-harga?id=${program_id}&error=${encodeURIComponent(error.message)}`
+    );
+  }
+
+  revalidatePath("/admin/paket-harga");
+  revalidatePath("/admin/tagihan");
+  redirect(`/admin/paket-harga?id=${program_id}`);
+}

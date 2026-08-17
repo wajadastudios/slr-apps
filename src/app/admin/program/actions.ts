@@ -69,3 +69,25 @@ export async function toggleProgramActiveAction(formData: FormData) {
   revalidatePath("/admin/program");
   redirect(`/admin/program?id=${id}`);
 }
+
+export async function deleteProgramAction(formData: FormData) {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  const supabase = await createClient();
+  const { error } = await supabase.from("programs").delete().eq("id", id);
+
+  if (error) {
+    if (error.code === "23503") {
+      redirect(
+        `/admin/program?error=${encodeURIComponent(
+          "Tidak bisa dihapus — program ini masih dipakai oleh slot jadwal, siswa, atau pendaftar. Nonaktifkan saja, atau hapus/alihkan data terkait dulu."
+        )}`
+      );
+    }
+    redirect(`/admin/program?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/program");
+  redirect("/admin/program");
+}

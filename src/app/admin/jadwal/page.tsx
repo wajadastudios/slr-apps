@@ -3,8 +3,9 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import { DAYS } from "@/lib/days";
-import { enrollStudentAction } from "./actions";
+import { enrollStudentAction, deleteEnrollmentAction } from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -159,6 +160,17 @@ export default async function JadwalMuridPage({
                         slot.location ? ` — ${slot.location}` : ""
                       }`
                     : "-"
+                }
+                action={
+                  <form action={deleteEnrollmentAction}>
+                    <input type="hidden" name="id" value={e.id} />
+                    <ConfirmSubmitButton
+                      message="Keluarkan siswa ini dari slot jadwal?"
+                      className="!border-red-300 !bg-red-500/10 px-4 py-2 text-sm !text-red-700 hover:!bg-red-500/20"
+                    >
+                      Hapus
+                    </ConfirmSubmitButton>
+                  </form>
                 }
               />
             );

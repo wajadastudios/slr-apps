@@ -5,7 +5,12 @@ import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { EditableListField } from "@/components/ui/editable-list-field";
-import { createPackageAction, togglePackageActiveAction } from "./actions";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import {
+  createPackageAction,
+  togglePackageActiveAction,
+  deletePackageAction,
+} from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -135,17 +140,33 @@ export default async function PaketHargaPage({
                     : undefined
                 }
                 action={
-                  <form action={togglePackageActiveAction}>
-                    <input type="hidden" name="package_id" value={pkg.id} />
-                    <input
-                      type="hidden"
-                      name="next_active"
-                      value={(!pkg.active).toString()}
-                    />
-                    <GlassButton type="submit" className="px-4 py-2 text-sm">
-                      {pkg.active ? "Nonaktifkan" : "Aktifkan"}
-                    </GlassButton>
-                  </form>
+                  <>
+                    <form action={togglePackageActiveAction}>
+                      <input type="hidden" name="package_id" value={pkg.id} />
+                      <input
+                        type="hidden"
+                        name="next_active"
+                        value={(!pkg.active).toString()}
+                      />
+                      <GlassButton type="submit" className="px-4 py-2 text-sm">
+                        {pkg.active ? "Nonaktifkan" : "Aktifkan"}
+                      </GlassButton>
+                    </form>
+                    <form action={deletePackageAction}>
+                      <input type="hidden" name="package_id" value={pkg.id} />
+                      <input
+                        type="hidden"
+                        name="program_id"
+                        value={selectedProgram.id}
+                      />
+                      <ConfirmSubmitButton
+                        message="Hapus paket ini? Invoice yang sudah ada tidak akan terpengaruh."
+                        className="!border-red-300 !bg-red-500/10 px-4 py-2 text-sm !text-red-700 hover:!bg-red-500/20"
+                      >
+                        Hapus
+                      </ConfirmSubmitButton>
+                    </form>
+                  </>
                 }
               />
             ))}

@@ -50,3 +50,19 @@ export async function createSlotAction(formData: FormData) {
   revalidatePath("/admin/jadwal");
   redirect("/admin/slot-jadwal");
 }
+
+export async function deleteSlotAction(formData: FormData) {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  const supabase = await createClient();
+  const { error } = await supabase.from("class_slots").delete().eq("id", id);
+
+  if (error) {
+    redirect(`/admin/slot-jadwal?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/slot-jadwal");
+  revalidatePath("/admin/jadwal");
+  redirect("/admin/slot-jadwal");
+}

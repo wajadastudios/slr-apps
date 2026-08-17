@@ -56,3 +56,19 @@ export async function enrollStudentAction(formData: FormData) {
   revalidatePath("/admin/slot-jadwal");
   redirect("/admin/jadwal");
 }
+
+export async function deleteEnrollmentAction(formData: FormData) {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  const supabase = await createClient();
+  const { error } = await supabase.from("schedules").delete().eq("id", id);
+
+  if (error) {
+    redirect(`/admin/jadwal?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/jadwal");
+  revalidatePath("/admin/slot-jadwal");
+  redirect("/admin/jadwal");
+}
