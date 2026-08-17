@@ -15,6 +15,7 @@ const KEYS = [
   "stat_trainers",
   "stat_rating",
   "about_text",
+  "founder_certifications",
 ] as const;
 
 export async function saveSiteSettingsAction(formData: FormData) {

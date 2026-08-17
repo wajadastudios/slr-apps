@@ -101,6 +101,17 @@ export default async function PengaturanPage({
             defaultValue={get("about_text")}
           />
         </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm text-slate-800">
+            Sertifikasi Founder (Sari)
+          </label>
+          <GlassTextarea
+            name="founder_certifications"
+            rows={3}
+            placeholder="Contoh: Bersertifikasi AASM dan Akuatik Indonesia"
+            defaultValue={get("founder_certifications")}
+          />
+        </div>
 
         {error && (
           <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>

@@ -108,6 +108,7 @@ export default async function Home() {
   ].filter((s) => s.value);
 
   const aboutText = get("about_text");
+  const founderCertifications = get("founder_certifications");
 
   return (
     <div className="relative flex min-h-screen flex-col gap-16 overflow-hidden bg-gradient-to-b from-[#DDF7FA] via-[#EEF9FB] to-[#FEFCE8] pb-20 font-[family-name:var(--font-plus-jakarta)]">
@@ -510,6 +511,16 @@ export default async function Home() {
                 Laporan progres digital dapat diakses orang tua setiap sesi
               </li>
             </ul>
+            {founderCertifications && (
+              <div className="mt-4 rounded-2xl border border-[#FFC800]/40 bg-[#FFC800]/10 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#a67c00]">
+                  🏅 Sertifikasi Founder
+                </p>
+                <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
+                  {founderCertifications}
+                </p>
+              </div>
+            )}
           </div>
         </GlassCard>
       </section>
