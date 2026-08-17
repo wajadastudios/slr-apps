@@ -131,6 +131,10 @@ export default async function ProgramPage({
           >
             <input type="hidden" name="id" value={selected.id} />
             <div className="flex flex-col gap-1.5">
+              <label className="text-sm text-slate-800">Nama Program</label>
+              <GlassInput name="name" defaultValue={selected.name} required />
+            </div>
+            <div className="flex flex-col gap-1.5">
               <label className="text-sm text-slate-800">Deskripsi</label>
               <GlassInput
                 name="description"
@@ -160,6 +164,7 @@ export default async function ProgramPage({
                 placeholder="Nama skill"
               />
             </div>
+            {error && <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>}
             <GlassButton
               type="submit"
               className="!bg-[#35C5D0] w-fit !text-white hover:!bg-[#2bb0ba]"

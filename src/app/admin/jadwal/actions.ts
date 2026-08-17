@@ -57,6 +57,59 @@ export async function enrollStudentAction(formData: FormData) {
   redirect("/admin/jadwal");
 }
 
+export async function updateEnrollmentAction(formData: FormData) {
+  await requireAdmin();
+
+  const enrollment_id = String(formData.get("enrollment_id") ?? "");
+  const slot_id = String(formData.get("slot_id") ?? "");
+
+  if (!enrollment_id || !slot_id) {
+    redirect(
+      `/admin/jadwal?error=${encodeURIComponent("Slot jadwal wajib dipilih.")}`
+    );
+  }
+
+  const supabase = await createClient();
+
+  const { data: slot } = await supabase
+    .from("class_slots")
+    .select("capacity")
+    .eq("id", slot_id)
+    .single();
+
+  if (!slot) {
+    redirect(`/admin/jadwal?error=${encodeURIComponent("Slot jadwal tidak ditemukan.")}`);
+  }
+
+  const { count } = await supabase
+    .from("schedules")
+    .select("*", { count: "exact", head: true })
+    .eq("slot_id", slot_id)
+    .neq("id", enrollment_id);
+
+  if ((count ?? 0) >= slot!.capacity) {
+    redirect(
+      `/admin/jadwal?editEnroll=${enrollment_id}&error=${encodeURIComponent("Slot jadwal ini sudah penuh.")}`
+    );
+  }
+
+  const { error } = await supabase
+    .from("schedules")
+    .update({ slot_id })
+    .eq("id", enrollment_id);
+
+  if (error) {
+    const message = error.code === "23505"
+      ? "Siswa ini sudah terdaftar di slot jadwal tersebut."
+      : error.message;
+    redirect(`/admin/jadwal?editEnroll=${enrollment_id}&error=${encodeURIComponent(message)}`);
+  }
+
+  revalidatePath("/admin/jadwal");
+  revalidatePath("/admin/slot-jadwal");
+  redirect("/admin/jadwal");
+}
+
 export async function deleteEnrollmentAction(formData: FormData) {
   await requireAdmin();
 

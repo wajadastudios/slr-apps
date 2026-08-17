@@ -6,16 +6,20 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import { DAYS } from "@/lib/days";
-import { createSlotAction, deleteSlotAction } from "./actions";
+import {
+  createSlotAction,
+  updateSlotAction,
+  deleteSlotAction,
+} from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
 export default async function SlotJadwalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; edit?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, edit } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: slots }, { data: pelatihList }, { data: programs }, { data: enrollments }] =
@@ -23,7 +27,7 @@ export default async function SlotJadwalPage({
       supabase
         .from("class_slots")
         .select(
-          "id, label, location, day_of_week, start_time, capacity, programs:program_id(name), pelatih:pelatih_id(full_name, title)"
+          "id, program_id, pelatih_id, label, location, day_of_week, start_time, capacity, programs:program_id(name), pelatih:pelatih_id(full_name, title)"
         )
         .order("day_of_week")
         .order("start_time"),
@@ -42,15 +46,29 @@ export default async function SlotJadwalPage({
   }
 
   const canCreate = (pelatihList?.length ?? 0) > 0 && (programs?.length ?? 0) > 0;
+  const editingSlot = edit ? slots?.find((s) => s.id === edit) : undefined;
+  const isEditing = Boolean(editingSlot);
 
   return (
     <div className="flex flex-col gap-6">
       <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>Tambah Slot Jadwal</h2>
-        <form action={createSlotAction} className="grid gap-4 sm:grid-cols-3 lg:grid-cols-7">
+        <h2 className={`mb-4 ${HEADING}`}>
+          {isEditing ? "Edit Slot Jadwal" : "Tambah Slot Jadwal"}
+        </h2>
+        <form
+          action={isEditing ? updateSlotAction : createSlotAction}
+          className="grid gap-4 sm:grid-cols-3 lg:grid-cols-7"
+        >
+          {isEditing && (
+            <input type="hidden" name="slot_id" value={editingSlot!.id} />
+          )}
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Program</label>
-            <GlassSelect name="program_id" required defaultValue="">
+            <GlassSelect
+              name="program_id"
+              required
+              defaultValue={editingSlot?.program_id ?? ""}
+            >
               <option value="" disabled>
                 Pilih program
               </option>
@@ -63,7 +81,11 @@ export default async function SlotJadwalPage({
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Pengajar</label>
-            <GlassSelect name="pelatih_id" required defaultValue="">
+            <GlassSelect
+              name="pelatih_id"
+              required
+              defaultValue={editingSlot?.pelatih_id ?? ""}
+            >
               <option value="" disabled>
                 Pilih pengajar
               </option>
@@ -76,15 +98,27 @@ export default async function SlotJadwalPage({
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Label (opsional)</label>
-            <GlassInput name="label" placeholder="Grup / Private" />
+            <GlassInput
+              name="label"
+              placeholder="Grup / Private"
+              defaultValue={editingSlot?.label ?? ""}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Lokasi Kolam (opsional)</label>
-            <GlassInput name="location" placeholder="Kolam A / Cabang Selatan" />
+            <GlassInput
+              name="location"
+              placeholder="Kolam A / Cabang Selatan"
+              defaultValue={editingSlot?.location ?? ""}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Hari</label>
-            <GlassSelect name="day_of_week" required defaultValue="">
+            <GlassSelect
+              name="day_of_week"
+              required
+              defaultValue={editingSlot?.day_of_week ?? ""}
+            >
               <option value="" disabled>
                 Pilih hari
               </option>
@@ -97,11 +131,22 @@ export default async function SlotJadwalPage({
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Jam</label>
-            <GlassInput name="start_time" type="time" required />
+            <GlassInput
+              name="start_time"
+              type="time"
+              required
+              defaultValue={editingSlot?.start_time ?? ""}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Kapasitas</label>
-            <GlassInput name="capacity" type="number" min={1} required />
+            <GlassInput
+              name="capacity"
+              type="number"
+              min={1}
+              required
+              defaultValue={editingSlot?.capacity ?? ""}
+            />
           </div>
           {error && (
             <p className="text-sm text-red-700 sm:col-span-3 lg:col-span-7">
@@ -114,13 +159,23 @@ export default async function SlotJadwalPage({
               jadwal.
             </p>
           )}
-          <GlassButton
-            type="submit"
-            disabled={!canCreate}
-            className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] sm:col-span-3 sm:w-fit lg:col-span-7"
-          >
-            Tambah Slot
-          </GlassButton>
+          <div className="flex items-center gap-3 sm:col-span-3 lg:col-span-7">
+            <GlassButton
+              type="submit"
+              disabled={!canCreate}
+              className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] w-fit"
+            >
+              {isEditing ? "Simpan Perubahan" : "Tambah Slot"}
+            </GlassButton>
+            {isEditing && (
+              <a
+                href="/admin/slot-jadwal"
+                className="text-sm text-slate-600 underline"
+              >
+                Batal
+              </a>
+            )}
+          </div>
         </form>
       </GlassCard>
 
@@ -163,19 +218,27 @@ export default async function SlotJadwalPage({
                   </>
                 }
                 action={
-                  <form action={deleteSlotAction}>
-                    <input type="hidden" name="id" value={s.id} />
-                    <ConfirmSubmitButton
-                      message={
-                        filled > 0
-                          ? `Slot ini memiliki ${filled} siswa terdaftar. Menghapusnya akan mengeluarkan mereka dari jadwal ini. Lanjutkan?`
-                          : "Hapus slot jadwal ini?"
-                      }
-                      className="!border-red-300 !bg-red-500/10 px-4 py-2 text-sm !text-red-700 hover:!bg-red-500/20"
+                  <>
+                    <a
+                      href={`/admin/slot-jadwal?edit=${s.id}`}
+                      className="rounded-2xl border border-white/30 bg-white/30 px-4 py-2 text-sm font-medium text-slate-900 backdrop-blur-xl hover:bg-white/40"
                     >
-                      Hapus
-                    </ConfirmSubmitButton>
-                  </form>
+                      Edit
+                    </a>
+                    <form action={deleteSlotAction}>
+                      <input type="hidden" name="id" value={s.id} />
+                      <ConfirmSubmitButton
+                        message={
+                          filled > 0
+                            ? `Slot ini memiliki ${filled} siswa terdaftar. Menghapusnya akan mengeluarkan mereka dari jadwal ini. Lanjutkan?`
+                            : "Hapus slot jadwal ini?"
+                        }
+                        className="!border-red-300 !bg-red-500/10 px-4 py-2 text-sm !text-red-700 hover:!bg-red-500/20"
+                      >
+                        Hapus
+                      </ConfirmSubmitButton>
+                    </form>
+                  </>
                 }
               />
             );

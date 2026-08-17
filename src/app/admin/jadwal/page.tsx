@@ -5,16 +5,20 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import { DAYS } from "@/lib/days";
-import { enrollStudentAction, deleteEnrollmentAction } from "./actions";
+import {
+  enrollStudentAction,
+  updateEnrollmentAction,
+  deleteEnrollmentAction,
+} from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
 export default async function JadwalMuridPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; editEnroll?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, editEnroll } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: enrollments }, { data: students }, { data: slots }] =
@@ -22,7 +26,7 @@ export default async function JadwalMuridPage({
       supabase
         .from("schedules")
         .select(
-          "id, student:student_id(full_name), slot:slot_id(label, location, day_of_week, start_time, programs:program_id(name), pelatih:pelatih_id(full_name, title))"
+          "id, slot_id, student:student_id(full_name), slot:slot_id(label, location, day_of_week, start_time, programs:program_id(name), pelatih:pelatih_id(full_name, title))"
         )
         .order("created_at", { ascending: false }),
       supabase.from("students").select("id, full_name").order("full_name"),
@@ -162,15 +166,61 @@ export default async function JadwalMuridPage({
                     : "-"
                 }
                 action={
-                  <form action={deleteEnrollmentAction}>
-                    <input type="hidden" name="id" value={e.id} />
-                    <ConfirmSubmitButton
-                      message="Keluarkan siswa ini dari slot jadwal?"
-                      className="!border-red-300 !bg-red-500/10 px-4 py-2 text-sm !text-red-700 hover:!bg-red-500/20"
+                  editEnroll === e.id ? (
+                    <form
+                      action={updateEnrollmentAction}
+                      className="flex flex-wrap items-center gap-2"
                     >
-                      Hapus
-                    </ConfirmSubmitButton>
-                  </form>
+                      <input type="hidden" name="enrollment_id" value={e.id} />
+                      <GlassSelect
+                        name="slot_id"
+                        required
+                        defaultValue={e.slot_id}
+                        className="min-w-[220px]"
+                      >
+                        {slotOptions.map((s) => (
+                          <option
+                            key={s.id}
+                            value={s.id}
+                            disabled={s.full && s.id !== e.slot_id}
+                          >
+                            {s.label}
+                            {s.full && s.id !== e.slot_id ? " — PENUH" : ""}
+                          </option>
+                        ))}
+                      </GlassSelect>
+                      <GlassButton
+                        type="submit"
+                        className="!bg-[#35C5D0] px-4 py-2 text-sm !text-white hover:!bg-[#2bb0ba]"
+                      >
+                        Simpan
+                      </GlassButton>
+                      <a
+                        href="/admin/jadwal"
+                        className="text-sm text-slate-600 underline"
+                      >
+                        Batal
+                      </a>
+                    </form>
+                  ) : (
+                    <>
+                      <a
+                        href={`/admin/jadwal?editEnroll=${e.id}`}
+                        className="rounded-2xl border border-white/30 bg-white/30 px-4 py-2 text-sm font-medium text-slate-900 backdrop-blur-xl hover:bg-white/40"
+                      >
+                        Edit
+                      </a>
+                      <form action={deleteEnrollmentAction}>
+                        <input type="hidden" name="id" value={e.id} />
+                        <ConfirmSubmitButton
+                          message="Keluarkan siswa ini dari slot jadwal?"
+                          className="!border-red-300 !bg-red-500/10 px-4 py-2 text-sm !text-red-700 hover:!bg-red-500/20"
+                        >
+                          Hapus
+                        </ConfirmSubmitButton>
+                      </form>
+                    </>
+                  )
                 }
               />
             );

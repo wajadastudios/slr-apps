@@ -8,6 +8,7 @@ import { EditableListField } from "@/components/ui/editable-list-field";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import {
   createPackageAction,
+  updatePackageAction,
   togglePackageActiveAction,
   deletePackageAction,
 } from "./actions";
@@ -17,9 +18,9 @@ const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text
 export default async function PaketHargaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string; error?: string }>;
+  searchParams: Promise<{ id?: string; error?: string; editPkg?: string }>;
 }) {
-  const { id, error } = await searchParams;
+  const { id, error, editPkg } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: programs }, { data: packages }] = await Promise.all([
@@ -35,6 +36,10 @@ export default async function PaketHargaPage({
   const programPackages = (packages ?? []).filter(
     (p) => p.program_id === selectedId
   );
+  const editingPackage = editPkg
+    ? programPackages.find((p) => p.id === editPkg)
+    : undefined;
+  const isEditingPkg = Boolean(editingPackage);
 
   return (
     <div className="flex flex-col gap-6">
@@ -75,28 +80,48 @@ export default async function PaketHargaPage({
           <h2 className={`mb-4 ${HEADING}`}>{selectedProgram.name}</h2>
 
           <form
-            action={createPackageAction}
+            action={isEditingPkg ? updatePackageAction : createPackageAction}
             className="flex flex-col gap-4"
           >
             <input type="hidden" name="program_id" value={selectedProgram.id} />
+            {isEditingPkg && (
+              <input type="hidden" name="package_id" value={editingPackage!.id} />
+            )}
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm text-slate-800">Nama Paket</label>
-                <GlassInput name="name" placeholder="Standar / Bundling" required />
+                <GlassInput
+                  name="name"
+                  placeholder="Standar / Bundling"
+                  defaultValue={editingPackage?.name ?? ""}
+                  required
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm text-slate-800">Jumlah Sesi</label>
-                <GlassInput name="sessions_count" type="number" min={1} required />
+                <GlassInput
+                  name="sessions_count"
+                  type="number"
+                  min={1}
+                  defaultValue={editingPackage?.sessions_count ?? ""}
+                  required
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm text-slate-800">Harga (Rp)</label>
-                <GlassInput name="price" type="number" min={0} required />
+                <GlassInput
+                  name="price"
+                  type="number"
+                  min={0}
+                  defaultValue={editingPackage?.price ?? ""}
+                  required
+                />
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm text-slate-800">Benefit</label>
               <EditableListField
-                initialItems={[]}
+                initialItems={editingPackage?.benefits ?? []}
                 fieldName="benefits"
                 itemLabel="Benefit"
                 placeholder="Contoh: Gratis topi renang"
@@ -105,12 +130,22 @@ export default async function PaketHargaPage({
             {error && (
               <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>
             )}
-            <GlassButton
-              type="submit"
-              className="!bg-[#35C5D0] w-fit !text-white hover:!bg-[#2bb0ba]"
-            >
-              Tambah Paket
-            </GlassButton>
+            <div className="flex items-center gap-3">
+              <GlassButton
+                type="submit"
+                className="!bg-[#35C5D0] w-fit !text-white hover:!bg-[#2bb0ba]"
+              >
+                {isEditingPkg ? "Simpan Perubahan" : "Tambah Paket"}
+              </GlassButton>
+              {isEditingPkg && (
+                <a
+                  href={`/admin/paket-harga?id=${selectedProgram.id}`}
+                  className="text-sm text-slate-600 underline"
+                >
+                  Batal
+                </a>
+              )}
+            </div>
           </form>
 
           <div className="mt-4 flex flex-col gap-2">
@@ -141,6 +176,12 @@ export default async function PaketHargaPage({
                 }
                 action={
                   <>
+                    <a
+                      href={`/admin/paket-harga?id=${selectedProgram.id}&editPkg=${pkg.id}`}
+                      className="rounded-2xl border border-white/30 bg-white/30 px-4 py-2 text-sm font-medium text-slate-900 backdrop-blur-xl hover:bg-white/40"
+                    >
+                      Edit
+                    </a>
                     <form action={togglePackageActiveAction}>
                       <input type="hidden" name="package_id" value={pkg.id} />
                       <input

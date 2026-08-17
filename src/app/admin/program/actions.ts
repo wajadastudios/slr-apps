@@ -32,8 +32,15 @@ export async function updateSkillTemplateAction(formData: FormData) {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const badge = String(formData.get("badge") ?? "").trim();
+
+  if (!name) {
+    redirect(
+      `/admin/program?id=${id}&error=${encodeURIComponent("Nama program wajib diisi.")}`
+    );
+  }
 
   let skills: string[] = [];
   try {
@@ -47,6 +54,7 @@ export async function updateSkillTemplateAction(formData: FormData) {
   await supabase
     .from("programs")
     .update({
+      name,
       description: description || null,
       skill_template: skills,
       badge: badge || null,

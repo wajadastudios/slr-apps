@@ -64,6 +64,47 @@ export async function togglePackageActiveAction(formData: FormData) {
   revalidatePath("/admin/tagihan");
 }
 
+export async function updatePackageAction(formData: FormData) {
+  await requireAdmin();
+
+  const package_id = String(formData.get("package_id") ?? "");
+  const program_id = String(formData.get("program_id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const sessions_count = Number(formData.get("sessions_count") ?? "");
+  const price = Number(formData.get("price") ?? "");
+  let benefits: string[] = [];
+  try {
+    const parsed = JSON.parse(String(formData.get("benefits") ?? "[]"));
+    if (Array.isArray(parsed)) benefits = parsed.filter((s) => typeof s === "string");
+  } catch {
+    benefits = [];
+  }
+
+  if (!name || !sessions_count || sessions_count < 1 || price < 0) {
+    redirect(
+      `/admin/paket-harga?id=${program_id}&editPkg=${package_id}&error=${encodeURIComponent(
+        "Nama, jumlah sesi (min 1), dan harga wajib diisi dengan benar."
+      )}`
+    );
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("program_packages")
+    .update({ name, sessions_count, price, benefits })
+    .eq("id", package_id);
+
+  if (error) {
+    redirect(
+      `/admin/paket-harga?id=${program_id}&editPkg=${package_id}&error=${encodeURIComponent(error.message)}`
+    );
+  }
+
+  revalidatePath("/admin/paket-harga");
+  revalidatePath("/admin/tagihan");
+  redirect(`/admin/paket-harga?id=${program_id}`);
+}
+
 export async function deletePackageAction(formData: FormData) {
   await requireAdmin();
 
