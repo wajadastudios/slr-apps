@@ -69,7 +69,7 @@ export async function uploadQrisAction(formData: FormData) {
 
   const { error: uploadError } = await supabase.storage
     .from("progress-media")
-    .upload(path, file, { contentType: file.type });
+    .upload(path, file, { contentType: file.type, upsert: true });
 
   if (uploadError) {
     redirect(`/admin/pengaturan?error=${encodeURIComponent(uploadError.message)}`);

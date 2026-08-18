@@ -28,7 +28,7 @@ async function replaceSlotFile(slot: SlotName, file: File) {
 
   const { error: uploadError } = await supabase.storage
     .from("progress-media")
-    .upload(path, file, { contentType: file.type });
+    .upload(path, file, { contentType: file.type, upsert: true });
 
   if (uploadError) throw new Error(uploadError.message);
 
