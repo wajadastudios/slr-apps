@@ -3,7 +3,13 @@ import { getUserWithRole } from "@/lib/auth";
 import { PortalSidebar } from "@/components/portal-sidebar";
 
 const NAV_GROUPS = [
-  { label: null, items: [{ href: "/pelatih", label: "Ringkasan" }] },
+  {
+    label: null,
+    items: [
+      { href: "/pelatih", label: "Ringkasan" },
+      { href: "/pelatih/pengganti", label: "Pengajar Pengganti" },
+    ],
+  },
 ];
 
 export default async function PelatihLayout({
