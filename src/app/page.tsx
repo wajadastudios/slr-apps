@@ -139,32 +139,33 @@ export default async function Home() {
       <WhatsappFab phone={get("phone")} />
 
       {/* Sticky nav */}
-      <div className="sticky top-4 z-40 mx-auto w-full max-w-4xl px-4">
-        <nav className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/30 bg-white/50 px-4 py-2.5 shadow-[0_8px_32px_rgba(31,38,135,0.1)] backdrop-blur-xl">
-          <Link href="/" className="flex items-center gap-1.5 pl-1">
+      <div className="sticky top-4 z-40 mx-auto w-full max-w-6xl px-4">
+        <nav className="flex flex-nowrap items-center justify-between gap-2 overflow-x-auto rounded-2xl border border-white/30 bg-white/50 px-4 py-2.5 shadow-[0_8px_32px_rgba(31,38,135,0.1)] backdrop-blur-xl">
+          <Link href="/" className="flex shrink-0 items-center gap-1.5 pl-1">
             <Image src="/logo.png" alt="Sari Les Renang" width={96} height={96} />
-            <span className={`${HEADING_FONT} text-sm font-bold text-[#17263D]`}>
+            <span className={`${HEADING_FONT} whitespace-nowrap text-sm font-bold text-[#17263D]`}>
               Sari Les Renang
             </span>
           </Link>
-          <div className="flex flex-wrap items-center gap-1">
+          <div className="flex shrink-0 flex-nowrap items-center gap-1">
             {NAV.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
-                className="rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/50"
+                className="whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/50"
               >
                 {item.label}
               </a>
             ))}
+            <span className="mx-2 h-5 w-px shrink-0 bg-slate-300/70" />
             <Link
               href="/login"
-              className="rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/50"
+              className="whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/50"
             >
               Masuk
             </Link>
             <Link href="/daftar">
-              <GlassButton className="!border-[#35C5D0]/60 !bg-[#35C5D0] px-4 py-1.5 text-sm font-semibold !text-white hover:!bg-[#2bb0ba]">
+              <GlassButton className="!border-[#35C5D0]/60 !bg-[#35C5D0] whitespace-nowrap px-4 py-1.5 text-sm font-semibold !text-white hover:!bg-[#2bb0ba]">
                 Daftar Kelas Trial
               </GlassButton>
             </Link>
