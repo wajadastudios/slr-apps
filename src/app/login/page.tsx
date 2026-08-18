@@ -35,6 +35,15 @@ export default function LoginPage() {
       return;
     }
 
+    // Return to where the user came from (e.g. a substitution approval link
+    // opened from WhatsApp) instead of the role home. Only same-origin
+    // relative paths, so a crafted ?next= cannot redirect off-site.
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (next && next.startsWith("/") && !next.startsWith("//")) {
+      router.replace(next);
+      return;
+    }
+
     router.refresh();
   }
 
