@@ -19,6 +19,7 @@ const NAV_GROUPS = [
       { href: "/admin/slot-jadwal", label: "Slot Jadwal" },
       { href: "/admin/jadwal", label: "Jadwal Siswa" },
       { href: "/admin/paket-harga", label: "Paket Harga" },
+      { href: "/admin/lokasi-kolam", label: "Lokasi Kolam" },
     ],
   },
   { label: "Keuangan", items: [{ href: "/admin/tagihan", label: "Tagihan" }] },

@@ -45,6 +45,7 @@ export default async function Home() {
     { data: packages },
     { data: availability },
     { data: pelatihNames },
+    { data: poolLocations },
   ] = await Promise.all([
     supabase
       .from("programs")
@@ -77,6 +78,10 @@ export default async function Home() {
       .order("sessions_count"),
     supabase.rpc("get_slot_availability"),
     supabase.rpc("get_public_pelatih_names"),
+    supabase
+      .from("pool_locations")
+      .select("id, name, maps_link")
+      .order("created_at"),
   ]);
 
   const pelatihNameById = new Map<string, string>();
@@ -410,6 +415,30 @@ export default async function Home() {
           )}
         </div>
       </section>
+
+      {/* Pool Locations */}
+      {poolLocations && poolLocations.length > 0 && (
+        <section id="lokasi" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
+          <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
+            Lokasi Kolam
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {poolLocations.map((loc) => (
+              <GlassCard key={loc.id} className="p-3">
+                <p className="mb-2 px-1 font-semibold text-[#17263D]">
+                  {loc.name}
+                </p>
+                <iframe
+                  src={loc.maps_link}
+                  className="h-64 w-full rounded-xl border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </GlassCard>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Gallery */}
       {gallery && gallery.length > 0 && (
