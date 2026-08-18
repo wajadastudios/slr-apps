@@ -418,24 +418,27 @@ export default async function Home() {
             Galeri
           </h2>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {gallery.map((g, i) =>
-              g.media_type === "video" ? (
-                <video
-                  key={i}
-                  src={g.media_url}
-                  controls
-                  className="h-32 w-full rounded-xl object-cover"
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={i}
-                  src={g.media_url}
-                  alt={g.caption ?? ""}
-                  className="h-32 w-full rounded-xl object-cover"
-                />
-              )
-            )}
+            {gallery.map((g, i) => (
+              <div
+                key={i}
+                className="overflow-hidden rounded-2xl border border-white/30 bg-white/20 p-1 shadow-sm backdrop-blur-md transition hover:-translate-y-1 hover:shadow-[0_12px_30px_rgba(23,38,61,0.18)]"
+              >
+                {g.media_type === "video" ? (
+                  <video
+                    src={g.media_url}
+                    controls
+                    className="h-32 w-full rounded-xl object-cover"
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={g.media_url}
+                    alt={g.caption ?? ""}
+                    className="h-32 w-full rounded-xl object-cover"
+                  />
+                )}
+              </div>
+            ))}
           </div>
         </section>
       )}
