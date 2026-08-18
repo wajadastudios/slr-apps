@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
+import { deleteStorageFileFromUrl } from "@/lib/storage";
 
 export async function addGalleryItemAction(formData: FormData) {
   await requireAdmin();
@@ -54,7 +55,15 @@ export async function deleteGalleryItemAction(formData: FormData) {
   const item_id = String(formData.get("item_id") ?? "");
 
   const supabase = await createClient();
+
+  const { data: item } = await supabase
+    .from("gallery_items")
+    .select("media_url")
+    .eq("id", item_id)
+    .single();
+
   await supabase.from("gallery_items").delete().eq("id", item_id);
+  await deleteStorageFileFromUrl(supabase, item?.media_url);
 
   revalidatePath("/admin/galeri");
   revalidatePath("/");

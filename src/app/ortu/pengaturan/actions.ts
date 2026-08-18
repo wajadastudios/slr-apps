@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { deleteStorageFileFromUrl } from "@/lib/storage";
 
 async function uploadAvatar(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -24,11 +25,15 @@ export async function updateOwnProfileAction(formData: FormData) {
   const address = String(formData.get("address") ?? "").trim() || null;
   const photo = formData.get("photo");
 
-  let avatar_url: string | null =
+  const previous_avatar_url =
     String(formData.get("current_avatar_url") ?? "") || null;
+  let avatar_url: string | null = previous_avatar_url;
   if (photo instanceof File && photo.size > 0) {
     const uploaded = await uploadAvatar(supabase, photo);
-    if (uploaded) avatar_url = uploaded;
+    if (uploaded) {
+      avatar_url = uploaded;
+      await deleteStorageFileFromUrl(supabase, previous_avatar_url);
+    }
   }
 
   await supabase.rpc("update_own_profile", {
@@ -51,11 +56,15 @@ export async function updateChildProfileAction(formData: FormData) {
 
   if (!student_id) return;
 
-  let avatar_url: string | null =
+  const previous_avatar_url =
     String(formData.get("current_avatar_url") ?? "") || null;
+  let avatar_url: string | null = previous_avatar_url;
   if (photo instanceof File && photo.size > 0) {
     const uploaded = await uploadAvatar(supabase, photo);
-    if (uploaded) avatar_url = uploaded;
+    if (uploaded) {
+      avatar_url = uploaded;
+      await deleteStorageFileFromUrl(supabase, previous_avatar_url);
+    }
   }
 
   await supabase.rpc("update_own_child_profile", {
