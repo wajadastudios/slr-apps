@@ -140,9 +140,9 @@ export default async function Home() {
 
       {/* Sticky nav */}
       <div className="sticky top-4 z-40 mx-auto w-full max-w-6xl px-4">
-        <nav className="flex flex-nowrap items-center justify-between gap-2 overflow-x-auto rounded-2xl border border-white/30 bg-white/50 px-4 py-2.5 shadow-[0_8px_32px_rgba(31,38,135,0.1)] backdrop-blur-xl">
+        <nav className="flex flex-nowrap items-center justify-between gap-2 overflow-x-auto rounded-2xl border border-white/30 bg-white/50 px-4 py-1 shadow-[0_8px_32px_rgba(31,38,135,0.1)] backdrop-blur-xl">
           <Link href="/" className="flex shrink-0 items-center gap-1.5 pl-1">
-            <Image src="/logo.png" alt="Sari Les Renang" width={96} height={96} />
+            <Image src="/logo.png" alt="Sari Les Renang" width={48} height={48} />
             <span className={`${HEADING_FONT} whitespace-nowrap text-sm font-bold text-[#17263D]`}>
               Sari Les Renang
             </span>
@@ -253,10 +253,10 @@ export default async function Home() {
             {/* Floating dashboard mock */}
             <div className="absolute -bottom-2 left-1/2 w-[92%] -translate-x-1/2 rounded-2xl border border-white/50 bg-white/85 p-4 shadow-[0_16px_40px_rgba(23,38,61,0.2)] backdrop-blur-xl">
               <p className="text-sm font-semibold text-[#17263D]">
-                Selamat pagi, Bunda Rania 👋
+                Selamat pagi, Bunda Riani 👋
               </p>
               <p className="mb-3 text-xs text-slate-500">
-                Azka &middot; Baby Swim Level 2
+                Nabil &middot; Kids Swim
               </p>
               <div className="grid grid-cols-2 gap-2 text-left">
                 <div className="rounded-xl bg-[#EEF9FB] p-2">
@@ -278,7 +278,7 @@ export default async function Home() {
               </div>
               <div className="mt-3">
                 <div className="mb-1 flex items-center justify-between text-[10px] text-slate-500">
-                  <span>Skill Renang Azka</span>
+                  <span>Skill Renang Nabil</span>
                   <span>72%</span>
                 </div>
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
@@ -641,7 +641,13 @@ export default async function Home() {
         <GlassCard className="relative flex flex-col items-center gap-3 overflow-hidden border-[#35C5D0]/30 bg-gradient-to-br from-[#EEF9FB] to-[#FEFCE8] text-center">
           <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[#35C5D0]/20 blur-2xl" />
           <div className="absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-[#FFC800]/20 blur-2xl" />
-          <span className="relative text-4xl">🐥👪</span>
+          <Image
+            src="/logo.png"
+            alt="Sari Les Renang"
+            width={56}
+            height={56}
+            className="relative"
+          />
           <h2 className={`${HEADING_FONT} relative text-2xl font-bold text-[#17263D]`}>
             Siap Memulai Petualangan di Air Bersama SLR?
           </h2>

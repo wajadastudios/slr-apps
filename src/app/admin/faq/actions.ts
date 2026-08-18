@@ -10,7 +10,6 @@ export async function createFaqAction(formData: FormData) {
 
   const question = String(formData.get("question") ?? "").trim();
   const answer = String(formData.get("answer") ?? "").trim();
-  const sort_order = Number(formData.get("sort_order") ?? "0") || 0;
 
   if (!question || !answer) {
     redirect(
@@ -19,10 +18,14 @@ export async function createFaqAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const { count } = await supabase
+    .from("faq_items")
+    .select("id", { count: "exact", head: true });
+
   const { error } = await supabase.from("faq_items").insert({
     question,
     answer,
-    sort_order,
+    sort_order: count ?? 0,
   });
 
   if (error) {
@@ -40,7 +43,6 @@ export async function updateFaqAction(formData: FormData) {
   const faq_id = String(formData.get("faq_id") ?? "");
   const question = String(formData.get("question") ?? "").trim();
   const answer = String(formData.get("answer") ?? "").trim();
-  const sort_order = Number(formData.get("sort_order") ?? "0") || 0;
 
   if (!question || !answer) {
     redirect(
@@ -51,7 +53,7 @@ export async function updateFaqAction(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("faq_items")
-    .update({ question, answer, sort_order })
+    .update({ question, answer })
     .eq("id", faq_id);
 
   if (error) {
@@ -61,6 +63,39 @@ export async function updateFaqAction(formData: FormData) {
   revalidatePath("/admin/faq");
   revalidatePath("/");
   redirect("/admin/faq");
+}
+
+export async function moveFaqAction(formData: FormData) {
+  await requireAdmin();
+
+  const faq_id = String(formData.get("faq_id") ?? "");
+  const direction = String(formData.get("direction") ?? "");
+
+  const supabase = await createClient();
+  const { data: items } = await supabase
+    .from("faq_items")
+    .select("id")
+    .order("sort_order")
+    .order("created_at");
+
+  if (!items) return;
+  const index = items.findIndex((i) => i.id === faq_id);
+  if (index === -1) return;
+
+  const swapWith = direction === "up" ? index - 1 : index + 1;
+  if (swapWith < 0 || swapWith >= items.length) return;
+
+  const reordered = [...items];
+  [reordered[index], reordered[swapWith]] = [reordered[swapWith], reordered[index]];
+
+  await Promise.all(
+    reordered.map((item, i) =>
+      supabase.from("faq_items").update({ sort_order: i }).eq("id", item.id)
+    )
+  );
+
+  revalidatePath("/admin/faq");
+  revalidatePath("/");
 }
 
 export async function deleteFaqAction(formData: FormData) {

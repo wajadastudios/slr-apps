@@ -5,7 +5,12 @@ import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
-import { createFaqAction, updateFaqAction, deleteFaqAction } from "./actions";
+import {
+  createFaqAction,
+  updateFaqAction,
+  deleteFaqAction,
+  moveFaqAction,
+} from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -56,14 +61,6 @@ export default async function FaqPage({
               required
             />
           </div>
-          <div className="flex flex-col gap-1.5 sm:w-40">
-            <label className="text-sm text-slate-800">Urutan</label>
-            <GlassInput
-              name="sort_order"
-              type="number"
-              defaultValue={editingItem?.sort_order ?? 0}
-            />
-          </div>
           {error && (
             <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>
           )}
@@ -89,13 +86,37 @@ export default async function FaqPage({
           {(!items || items.length === 0) && (
             <p className="text-sm text-slate-600">Belum ada FAQ.</p>
           )}
-          {items?.map((item) => (
+          {items?.map((item, index) => (
             <DataRow
               key={item.id}
               primary={item.question}
               secondary={item.answer}
               action={
                 <>
+                  <form action={moveFaqAction}>
+                    <input type="hidden" name="faq_id" value={item.id} />
+                    <input type="hidden" name="direction" value="up" />
+                    <GlassButton
+                      type="submit"
+                      disabled={index === 0}
+                      className="px-3 py-2 text-sm"
+                      aria-label="Naikkan urutan"
+                    >
+                      ↑
+                    </GlassButton>
+                  </form>
+                  <form action={moveFaqAction}>
+                    <input type="hidden" name="faq_id" value={item.id} />
+                    <input type="hidden" name="direction" value="down" />
+                    <GlassButton
+                      type="submit"
+                      disabled={index === (items?.length ?? 0) - 1}
+                      className="px-3 py-2 text-sm"
+                      aria-label="Turunkan urutan"
+                    >
+                      ↓
+                    </GlassButton>
+                  </form>
                   <a
                     href={`/admin/faq?edit=${item.id}`}
                     className="rounded-2xl border border-white/30 bg-white/30 px-4 py-2 text-sm font-medium text-slate-900 backdrop-blur-xl hover:bg-white/40"
