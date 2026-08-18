@@ -49,7 +49,7 @@ export default function LoginPage() {
           </h1>
         </Link>
         <p className="mb-6 text-center text-sm text-slate-700">
-          Masuk ke portal Anda
+          Masuk ke akun Anda
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

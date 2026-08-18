@@ -10,6 +10,7 @@ const KEYS = [
   "phone",
   "email",
   "operating_hours",
+  "instagram",
   "stat_families",
   "stat_years",
   "stat_rating",

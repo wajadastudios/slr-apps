@@ -114,10 +114,10 @@ export default async function Home() {
       <WhatsappFab phone={get("phone")} />
 
       {/* Sticky nav */}
-      <div className="sticky top-4 z-40 mx-auto w-full max-w-5xl px-4">
+      <div className="sticky top-4 z-40 mx-auto w-full max-w-4xl px-4">
         <nav className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/30 bg-white/50 px-4 py-2.5 shadow-[0_8px_32px_rgba(31,38,135,0.1)] backdrop-blur-xl">
           <Link href="/" className="flex items-center gap-1.5 pl-1">
-            <Image src="/logo.png" alt="Sari Les Renang" width={48} height={48} />
+            <Image src="/logo.png" alt="Sari Les Renang" width={96} height={96} />
             <span className={`${HEADING_FONT} text-sm font-bold text-[#17263D]`}>
               Sari Les Renang
             </span>
@@ -153,9 +153,6 @@ export default async function Home() {
         <div className="mx-auto grid w-full max-w-6xl items-center gap-14 lg:grid-cols-2">
           {/* Text column */}
           <div className="flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/60 px-4 py-1.5 text-xs font-semibold text-[#1a8f99] shadow-sm backdrop-blur-md">
-              🦆 Pendaftaran Kelas Trial Terbuka
-            </span>
             <h1 className={`${HEADING_FONT} text-4xl font-bold leading-tight sm:text-5xl`}>
               <span className="text-[#17263D]">Belajar Renang,</span>
               <br />
@@ -213,9 +210,6 @@ export default async function Home() {
                   </span>
                 </div>
               )}
-              <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-[#17263D] shadow-sm backdrop-blur-md">
-                🏅 Pengajar Bersertifikat SLR
-              </span>
             </div>
 
             {/* Floating dashboard mock */}
@@ -393,6 +387,35 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* Gallery */}
+      {gallery && gallery.length > 0 && (
+        <section id="galeri" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
+          <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
+            Galeri
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {gallery.map((g, i) =>
+              g.media_type === "video" ? (
+                <video
+                  key={i}
+                  src={g.media_url}
+                  controls
+                  className="h-32 w-full rounded-xl object-cover"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={i}
+                  src={g.media_url}
+                  alt={g.caption ?? ""}
+                  className="h-32 w-full rounded-xl object-cover"
+                />
+              )
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Testimonials */}
       {testimonials && testimonials.length > 0 && (
         <section id="testimoni" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6 text-center">
@@ -432,35 +455,6 @@ export default async function Home() {
                 </div>
               </GlassCard>
             ))}
-          </div>
-        </section>
-      )}
-
-      {/* Gallery */}
-      {gallery && gallery.length > 0 && (
-        <section id="galeri" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
-          <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
-            Galeri
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {gallery.map((g, i) =>
-              g.media_type === "video" ? (
-                <video
-                  key={i}
-                  src={g.media_url}
-                  controls
-                  className="h-32 w-full rounded-xl object-cover"
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={i}
-                  src={g.media_url}
-                  alt={g.caption ?? ""}
-                  className="h-32 w-full rounded-xl object-cover"
-                />
-              )
-            )}
           </div>
         </section>
       )}
@@ -512,7 +506,7 @@ export default async function Home() {
             </ul>
             <div className="mt-4 rounded-2xl border border-[#FFC800]/40 bg-[#FFC800]/10 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#a67c00]">
-                Bersertifikasi oleh:
+                BERSERTIFIKAT:
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-5">
                 <Image
@@ -576,10 +570,21 @@ export default async function Home() {
             Lokasi &amp; Kontak
           </h2>
           <div className="flex flex-col gap-1 text-sm text-slate-700">
-            {get("address") && <p>{get("address")}</p>}
             {get("phone") && <p>Telepon/WhatsApp: {get("phone")}</p>}
             {get("email") && <p>Email: {get("email")}</p>}
-            {get("operating_hours") && <p>Jam Operasional: {get("operating_hours")}</p>}
+            {get("instagram") && (
+              <p>
+                Instagram:{" "}
+                <a
+                  href={`https://instagram.com/${get("instagram")?.replace(/^@/, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  @{get("instagram")?.replace(/^@/, "")}
+                </a>
+              </p>
+            )}
           </div>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link href="/daftar">
@@ -588,7 +593,7 @@ export default async function Home() {
               </GlassButton>
             </Link>
             <Link href="/login">
-              <GlassButton>Masuk ke Portal</GlassButton>
+              <GlassButton>Masuk ke Akun</GlassButton>
             </Link>
           </div>
         </GlassCard>

@@ -40,13 +40,23 @@ export default async function PengaturanPage({
             <GlassInput name="email" type="email" defaultValue={get("email")} />
           </div>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm text-slate-800">Jam Operasional</label>
-          <GlassInput
-            name="operating_hours"
-            placeholder="Senin-Sabtu, 08:00-17:00"
-            defaultValue={get("operating_hours")}
-          />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Jam Operasional</label>
+            <GlassInput
+              name="operating_hours"
+              placeholder="Senin-Sabtu, 08:00-17:00"
+              defaultValue={get("operating_hours")}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Instagram</label>
+            <GlassInput
+              name="instagram"
+              placeholder="sarilesrenang"
+              defaultValue={get("instagram")}
+            />
+          </div>
         </div>
 
         <h2 className={`mt-2 ${HEADING}`}>Statistik Hero (landing page)</h2>
