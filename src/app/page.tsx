@@ -5,6 +5,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { WaterBg } from "@/components/water-bg";
 import { WhatsappFab } from "@/components/whatsapp-fab";
+import { VideoAdsPlayer } from "@/components/video-ads-player";
 import { DAYS } from "@/lib/days";
 
 const NAV = [
@@ -90,6 +91,7 @@ export default async function Home() {
   const mediaAd1Type = get("media_ad_1_type");
   const mediaAd2Url = get("media_ad_2_url");
   const mediaAd2Type = get("media_ad_2_type");
+  const videoAdsUrl = get("video_ads_url");
 
   const filledBySlot = new Map<string, number>();
   for (const row of availability ?? []) {
@@ -272,6 +274,13 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      {/* Video Ads */}
+      {videoAdsUrl && (
+        <section className="mx-auto w-full max-w-4xl px-6">
+          <VideoAdsPlayer src={videoAdsUrl} />
+        </section>
+      )}
 
       {/* Programs */}
       <section id="kelas" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6 text-center">

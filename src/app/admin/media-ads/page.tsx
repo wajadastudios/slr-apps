@@ -11,12 +11,21 @@ const SLOTS = [
     title: "Media Ads 1",
     hint: "Dipakai sebagai foto/video latar Hero (bagian paling atas landing page).",
     urlKey: "media_ad_1_url",
+    accept: "image/*,video/*",
   },
   {
     slot: "2",
     title: "Media Ads 2",
     hint: "Dipakai sebagai foto/video di bagian Tentang Kami.",
     urlKey: "media_ad_2_url",
+    accept: "image/*,video/*",
+  },
+  {
+    slot: "video",
+    title: "Video Ads SLR",
+    hint: "Video promosi yang diputar otomatis (mute) di landing page, di atas Program Renang SLR. Maksimal durasi 60 detik.",
+    urlKey: "video_ads_url",
+    accept: "video/*",
   },
 ] as const;
 
@@ -41,7 +50,7 @@ export default async function MediaAdsPage({
       )}
       {saved && <p className="text-sm text-[#1a8f6f]">Tersimpan.</p>}
 
-      {SLOTS.map(({ slot, title, hint, urlKey }) => {
+      {SLOTS.map(({ slot, title, hint, urlKey, accept }) => {
         const url = get(urlKey);
         const isVideo = url && /\.(mp4|webm|mov)$/i.test(url);
         return (
@@ -70,7 +79,7 @@ export default async function MediaAdsPage({
                 <input
                   type="file"
                   name="media"
-                  accept="image/*,video/*"
+                  accept={accept}
                   required
                   className="text-sm text-slate-700"
                 />
