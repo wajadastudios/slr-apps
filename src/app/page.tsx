@@ -669,7 +669,7 @@ export default async function Home() {
       <section id="kontak" className="mx-auto w-full max-w-2xl scroll-mt-24 px-6">
         <GlassCard className="text-center">
           <h2 className={`${HEADING_FONT} mb-3 text-2xl font-bold text-[#17263D]`}>
-            Lokasi &amp; Kontak
+            Hubungi Tim SLR
           </h2>
           <div className="flex flex-col gap-1 text-sm text-slate-700">
             {get("phone") && <p>Telepon/WhatsApp: {get("phone")}</p>}
