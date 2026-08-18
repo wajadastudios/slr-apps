@@ -29,6 +29,7 @@ const NAV_GROUPS = [
       { href: "/admin/testimoni", label: "Testimoni" },
       { href: "/admin/galeri", label: "Galeri" },
       { href: "/admin/media-ads", label: "Media Ads" },
+      { href: "/admin/faq", label: "FAQ" },
       { href: "/admin/pengaturan", label: "Pengaturan" },
     ],
   },

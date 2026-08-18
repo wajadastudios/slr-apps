@@ -6,12 +6,14 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { WaterBg } from "@/components/water-bg";
 import { WhatsappFab } from "@/components/whatsapp-fab";
 import { VideoAdsPlayer } from "@/components/video-ads-player";
+import { FaqAccordion } from "@/components/faq-accordion";
 import { DAYS } from "@/lib/days";
 
 const NAV = [
   { href: "#kelas", label: "Program" },
   { href: "#tentang", label: "Tentang Kami" },
   { href: "#testimoni", label: "Testimoni" },
+  { href: "#faq", label: "FAQ" },
   { href: "#kontak", label: "Kontak" },
 ];
 
@@ -46,6 +48,7 @@ export default async function Home() {
     { data: availability },
     { data: pelatihNames },
     { data: poolLocations },
+    { data: faqItems },
   ] = await Promise.all([
     supabase
       .from("programs")
@@ -81,6 +84,11 @@ export default async function Home() {
     supabase
       .from("pool_locations")
       .select("id, name, maps_link")
+      .order("created_at"),
+    supabase
+      .from("faq_items")
+      .select("id, question, answer")
+      .order("sort_order")
       .order("created_at"),
   ]);
 
@@ -598,6 +606,16 @@ export default async function Home() {
           </div>
         </GlassCard>
       </section>
+
+      {/* FAQ */}
+      {faqItems && faqItems.length > 0 && (
+        <section id="faq" className="mx-auto flex w-full max-w-3xl scroll-mt-24 flex-col gap-4 px-6">
+          <h2 className={`${HEADING_FONT} text-center text-2xl font-bold text-[#17263D]`}>
+            Pertanyaan yang Sering Diajukan
+          </h2>
+          <FaqAccordion items={faqItems} />
+        </section>
+      )}
 
       {/* CTA banner */}
       <section className="mx-auto w-full max-w-3xl px-6">
