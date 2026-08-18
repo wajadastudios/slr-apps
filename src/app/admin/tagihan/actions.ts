@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
+import { sendWhatsApp } from "@/lib/whatsapp";
+import { getSiteOrigin } from "@/lib/site-url";
 
 export async function createInvoiceForStudentAction(formData: FormData) {
   await requireAdmin();
@@ -52,6 +54,30 @@ export async function createInvoiceForStudentAction(formData: FormData) {
   redirect("/admin/tagihan");
 }
 
+async function getInvoiceNotifyInfo(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  invoice_id: string
+) {
+  const { data } = await supabase
+    .from("invoices")
+    .select(
+      "package_name, student:student_id(full_name, users:parent_id(phone))"
+    )
+    .eq("id", invoice_id)
+    .single();
+
+  const student = data?.student as unknown as {
+    full_name: string;
+    users: { phone: string | null } | null;
+  } | null;
+
+  return {
+    studentName: student?.full_name ?? "-",
+    parentPhone: student?.users?.phone ?? null,
+    packageName: data?.package_name ?? "-",
+  };
+}
+
 export async function sendInvoiceAction(formData: FormData) {
   const session = await requireAdmin();
 
@@ -83,6 +109,16 @@ export async function sendInvoiceAction(formData: FormData) {
     redirect(`/admin/tagihan?error=${encodeURIComponent(error.message)}`);
   }
 
+  const { studentName, parentPhone } = await getInvoiceNotifyInfo(
+    supabase,
+    invoice_id
+  );
+  const origin = await getSiteOrigin();
+  await sendWhatsApp(
+    parentPhone,
+    `Invoice les renang untuk ${studentName}: ${origin}/invoice/${invoice_id}`
+  );
+
   revalidatePath("/admin/tagihan");
   revalidatePath("/ortu/tagihan");
   redirect("/admin/tagihan");
@@ -98,6 +134,15 @@ export async function markPaidAction(formData: FormData) {
     .from("invoices")
     .update({ status: "paid" })
     .eq("id", invoice_id);
+
+  const { studentName, parentPhone, packageName } = await getInvoiceNotifyInfo(
+    supabase,
+    invoice_id
+  );
+  await sendWhatsApp(
+    parentPhone,
+    `Tagihan les renang untuk ${studentName} (${packageName}) sudah dikonfirmasi LUNAS. Terima kasih!`
+  );
 
   revalidatePath("/admin/tagihan");
   revalidatePath("/ortu/tagihan");

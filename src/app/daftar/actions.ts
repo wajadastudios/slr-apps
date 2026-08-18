@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { sendWhatsApp } from "@/lib/whatsapp";
 
 export async function submitRegistrationAction(formData: FormData) {
   const child_name = String(formData.get("child_name") ?? "").trim();
@@ -45,6 +46,19 @@ export async function submitRegistrationAction(formData: FormData) {
   if (error) {
     redirect(`/daftar?error=${encodeURIComponent(error.message)}`);
   }
+
+  const { data: adminPhone } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "phone")
+    .single();
+
+  await sendWhatsApp(
+    adminPhone?.value,
+    `Pendaftar baru: ${child_name} — ortu ${parent_name} (${parent_email}${
+      parent_phone ? `, ${parent_phone}` : ""
+    }). Cek di /admin/pendaftar.`
+  );
 
   redirect("/daftar?success=1");
 }

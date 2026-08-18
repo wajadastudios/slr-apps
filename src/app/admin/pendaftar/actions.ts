@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, createAccount } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
+import { sendWhatsApp } from "@/lib/whatsapp";
+import { getSiteOrigin } from "@/lib/site-url";
 
 export async function approveRegistrationAction(formData: FormData) {
   await requireAdmin();
@@ -21,7 +23,9 @@ export async function approveRegistrationAction(formData: FormData) {
 
   const { data: registration } = await supabase
     .from("registrations")
-    .select("child_name, parent_name, program_id, birth_place, birth_date")
+    .select(
+      "child_name, parent_name, parent_phone, program_id, birth_place, birth_date"
+    )
     .eq("id", registration_id)
     .single();
 
@@ -61,6 +65,12 @@ export async function approveRegistrationAction(formData: FormData) {
     .from("registrations")
     .update({ status: "approved" })
     .eq("id", registration_id);
+
+  const origin = await getSiteOrigin();
+  await sendWhatsApp(
+    registration!.parent_phone,
+    `Selamat! Pendaftaran ${registration!.child_name} di Sari Les Renang sudah disetujui. Login di ${origin}/login dengan email ${email} dan password yang diberikan admin.`
+  );
 
   revalidatePath("/admin/pendaftar");
   redirect("/admin/pendaftar");
