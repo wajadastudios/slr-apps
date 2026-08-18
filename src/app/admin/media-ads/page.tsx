@@ -12,6 +12,7 @@ const SLOTS: {
   pixelHint: string;
   urlKey: string;
   accept: string;
+  cropAspect?: number;
 }[] = [
   {
     slot: "1",
@@ -21,6 +22,7 @@ const SLOTS: {
       "Foto: minimal 1600×1200px (rasio ±4:3). Video: 1280×720–1920×1080 (16:9), maks 15MB & 60 detik.",
     urlKey: "media_ad_1_url",
     accept: "image/*,video/*",
+    cropAspect: 4 / 3,
   },
   {
     slot: "2",
@@ -30,6 +32,7 @@ const SLOTS: {
       "Foto: minimal 800×1000px (potret/persegi). Video: 1280×720–1920×1080 (16:9), maks 15MB & 60 detik.",
     urlKey: "media_ad_2_url",
     accept: "image/*,video/*",
+    cropAspect: 4 / 5,
   },
   {
     slot: "video",
@@ -52,7 +55,7 @@ export default async function MediaAdsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {SLOTS.map(({ slot, title, hint, pixelHint, urlKey, accept }) => {
+      {SLOTS.map(({ slot, title, hint, pixelHint, urlKey, accept, cropAspect }) => {
         const url = get(urlKey);
         const isVideo = url && /\.(mp4|webm|mov)$/i.test(url);
         return (
@@ -71,7 +74,12 @@ export default async function MediaAdsPage() {
               </div>
             )}
 
-            <MediaAdUploadForm slot={slot} accept={accept} hasExisting={Boolean(url)} />
+            <MediaAdUploadForm
+              slot={slot}
+              accept={accept}
+              hasExisting={Boolean(url)}
+              cropAspect={cropAspect}
+            />
             <p className="mt-2 text-xs text-slate-500">{pixelHint}</p>
           </GlassCard>
         );
