@@ -3,6 +3,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { ReportHistoryCard } from "@/components/report-history-card";
+import { computeProgressPercent } from "@/lib/progress";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -16,7 +17,7 @@ export default async function AdminLaporanPage({
 
   const { data: students } = await supabase
     .from("students")
-    .select("id, full_name, program:program_id(name)")
+    .select("id, full_name, program:program_id(name, skill_template)")
     .order("full_name");
 
   const selectedId = id || students?.[0]?.id;
@@ -32,6 +33,13 @@ export default async function AdminLaporanPage({
     : { data: null };
 
   const selectedStudent = students?.find((s) => s.id === selectedId);
+  const selectedSkillTemplate =
+    (selectedStudent?.program as unknown as { skill_template: string[] } | null)
+      ?.skill_template ?? [];
+  const progressPercent = computeProgressPercent(
+    selectedSkillTemplate,
+    reports?.[0]?.scores as Record<string, number> | null | undefined
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -68,7 +76,19 @@ export default async function AdminLaporanPage({
       </GlassCard>
 
       {selectedStudent && (
-        <ReportHistoryCard reports={reports ?? []} />
+        <>
+          {progressPercent !== null && (
+            <GlassCard className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-slate-700">
+                Progress keseluruhan {selectedStudent.full_name}
+              </p>
+              <span className="rounded-full bg-[#EEF9FB] px-3 py-1.5 text-sm font-semibold text-[#35C5D0]">
+                {progressPercent}%
+              </span>
+            </GlassCard>
+          )}
+          <ReportHistoryCard reports={reports ?? []} />
+        </>
       )}
     </div>
   );

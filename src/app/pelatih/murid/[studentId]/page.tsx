@@ -7,6 +7,7 @@ import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
 import { SkillScoresField } from "@/components/skill-scores-field";
 import { ReportHistoryCard } from "@/components/report-history-card";
+import { computeProgressPercent } from "@/lib/progress";
 import { createReportAction } from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
@@ -50,15 +51,26 @@ export default async function MuridReportPage({
 
   const nextSessionNumber = (reports?.length ?? 0) + 1;
   const today = new Date().toISOString().slice(0, 10);
+  const progressPercent = computeProgressPercent(
+    skillTemplate,
+    reports?.[0]?.scores as Record<string, number> | null | undefined
+  );
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">
-        {student.full_name}{" "}
-        <span className="text-base font-normal text-slate-600">
-          &mdash; {program?.name}
-        </span>
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">
+          {student.full_name}{" "}
+          <span className="text-base font-normal text-slate-600">
+            &mdash; {program?.name}
+          </span>
+        </h1>
+        {progressPercent !== null && (
+          <span className="rounded-full bg-[#EEF9FB] px-3 py-1.5 text-sm font-semibold text-[#35C5D0]">
+            Progress: {progressPercent}%
+          </span>
+        )}
+      </div>
 
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Isi Laporan Sesi Baru</h2>

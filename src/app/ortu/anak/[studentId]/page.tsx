@@ -1,10 +1,14 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getUserWithRole } from "@/lib/auth";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { ProgressTrend } from "@/components/progress-trend";
 import { ReportHistoryCard } from "@/components/report-history-card";
+import { ChildSummaryWidget } from "@/components/child-summary-widget";
+import { computeProgressPercent, computeNextSession, getGreeting } from "@/lib/progress";
+import { DAYS } from "@/lib/days";
 import { setPackagePreferenceAction } from "./actions";
 
 export default async function AnakDetailPage({
@@ -14,6 +18,7 @@ export default async function AnakDetailPage({
 }) {
   const { studentId } = await params;
   const supabase = await createClient();
+  const session = await getUserWithRole();
 
   // RLS (parent_owns_student) already scopes this to the caller's own
   // children — an empty result means access denied.
@@ -35,27 +40,37 @@ export default async function AnakDetailPage({
   } | null;
   const skillTemplate = program?.skill_template ?? [];
 
-  const [{ data: reports }, { data: invoices }, { data: availablePackages }] =
-    await Promise.all([
-      supabase
-        .from("progress_reports")
-        .select(
-          "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls"
-        )
-        .eq("student_id", studentId)
-        .order("session_date", { ascending: false }),
-      supabase
-        .from("invoices")
-        .select("sessions_count, status, created_at")
-        .eq("student_id", studentId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("program_packages")
-        .select("id, name, sessions_count, price, benefits")
-        .eq("program_id", student.program_id)
-        .eq("active", true)
-        .order("sessions_count"),
-    ]);
+  const [
+    { data: reports },
+    { data: invoices },
+    { data: availablePackages },
+    { data: scheduleRows },
+    { data: pelatihNames },
+  ] = await Promise.all([
+    supabase
+      .from("progress_reports")
+      .select(
+        "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls"
+      )
+      .eq("student_id", studentId)
+      .order("session_date", { ascending: false }),
+    supabase
+      .from("invoices")
+      .select("sessions_count, status, created_at")
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("program_packages")
+      .select("id, name, sessions_count, price, benefits")
+      .eq("program_id", student.program_id)
+      .eq("active", true)
+      .order("sessions_count"),
+    supabase
+      .from("schedules")
+      .select("slot:slot_id(day_of_week, start_time, label, pelatih_id)")
+      .eq("student_id", studentId),
+    supabase.rpc("get_public_pelatih_names"),
+  ]);
 
   const hadirCount = (reports ?? []).filter((r) => r.attendance === "hadir").length;
   const confirmedInvoices = (invoices ?? []).filter((i) =>
@@ -77,22 +92,58 @@ export default async function AnakDetailPage({
     remaining === 1 &&
     totalAllSessions === totalConfirmedSessions;
 
+  const pelatihNameById = new Map<string, string>();
+  for (const p of pelatihNames ?? []) {
+    pelatihNameById.set(p.id, p.full_name);
+  }
+
+  const slotInfos = (scheduleRows ?? [])
+    .map((row) => row.slot as unknown as {
+      day_of_week: number;
+      start_time: string;
+      label: string | null;
+      pelatih_id: string;
+    } | null)
+    .filter((s): s is NonNullable<typeof s> => s !== null)
+    .map((s) => ({
+      day_of_week: s.day_of_week,
+      start_time: s.start_time,
+      label: s.label,
+      pelatihName: pelatihNameById.get(s.pelatih_id) ?? null,
+    }));
+
+  const nextSession = computeNextSession(slotInfos);
+  const nextSessionLabel = nextSession
+    ? `${DAYS[nextSession.day_of_week]} · ${nextSession.start_time.slice(0, 5)} WIB${
+        nextSession.pelatihName ? ` · Coach ${nextSession.pelatihName}` : ""
+      }`
+    : null;
+
+  const latestInvoice = invoices?.[0];
+  const tagihanOk = latestInvoice?.status === "paid";
+  const tagihanLabel = !latestInvoice
+    ? "Belum Ada Tagihan"
+    : latestInvoice.status === "paid"
+      ? "Lunas"
+      : "Belum Bayar";
+
+  const progressPercent = computeProgressPercent(
+    skillTemplate,
+    reports?.[0]?.scores as Record<string, number> | null | undefined
+  );
+
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="text-sm text-slate-600">
-          Hi, {student.nickname || student.full_name} 👋
-        </p>
-        <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">
-          {student.full_name}{" "}
-          <span className="text-base font-normal text-slate-600">
-            &mdash; {program?.name ?? "Belum ada program"}
-          </span>
-        </h1>
-        {student.birth_date && (
-          <p className="text-sm text-slate-600">Lahir: {student.birth_date}</p>
-        )}
-      </div>
+      <ChildSummaryWidget
+        greeting={`${getGreeting()}, ${session?.fullName ?? "Orang Tua"}`}
+        childLabel={`${student.nickname || student.full_name} · ${program?.name ?? "Belum ada program"}`}
+        kehadiranLabel={`${hadirCount} / ${totalConfirmedSessions} sesi`}
+        tagihanLabel={tagihanLabel}
+        tagihanOk={tagihanOk}
+        progressPercent={progressPercent}
+        laporanTersedia={(reports?.length ?? 0) > 0}
+        nextSessionLabel={nextSessionLabel}
+      />
 
       {showRenewalBanner && availablePackages && availablePackages.length > 0 && (
         <GlassCard className="border-[#FFC800]/40 bg-[#FFF8E1]">
