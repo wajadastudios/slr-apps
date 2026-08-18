@@ -3,7 +3,11 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
-import { approveRegistrationAction, rejectRegistrationAction } from "./actions";
+import {
+  approveRegistrationAction,
+  rejectRegistrationAction,
+  markTrialPaidAction,
+} from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -24,7 +28,7 @@ export default async function PendaftarPage({
   const { data: registrations } = await supabase
     .from("registrations")
     .select(
-      "id, child_name, parent_name, parent_email, parent_phone, preferred_schedule, status, created_at, program:program_id(name)"
+      "id, child_name, parent_name, parent_email, parent_phone, preferred_schedule, status, trial_fee_status, payment_method, created_at, program:program_id(name)"
     )
     .order("created_at", { ascending: false });
 
@@ -52,6 +56,18 @@ export default async function PendaftarPage({
               >
                 <p className="font-medium text-[#17263D]">
                   {r.child_name} &middot; {program?.name ?? "-"}
+                  <span
+                    className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${
+                      r.trial_fee_status === "paid"
+                        ? "bg-[#55D6A6]/20 text-[#1a8f6f]"
+                        : "bg-amber-500/15 text-amber-700"
+                    }`}
+                  >
+                    {r.trial_fee_status === "paid"
+                      ? "Sudah Bayar"
+                      : "Belum Bayar"}
+                    {r.payment_method ? ` (${r.payment_method})` : ""}
+                  </span>
                 </p>
                 <p className="text-sm text-slate-600">
                   Orang tua: {r.parent_name} ({r.parent_email}
@@ -61,6 +77,14 @@ export default async function PendaftarPage({
                   <p className="text-sm text-slate-600">
                     Jadwal diminati: {r.preferred_schedule}
                   </p>
+                )}
+                {r.trial_fee_status !== "paid" && (
+                  <form action={markTrialPaidAction} className="mt-2">
+                    <input type="hidden" name="registration_id" value={r.id} />
+                    <GlassButton type="submit" className="px-3 py-1.5 text-xs">
+                      Tandai Sudah Bayar
+                    </GlassButton>
+                  </form>
                 )}
 
                 <div className="mt-3 flex flex-wrap items-end gap-3">

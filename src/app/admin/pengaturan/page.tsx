@@ -3,7 +3,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
-import { saveSiteSettingsAction } from "./actions";
+import { saveSiteSettingsAction, uploadQrisAction } from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -113,6 +113,19 @@ export default async function PengaturanPage({
           />
         </div>
 
+        <h2 className={`mt-2 ${HEADING}`}>Pembayaran Trial (Rp50.000)</h2>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm text-slate-800">
+            Info Transfer Manual
+          </label>
+          <GlassTextarea
+            name="bank_transfer_info"
+            rows={3}
+            placeholder="Contoh: BCA 1234567890 a.n. Sari Les Renang"
+            defaultValue={get("bank_transfer_info")}
+          />
+        </div>
+
         {error && (
           <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>
         )}
@@ -124,6 +137,38 @@ export default async function PengaturanPage({
           Simpan
         </GlassButton>
       </form>
+
+      <div className="mt-6 border-t border-white/30 pt-6">
+        <label className="text-sm text-slate-800">Gambar QRIS</label>
+        {get("qris_image_url") && (
+          <div className="mt-2 w-40 overflow-hidden rounded-xl border border-white/30 bg-white/40">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={get("qris_image_url")}
+              alt="QRIS"
+              className="w-full object-contain"
+            />
+          </div>
+        )}
+        <form
+          action={uploadQrisAction}
+          className="mt-3 flex flex-wrap items-end gap-4"
+        >
+          <input
+            type="file"
+            name="qris_image"
+            accept="image/*"
+            required
+            className="text-sm text-slate-700"
+          />
+          <GlassButton
+            type="submit"
+            className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba]"
+          >
+            Unggah &amp; Ganti QRIS
+          </GlassButton>
+        </form>
+      </div>
     </GlassCard>
   );
 }

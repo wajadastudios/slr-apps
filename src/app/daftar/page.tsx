@@ -13,20 +13,29 @@ export default async function DaftarPage({
   const { error, success } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: programs }, { data: gallery }] = await Promise.all([
-    supabase
-      .from("programs")
-      .select("id, name")
-      .eq("active", true)
-      .order("name"),
-    supabase
-      .from("gallery_items")
-      .select("media_url, media_type")
-      .order("created_at", { ascending: false })
-      .limit(1),
-  ]);
+  const [{ data: programs }, { data: gallery }, { data: settings }] =
+    await Promise.all([
+      supabase
+        .from("programs")
+        .select("id, name")
+        .eq("active", true)
+        .order("name"),
+      supabase
+        .from("gallery_items")
+        .select("media_url, media_type")
+        .order("created_at", { ascending: false })
+        .limit(1),
+      supabase
+        .from("site_settings")
+        .select("key, value")
+        .in("key", ["qris_image_url", "bank_transfer_info"]),
+    ]);
 
   const heroImage = gallery?.find((g) => g.media_type === "image")?.media_url;
+  const qrisImageUrl =
+    settings?.find((s) => s.key === "qris_image_url")?.value || "";
+  const bankTransferInfo =
+    settings?.find((s) => s.key === "bank_transfer_info")?.value || "";
 
   if (success) {
     return (
@@ -65,7 +74,11 @@ export default async function DaftarPage({
           </p>
         )}
 
-        <RegistrationForm programs={programs ?? []} />
+        <RegistrationForm
+          programs={programs ?? []}
+          qrisImageUrl={qrisImageUrl}
+          bankTransferInfo={bankTransferInfo}
+        />
       </GlassCard>
     </div>
   );

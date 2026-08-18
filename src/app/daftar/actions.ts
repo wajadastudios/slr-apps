@@ -15,6 +15,7 @@ export async function submitRegistrationAction(formData: FormData) {
   const preferred_schedule = String(
     formData.get("preferred_schedule") ?? ""
   ).trim();
+  const payment_method = String(formData.get("payment_method") ?? "").trim();
 
   if (
     !child_name ||
@@ -41,6 +42,7 @@ export async function submitRegistrationAction(formData: FormData) {
     birth_date,
     program_id,
     preferred_schedule: preferred_schedule || null,
+    payment_method: payment_method || null,
   });
 
   if (error) {

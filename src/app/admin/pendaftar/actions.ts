@@ -89,3 +89,17 @@ export async function rejectRegistrationAction(formData: FormData) {
 
   revalidatePath("/admin/pendaftar");
 }
+
+export async function markTrialPaidAction(formData: FormData) {
+  await requireAdmin();
+
+  const registration_id = String(formData.get("registration_id") ?? "");
+
+  const supabase = await createClient();
+  await supabase
+    .from("registrations")
+    .update({ trial_fee_status: "paid" })
+    .eq("id", registration_id);
+
+  revalidatePath("/admin/pendaftar");
+}

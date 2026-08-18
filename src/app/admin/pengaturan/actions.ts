@@ -16,6 +16,7 @@ const KEYS = [
   "stat_rating",
   "about_text",
   "founder_certifications",
+  "bank_transfer_info",
 ] as const;
 
 export async function saveSiteSettingsAction(formData: FormData) {
@@ -38,5 +39,55 @@ export async function saveSiteSettingsAction(formData: FormData) {
 
   revalidatePath("/admin/pengaturan");
   revalidatePath("/");
+  redirect("/admin/pengaturan?saved=1");
+}
+
+export async function uploadQrisAction(formData: FormData) {
+  await requireAdmin();
+
+  const media = formData.get("qris_image");
+  if (!(media instanceof File) || media.size === 0) {
+    redirect(`/admin/pengaturan?error=${encodeURIComponent("Pilih gambar QRIS.")}`);
+  }
+
+  const supabase = await createClient();
+  const file = media as File;
+
+  const { data: existing } = await supabase.storage
+    .from("progress-media")
+    .list("media-ads");
+  const oldFiles =
+    existing
+      ?.filter((f) => f.name.startsWith("qris."))
+      .map((f) => `media-ads/${f.name}`) ?? [];
+  if (oldFiles.length > 0) {
+    await supabase.storage.from("progress-media").remove(oldFiles);
+  }
+
+  const ext = file.name.includes(".") ? file.name.split(".").pop() : "png";
+  const path = `media-ads/qris.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("progress-media")
+    .upload(path, file, { contentType: file.type });
+
+  if (uploadError) {
+    redirect(`/admin/pengaturan?error=${encodeURIComponent(uploadError.message)}`);
+  }
+
+  const { data: publicUrl } = supabase.storage
+    .from("progress-media")
+    .getPublicUrl(path);
+
+  const { error } = await supabase
+    .from("site_settings")
+    .upsert({ key: "qris_image_url", value: publicUrl.publicUrl }, { onConflict: "key" });
+
+  if (error) {
+    redirect(`/admin/pengaturan?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/pengaturan");
+  revalidatePath("/daftar");
   redirect("/admin/pengaturan?saved=1");
 }
