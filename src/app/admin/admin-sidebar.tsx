@@ -10,6 +10,7 @@ const NAV_GROUPS = [
       { href: "/admin/pelatih", label: "Pengajar" },
       { href: "/admin/orang-tua", label: "Orang Tua" },
       { href: "/admin/pendaftar", label: "Pendaftar" },
+      { href: "/admin/pengganti", label: "Pengajar Pengganti" },
     ],
   },
   {

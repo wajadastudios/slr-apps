@@ -4,6 +4,59 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requirePelatih } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+// Whether this report is being written by a substitute, and for whom.
+//
+// Derived server-side rather than passed through the form: a hidden field
+// could be forged to mislabel who actually taught the session. Reads via the
+// service client because a pengajar cannot see another pengajar's users row.
+async function resolveSubstituteFor(
+  student_id: string,
+  authorId: string
+): Promise<string | null> {
+  const admin = createAdminClient();
+
+  const { data: enrolments } = await admin
+    .from("schedules")
+    .select("slot_id, class_slots:slot_id(pelatih_id)")
+    .eq("student_id", student_id);
+
+  const rows = (enrolments ?? []) as unknown as {
+    slot_id: string;
+    class_slots: { pelatih_id: string } | null;
+  }[];
+
+  // Assigned pengajar for this student -> not a substitution.
+  if (rows.some((r) => r.class_slots?.pelatih_id === authorId)) return null;
+
+  const slotIds = rows.map((r) => r.slot_id);
+  if (slotIds.length === 0) return null;
+
+  const { data: sub } = await admin
+    .from("substitution_requests")
+    .select("slot_id")
+    .eq("requester_id", authorId)
+    .eq("status", "approved")
+    .in("slot_id", slotIds)
+    .order("session_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!sub) return null;
+
+  const replacedId = rows.find((r) => r.slot_id === sub.slot_id)?.class_slots
+    ?.pelatih_id;
+  if (!replacedId) return null;
+
+  const { data: replaced } = await admin
+    .from("users")
+    .select("full_name")
+    .eq("id", replacedId)
+    .maybeSingle();
+
+  return replaced?.full_name ?? null;
+}
 
 export async function createReportAction(formData: FormData) {
   const session = await requirePelatih();
@@ -67,9 +120,12 @@ export async function createReportAction(formData: FormData) {
     }
   }
 
+  const substitute_for = await resolveSubstituteFor(student_id, session.user.id);
+
   const { error } = await supabase.from("progress_reports").insert({
     student_id,
     pelatih_id: session.user.id,
+    substitute_for,
     session_date,
     session_number,
     attendance,

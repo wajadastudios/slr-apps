@@ -26,7 +26,7 @@ export default async function AdminLaporanPage({
     ? await supabase
         .from("progress_reports")
         .select(
-          "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls"
+          "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls, substitute_for"
         )
         .eq("student_id", selectedId)
         .order("session_date", { ascending: false })

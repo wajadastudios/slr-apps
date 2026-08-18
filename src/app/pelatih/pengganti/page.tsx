@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getUserWithRole } from "@/lib/auth";
@@ -80,6 +81,40 @@ export default async function PenggantiPage({
   const requestByKey = new Map<string, { status: string }>();
   for (const r of requests ?? []) {
     requestByKey.set(`${r.slot_id}|${r.session_date}`, { status: r.status });
+  }
+
+  // Students only become readable once a substitution is approved: the
+  // schedules policy gained a has_approved_substitution() branch in 0021.
+  const approvedSlotIds = Array.from(
+    new Set(
+      (requests ?? [])
+        .filter((r) => r.status === "approved")
+        .map((r) => r.slot_id)
+    )
+  );
+
+  const { data: enrolled } =
+    approvedSlotIds.length > 0
+      ? await supabase
+          .from("schedules")
+          .select("slot_id, student:student_id(id, full_name, nickname)")
+          .in("slot_id", approvedSlotIds)
+      : { data: null };
+
+  const studentsBySlot = new Map<
+    string,
+    { id: string; full_name: string; nickname: string | null }[]
+  >();
+  for (const row of enrolled ?? []) {
+    const st = row.student as unknown as {
+      id: string;
+      full_name: string;
+      nickname: string | null;
+    } | null;
+    if (!st) continue;
+    const list = studentsBySlot.get(row.slot_id) ?? [];
+    list.push(st);
+    studentsBySlot.set(row.slot_id, list);
   }
 
   // Only other people's slots — you already have access to your own.
@@ -215,6 +250,36 @@ export default async function PenggantiPage({
                     </form>
                   )}
                 </div>
+
+                {request?.status === "approved" && (
+                  <div className="mt-3 border-t border-white/30 pt-3">
+                    <p className="mb-2 text-xs text-slate-500">
+                      Pilih siswa untuk membuat laporan:
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {(studentsBySlot.get(slot.id) ?? []).length === 0 && (
+                        <p className="text-sm text-slate-600">
+                          Belum ada siswa terdaftar di slot ini.
+                        </p>
+                      )}
+                      {(studentsBySlot.get(slot.id) ?? []).map((st) => (
+                        <div
+                          key={st.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/30 bg-white/30 px-4 py-2.5"
+                        >
+                          <span className="text-sm font-medium text-[#17263D]">
+                            {st.nickname || st.full_name}
+                          </span>
+                          <Link href={`/pelatih/murid/${st.id}`}>
+                            <GlassButton className="px-4 py-2 text-sm">
+                              Buat Laporan
+                            </GlassButton>
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </GlassCard>
             );
           })}

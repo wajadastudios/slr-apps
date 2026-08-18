@@ -22,6 +22,7 @@ export type ReportRow = {
   notes: string | null;
   next_focus: string | null;
   media_urls: string[] | null;
+  substitute_for?: string | null;
 };
 
 export function ReportHistoryCard({ reports }: { reports: ReportRow[] }) {
@@ -55,6 +56,13 @@ export function ReportHistoryCard({ reports }: { reports: ReportRow[] }) {
                   {ATTENDANCE_LABEL[r.attendance ?? ""] ?? r.attendance}
                 </span>
               </div>
+              {r.substitute_for && (
+                <div className="mt-1">
+                  <span className="rounded-full bg-[#FFC800]/20 px-2.5 py-0.5 text-xs font-medium text-[#8a6900]">
+                    Diajar pengajar pengganti (menggantikan {r.substitute_for})
+                  </span>
+                </div>
+              )}
               {skillNames.length > 0 && (
                 <div className="mt-2 flex flex-col gap-1.5">
                   {skillNames.map((skill) => (

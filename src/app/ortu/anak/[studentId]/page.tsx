@@ -50,7 +50,7 @@ export default async function AnakDetailPage({
     supabase
       .from("progress_reports")
       .select(
-        "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls"
+        "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls, substitute_for"
       )
       .eq("student_id", studentId)
       .order("session_date", { ascending: false }),
