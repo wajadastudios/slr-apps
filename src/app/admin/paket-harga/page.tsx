@@ -15,6 +15,21 @@ import {
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
+const BADGE_OPTIONS = [
+  { value: "", label: "Tidak ada" },
+  { value: "promo", label: "Promo" },
+  { value: "diskon", label: "Diskon" },
+  { value: "best_deal", label: "Best Deal" },
+  { value: "direkomendasikan", label: "Direkomendasikan" },
+] as const;
+
+const BADGE_LABELS: Record<string, string> = {
+  promo: "Promo",
+  diskon: "Diskon",
+  best_deal: "Best Deal",
+  direkomendasikan: "Direkomendasikan",
+};
+
 export default async function PaketHargaPage({
   searchParams,
 }: {
@@ -27,7 +42,7 @@ export default async function PaketHargaPage({
     supabase.from("programs").select("id, name, active").order("name"),
     supabase
       .from("program_packages")
-      .select("id, program_id, name, sessions_count, price, benefits, active")
+      .select("id, program_id, name, sessions_count, price, benefits, active, badge")
       .order("sessions_count"),
   ]);
 
@@ -118,6 +133,19 @@ export default async function PaketHargaPage({
                 />
               </div>
             </div>
+            <div className="flex flex-col gap-1.5 sm:w-56">
+              <label className="text-sm text-slate-800">Badge</label>
+              <GlassSelect
+                name="badge"
+                defaultValue={editingPackage?.badge ?? ""}
+              >
+                {BADGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </GlassSelect>
+            </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm text-slate-800">Benefit</label>
               <EditableListField
@@ -162,6 +190,11 @@ export default async function PaketHargaPage({
                   <>
                     {pkg.name} &middot; {pkg.sessions_count} sesi &middot;
                     Rp{Number(pkg.price).toLocaleString("id-ID")}
+                    {pkg.badge && (
+                      <span className="ml-2 rounded-full bg-[#35C5D0]/15 px-2 py-0.5 text-xs font-medium text-[#1a8f99]">
+                        {BADGE_LABELS[pkg.badge]}
+                      </span>
+                    )}
                     {!pkg.active && (
                       <span className="ml-2 text-xs text-slate-500">
                         (nonaktif)

@@ -12,6 +12,7 @@ export async function createPackageAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const sessions_count = Number(formData.get("sessions_count") ?? "");
   const price = Number(formData.get("price") ?? "");
+  const badge = String(formData.get("badge") ?? "").trim() || null;
   let benefits: string[] = [];
   try {
     const parsed = JSON.parse(String(formData.get("benefits") ?? "[]"));
@@ -35,6 +36,7 @@ export async function createPackageAction(formData: FormData) {
     sessions_count,
     price,
     benefits,
+    badge,
   });
 
   if (error) {
@@ -72,6 +74,7 @@ export async function updatePackageAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const sessions_count = Number(formData.get("sessions_count") ?? "");
   const price = Number(formData.get("price") ?? "");
+  const badge = String(formData.get("badge") ?? "").trim() || null;
   let benefits: string[] = [];
   try {
     const parsed = JSON.parse(String(formData.get("benefits") ?? "[]"));
@@ -91,7 +94,7 @@ export async function updatePackageAction(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("program_packages")
-    .update({ name, sessions_count, price, benefits })
+    .update({ name, sessions_count, price, benefits, badge })
     .eq("id", package_id);
 
   if (error) {
