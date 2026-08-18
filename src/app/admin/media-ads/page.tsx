@@ -83,6 +83,9 @@ export default async function MediaAdsPage({
                   required
                   className="text-sm text-slate-700"
                 />
+                <span className="text-xs text-slate-500">
+                  Ukuran video maksimal 15MB.
+                </span>
               </div>
               <GlassButton
                 type="submit"

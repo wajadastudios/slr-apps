@@ -13,6 +13,8 @@ const SLOT_KEYS = {
 
 type SlotName = keyof typeof SLOT_KEYS;
 
+const MAX_VIDEO_BYTES = 15 * 1024 * 1024;
+
 async function replaceSlotFile(
   supabase: Awaited<ReturnType<typeof createClient>>,
   slot: SlotName,
@@ -62,6 +64,12 @@ export async function uploadMediaAdAction(formData: FormData) {
   const supabase = await createClient();
   const file = media as File;
   const media_type = file.type.startsWith("video") ? "video" : "image";
+
+  if (media_type === "video" && file.size > MAX_VIDEO_BYTES) {
+    redirect(
+      `/admin/media-ads?error=${encodeURIComponent("Ukuran video maksimal 15MB.")}`
+    );
+  }
 
   let url: string;
   try {
