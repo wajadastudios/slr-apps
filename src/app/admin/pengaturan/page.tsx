@@ -154,13 +154,18 @@ export default async function PengaturanPage({
           action={uploadQrisAction}
           className="mt-3 flex flex-wrap items-end gap-4"
         >
-          <input
-            type="file"
-            name="qris_image"
-            accept="image/*"
-            required
-            className="text-sm text-slate-700"
-          />
+          <div className="flex flex-col gap-1.5">
+            <input
+              type="file"
+              name="qris_image"
+              accept="image/*"
+              required
+              className="text-sm text-slate-700"
+            />
+            <span className="text-xs text-slate-500">
+              Foto: persegi, minimal 600×600px.
+            </span>
+          </div>
           <GlassButton
             type="submit"
             className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba]"
