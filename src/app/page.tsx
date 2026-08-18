@@ -7,6 +7,7 @@ import { WaterBg } from "@/components/water-bg";
 import { WhatsappFab } from "@/components/whatsapp-fab";
 import { VideoAdsPlayer } from "@/components/video-ads-player";
 import { FaqAccordion } from "@/components/faq-accordion";
+import { PriceAccordion, type PriceGroup } from "@/components/price-accordion";
 import { DAYS } from "@/lib/days";
 
 const NAV = [
@@ -125,6 +126,21 @@ export default async function Home() {
     packagesByProgram.set(p.program_id, list);
   }
 
+  const priceGroups: PriceGroup[] = (programs ?? [])
+    .map((p) => ({
+      programId: p.id,
+      programName: p.name,
+      packages: (packagesByProgram.get(p.id) ?? []).map((pkg) => ({
+        id: pkg.id,
+        name: pkg.name,
+        sessions_count: pkg.sessions_count,
+        price: Number(pkg.price),
+        benefits: pkg.benefits,
+        badge: pkg.badge,
+      })),
+    }))
+    .filter((g) => g.packages.length > 0);
+
   const stats = [
     { label: "Keluarga Aktif", value: get("stat_families") },
     { label: "Berdiri & Beroperasi", value: get("stat_years") },
@@ -140,7 +156,7 @@ export default async function Home() {
 
       {/* Sticky nav */}
       <div className="sticky top-4 z-40 mx-auto w-full max-w-6xl px-4">
-        <nav className="flex flex-nowrap items-center justify-between gap-2 overflow-x-auto rounded-2xl border border-white/30 bg-white/50 px-4 py-1 shadow-[0_8px_32px_rgba(31,38,135,0.1)] backdrop-blur-xl">
+        <nav className="flex flex-nowrap items-center justify-between gap-2 overflow-x-auto rounded-2xl border border-white/30 bg-white/20 px-4 py-1 shadow-[0_8px_32px_rgba(31,38,135,0.1)] backdrop-blur-xl">
           <Link href="/" className="flex shrink-0 items-center gap-1.5 pl-1">
             <Image src="/logo.png" alt="Sari Les Renang" width={48} height={48} />
             <span className={`${HEADING_FONT} whitespace-nowrap text-sm font-bold text-[#17263D]`}>
@@ -251,7 +267,7 @@ export default async function Home() {
             </div>
 
             {/* Floating dashboard mock */}
-            <div className="absolute -bottom-2 left-1/2 w-[92%] -translate-x-1/2 rounded-2xl border border-white/50 bg-white/85 p-4 shadow-[0_16px_40px_rgba(23,38,61,0.2)] backdrop-blur-xl">
+            <div className="absolute -bottom-2 left-1/2 w-[92%] -translate-x-1/2 rounded-2xl border border-white/50 bg-white/60 p-4 shadow-[0_16px_40px_rgba(23,38,61,0.2)] backdrop-blur-xl">
               <p className="text-sm font-semibold text-[#17263D]">
                 Selamat pagi, Bunda Riani 👋
               </p>
@@ -259,19 +275,19 @@ export default async function Home() {
                 Nabil &middot; Kids Swim
               </p>
               <div className="grid grid-cols-2 gap-2 text-left">
-                <div className="rounded-xl bg-[#EEF9FB] p-2">
+                <div className="rounded-xl bg-white/40 p-2">
                   <p className="text-[10px] text-slate-500">Kehadiran</p>
                   <p className="text-sm font-semibold text-[#35C5D0]">8 / 8 sesi</p>
                 </div>
-                <div className="rounded-xl bg-[#EEF9FB] p-2">
+                <div className="rounded-xl bg-white/40 p-2">
                   <p className="text-[10px] text-slate-500">Tagihan</p>
                   <p className="text-sm font-semibold text-[#55D6A6]">Lunas</p>
                 </div>
-                <div className="rounded-xl bg-[#EEF9FB] p-2">
+                <div className="rounded-xl bg-white/40 p-2">
                   <p className="text-[10px] text-slate-500">Progress</p>
                   <p className="text-sm font-semibold text-[#35C5D0]">72%</p>
                 </div>
-                <div className="rounded-xl bg-[#EEF9FB] p-2">
+                <div className="rounded-xl bg-white/40 p-2">
                   <p className="text-[10px] text-slate-500">Laporan</p>
                   <p className="text-sm font-semibold text-[#55D6A6]">Tersedia</p>
                 </div>
@@ -390,53 +406,13 @@ export default async function Home() {
         <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
           Harga &amp; Paket
         </h2>
-        <div className="flex flex-col gap-4">
-          {programs?.map((p) => {
-            const progPackages = packagesByProgram.get(p.id) ?? [];
-            if (progPackages.length === 0) return null;
-            return (
-              <GlassCard key={p.id}>
-                <h3 className="mb-3 text-lg font-semibold text-[#17263D]">
-                  {p.name}
-                </h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {progPackages.map((pkg) => (
-                    <div
-                      key={pkg.id}
-                      className="relative rounded-xl border border-[#35C5D0]/30 bg-[#EEF9FB] p-3"
-                    >
-                      {pkg.badge && PACKAGE_BADGES[pkg.badge] && (
-                        <span
-                          className={`absolute right-3 top-3 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${PACKAGE_BADGES[pkg.badge].className}`}
-                        >
-                          {PACKAGE_BADGES[pkg.badge].label}
-                        </span>
-                      )}
-                      <p className="font-medium text-[#17263D]">
-                        {pkg.name} &middot; {pkg.sessions_count} sesi
-                      </p>
-                      <p className="text-lg font-semibold text-[#17263D]">
-                        Rp{Number(pkg.price).toLocaleString("id-ID")}
-                      </p>
-                      {pkg.benefits && pkg.benefits.length > 0 && (
-                        <ul className="mt-1 list-inside list-disc text-sm text-slate-600">
-                          {pkg.benefits.map((b: string, i: number) => (
-                            <li key={i}>{b}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </GlassCard>
-            );
-          })}
-          {packages && packages.length === 0 && (
-            <p className="text-sm text-slate-600">
-              Info harga akan segera diumumkan.
-            </p>
-          )}
-        </div>
+        {priceGroups.length > 0 ? (
+          <PriceAccordion groups={priceGroups} />
+        ) : (
+          <p className="text-sm text-slate-600">
+            Info harga akan segera diumumkan.
+          </p>
+        )}
       </section>
 
       {/* Pool Locations */}

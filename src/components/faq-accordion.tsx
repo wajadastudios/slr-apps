@@ -14,7 +14,7 @@ export function FaqAccordion({ items }: { items: FaqItem[] }) {
         return (
           <div
             key={item.id}
-            className="overflow-hidden rounded-2xl border border-white/30 bg-white/40 backdrop-blur-md"
+            className="overflow-hidden rounded-2xl border border-white/30 bg-white/20 backdrop-blur-md"
           >
             <button
               type="button"
