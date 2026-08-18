@@ -26,12 +26,23 @@ export async function proxy(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("role")
+    .select("role, active")
     .eq("id", user.id)
     .single();
 
   const role = profile?.role as string | undefined;
   const home = role ? ROLE_HOME[role] : undefined;
+
+  // A deactivated account keeps a valid Supabase session, so the block has
+  // to live here rather than at sign-in. /login stays reachable so they can
+  // actually see why they are locked out.
+  if (profile?.active === false) {
+    if (pathname === "/login") return response;
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("nonaktif", "1");
+    return NextResponse.redirect(url);
+  }
 
   if (pathname === "/login") {
     const url = request.nextUrl.clone();

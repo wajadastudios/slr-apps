@@ -40,6 +40,20 @@ export async function updatePelatihTitleAction(formData: FormData) {
   revalidatePath("/admin/pelatih");
 }
 
+export async function togglePelatihActiveAction(formData: FormData) {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  const nextActive = String(formData.get("next_active") ?? "") === "true";
+  if (!id) return;
+
+  const supabase = await createClient();
+  await supabase.from("users").update({ active: nextActive }).eq("id", id);
+
+  revalidatePath("/admin/pelatih");
+  revalidatePath("/admin/slot-jadwal");
+}
+
 export async function deletePelatihAction(formData: FormData) {
   await requireAdmin();
 
@@ -56,6 +70,23 @@ export async function deletePelatihAction(formData: FormData) {
     redirect(
       `/admin/pelatih?error=${encodeURIComponent(
         `Pengajar ini masih mengajar ${count} slot jadwal aktif. Hapus atau alihkan slot tersebut dulu.`
+      )}`
+    );
+  }
+
+  // Reports outlive the account: deleting one now nulls its author
+  // (0021 changed the FK to ON DELETE SET NULL) rather than destroying the
+  // student's history, but an anonymous report is still a loss. Push the
+  // admin towards deactivating instead, which keeps attribution intact.
+  const { count: reportCount } = await supabase
+    .from("progress_reports")
+    .select("*", { count: "exact", head: true })
+    .eq("pelatih_id", id);
+
+  if ((reportCount ?? 0) > 0) {
+    redirect(
+      `/admin/pelatih?error=${encodeURIComponent(
+        `Pengajar ini sudah menulis ${reportCount} laporan. Nonaktifkan saja agar riwayat laporan siswa tetap utuh beserta nama penulisnya.`
       )}`
     );
   }

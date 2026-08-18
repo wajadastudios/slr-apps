@@ -10,7 +10,7 @@ export async function getUserWithRole() {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("role, full_name, title")
+    .select("role, full_name, title, active")
     .eq("id", user.id)
     .single();
 
@@ -19,5 +19,6 @@ export async function getUserWithRole() {
     role: profile?.role as "admin" | "pelatih" | "ortu" | undefined,
     fullName: profile?.full_name as string | undefined,
     title: profile?.title as string | undefined,
+    active: profile?.active !== false,
   };
 }

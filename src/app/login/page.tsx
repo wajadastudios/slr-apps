@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -16,6 +16,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [deactivated, setDeactivated] = useState(false);
+
+  useEffect(() => {
+    setDeactivated(
+      new URLSearchParams(window.location.search).get("nonaktif") === "1"
+    );
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -60,6 +67,12 @@ export default function LoginPage() {
         <p className="mb-6 text-center text-sm text-slate-700">
           Masuk ke akun Anda
         </p>
+
+        {deactivated && (
+          <p className="mb-4 rounded-xl border border-amber-300/60 bg-amber-500/10 px-4 py-3 text-center text-sm text-amber-800">
+            Akun Anda sedang dinonaktifkan. Silakan hubungi admin SLR.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

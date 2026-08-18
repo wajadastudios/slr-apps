@@ -35,6 +35,7 @@ export default async function SlotJadwalPage({
         .from("users")
         .select("id, full_name, title")
         .eq("role", "pelatih")
+        .eq("active", true)
         .order("full_name"),
       supabase.from("programs").select("id, name").order("name"),
       supabase.from("schedules").select("slot_id"),

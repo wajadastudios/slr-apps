@@ -7,6 +7,7 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import {
   createPelatihAction,
   updatePelatihTitleAction,
+  togglePelatihActiveAction,
   deletePelatihAction,
 } from "./actions";
 
@@ -22,7 +23,7 @@ export default async function PelatihPage({
 
   const { data: pelatihList } = await supabase
     .from("users")
-    .select("id, full_name, email, title, created_at")
+    .select("id, full_name, email, title, active, created_at")
     .eq("role", "pelatih")
     .order("created_at", { ascending: false });
 
@@ -72,7 +73,17 @@ export default async function PelatihPage({
           {pelatihList?.map((p) => (
             <DataRow
               key={p.id}
-              primary={p.title ? `${p.title} ${p.full_name}` : p.full_name}
+              muted={p.active === false}
+              primary={
+                <>
+                  {p.title ? `${p.title} ${p.full_name}` : p.full_name}
+                  {p.active === false && (
+                    <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600">
+                      Nonaktif
+                    </span>
+                  )}
+                </>
+              }
               secondary={p.email}
               action={
                 <>
@@ -91,10 +102,21 @@ export default async function PelatihPage({
                       Simpan
                     </GlassButton>
                   </form>
+                  <form action={togglePelatihActiveAction}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <input
+                      type="hidden"
+                      name="next_active"
+                      value={(p.active === false).toString()}
+                    />
+                    <GlassButton type="submit" className="px-3 py-1.5 text-xs">
+                      {p.active === false ? "Aktifkan" : "Nonaktifkan"}
+                    </GlassButton>
+                  </form>
                   <form action={deletePelatihAction}>
                     <input type="hidden" name="id" value={p.id} />
                     <ConfirmSubmitButton
-                      message="Menghapus pengajar ini akan menghapus akun dan riwayat laporan yang pernah ia buat. Lanjutkan?"
+                      message="Hapus akun pengajar ini? Hanya bisa untuk pengajar yang belum pernah menulis laporan. Untuk pengajar yang mengundurkan diri, gunakan Nonaktifkan agar riwayat laporan siswa tetap utuh."
                       className="!border-red-300 !bg-red-500/10 px-3 py-1.5 text-xs !text-red-700 hover:!bg-red-500/20"
                     >
                       Hapus
