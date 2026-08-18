@@ -626,8 +626,12 @@ export default async function Home() {
       {faqItems && faqItems.length > 0 && (
         <section id="faq" className="mx-auto flex w-full max-w-3xl scroll-mt-24 flex-col gap-4 px-6">
           <h2 className={`${HEADING_FONT} text-center text-2xl font-bold text-[#17263D]`}>
-            Pertanyaan yang Sering Diajukan
+            Pertanyaan yang Sering Ditanyakan
           </h2>
+          <p className="mx-auto max-w-xl text-center text-sm leading-relaxed text-slate-600">
+            Hal-hal penting yang perlu diketahui sebelum memulai perjalanan
+            belajar renang bersama SLR.
+          </p>
           <FaqAccordion items={faqItems} />
         </section>
       )}
