@@ -1,4 +1,26 @@
-export function WaterBg({ imageUrl }: { imageUrl?: string | null }) {
+export function WaterBg({
+  imageUrl,
+  videoUrl,
+}: {
+  imageUrl?: string | null;
+  videoUrl?: string | null;
+}) {
+  if (videoUrl) {
+    return (
+      <div className="absolute inset-0 -z-10 overflow-hidden">
+        <video
+          src={videoUrl}
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="h-full w-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-teal-400/40 via-emerald-200/25 to-amber-200/35" />
+      </div>
+    );
+  }
+
   if (imageUrl) {
     return (
       <div className="absolute inset-0 -z-10 overflow-hidden">

@@ -86,7 +86,10 @@ export default async function Home() {
   const get = (key: string) =>
     settings?.find((s) => s.key === key)?.value || "";
 
-  const heroImage = gallery?.find((g) => g.media_type === "image")?.media_url;
+  const mediaAd1Url = get("media_ad_1_url");
+  const mediaAd1Type = get("media_ad_1_type");
+  const mediaAd2Url = get("media_ad_2_url");
+  const mediaAd2Type = get("media_ad_2_type");
 
   const filledBySlot = new Map<string, number>();
   for (const row of availability ?? []) {
@@ -149,7 +152,10 @@ export default async function Home() {
 
       {/* Hero */}
       <section className="relative overflow-hidden px-6 pt-8 pb-16">
-        <WaterBg imageUrl={undefined} />
+        <WaterBg
+          imageUrl={mediaAd1Type === "image" ? mediaAd1Url : undefined}
+          videoUrl={mediaAd1Type === "video" ? mediaAd1Url : undefined}
+        />
         <div className="mx-auto grid w-full max-w-6xl items-center gap-14 lg:grid-cols-2">
           {/* Text column */}
           <div className="flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
@@ -195,10 +201,19 @@ export default async function Home() {
           {/* Photo + dashboard preview column */}
           <div className="relative mx-auto w-full max-w-md pb-16 lg:pb-24">
             <div className="relative overflow-hidden rounded-3xl border border-white/40 shadow-[0_20px_60px_rgba(23,38,61,0.25)]">
-              {heroImage ? (
+              {mediaAd1Url && mediaAd1Type === "video" ? (
+                <video
+                  src={mediaAd1Url}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="aspect-[4/3] w-full object-cover"
+                />
+              ) : mediaAd1Url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={heroImage}
+                  src={mediaAd1Url}
                   alt="Sesi renang bersama pengajar SLR"
                   className="aspect-[4/3] w-full object-cover"
                 />
@@ -463,10 +478,19 @@ export default async function Home() {
       <section id="tentang" className="mx-auto w-full max-w-4xl scroll-mt-24 px-6">
         <GlassCard className="grid gap-0 overflow-hidden p-0 sm:grid-cols-2">
           <div className="relative min-h-[220px] sm:min-h-full">
-            {heroImage ? (
+            {mediaAd2Url && mediaAd2Type === "video" ? (
+              <video
+                src={mediaAd2Url}
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : mediaAd2Url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={heroImage}
+                src={mediaAd2Url}
                 alt=""
                 className="absolute inset-0 h-full w-full object-cover"
               />
