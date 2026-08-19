@@ -11,9 +11,11 @@ type Mode = "anak" | "diri";
 export function RegistrationForm({
   programs,
   adultModeEnabled,
+  trialFeeAmount,
 }: {
   programs: { id: string; name: string }[];
   adultModeEnabled: boolean;
+  trialFeeAmount: number;
 }) {
   const [mode, setMode] = useState<Mode>("anak");
   const [selfName, setSelfName] = useState("");
@@ -24,11 +26,13 @@ export function RegistrationForm({
 
       <div className="flex flex-col gap-2 rounded-2xl border border-[#35C5D0]/30 bg-[#EEF9FB] p-4">
         <p className="text-sm text-slate-700">
-          📋 Setiap peserta baru wajib mengikuti 1 sesi trial terlebih
-          dahulu sebelum bergabung ke kelas reguler — ini membantu kami dan
-          Anda memastikan program yang dipilih sesuai minat dan kenyamanan
-          anak. Setelah mengirim form ini, admin kami akan menghubungi Anda
-          untuk mengatur jadwal trial.
+          📋 Khusus kategori <strong>Kids Swim</strong>, peserta baru wajib
+          mengikuti 1 sesi trial terlebih dahulu sebelum bergabung ke kelas
+          reguler — ini membantu kami dan Anda memastikan program yang
+          dipilih sesuai minat dan kenyamanan anak. Biaya trial sebesar{" "}
+          <strong>Rp{trialFeeAmount.toLocaleString("id-ID")}</strong>. Setelah
+          mengirim form ini, admin kami akan menghubungi Anda untuk mengatur
+          jadwal trial dan link pembayarannya.
         </p>
       </div>
 

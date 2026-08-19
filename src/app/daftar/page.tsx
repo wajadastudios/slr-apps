@@ -28,13 +28,16 @@ export default async function DaftarPage({
       supabase
         .from("site_settings")
         .select("key, value")
-        .in("key", ["registrasi_dewasa_aktif"]),
+        .in("key", ["registrasi_dewasa_aktif", "trial_fee_amount"]),
     ]);
 
   const heroImage = gallery?.find((g) => g.media_type === "image")?.media_url;
   const adultModeEnabled =
     settings?.find((s) => s.key === "registrasi_dewasa_aktif")?.value ===
     "true";
+  const trialFeeAmount =
+    Number(settings?.find((s) => s.key === "trial_fee_amount")?.value) ||
+    50000;
 
   if (success) {
     return (
@@ -76,6 +79,7 @@ export default async function DaftarPage({
         <RegistrationForm
           programs={programs ?? []}
           adultModeEnabled={adultModeEnabled}
+          trialFeeAmount={trialFeeAmount}
         />
       </GlassCard>
     </div>
