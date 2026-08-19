@@ -131,14 +131,25 @@ export function GlassSelect({
 
   useEffect(() => {
     if (!open) return;
-    function close() {
+    // 'scroll' only bubbles to window in the capture phase, so scrolling
+    // (or dragging the scrollbar) *inside* the listbox itself also
+    // reaches this listener -- without the containment check that scroll
+    // would immediately close the menu instead of scrolling its contents.
+    function handleScroll(e: Event) {
+      const target = e.target;
+      if (listRef.current && target instanceof Node && listRef.current.contains(target)) {
+        return;
+      }
       setOpen(false);
     }
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
+    function handleResize() {
+      setOpen(false);
+    }
+    window.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleResize);
     return () => {
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleResize);
     };
   }, [open]);
 
