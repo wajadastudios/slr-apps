@@ -31,12 +31,37 @@ export async function createInvoiceForStudentAction(formData: FormData) {
     redirect(`/admin/tagihan?error=${encodeURIComponent("Paket tidak ditemukan.")}`);
   }
 
+  // The referral discount only ever applies to a student's very first
+  // invoice (their first month) -- every invoice after that is full price,
+  // so this checks for zero prior invoices rather than any student flag.
+  const { data: student } = await supabase
+    .from("students")
+    .select("referral_discount_type, referral_discount_value")
+    .eq("id", student_id)
+    .single();
+
+  let amount = pkg!.price;
+  if (student?.referral_discount_type) {
+    const { count: priorInvoiceCount } = await supabase
+      .from("invoices")
+      .select("*", { count: "exact", head: true })
+      .eq("student_id", student_id);
+
+    if ((priorInvoiceCount ?? 0) === 0) {
+      const discount =
+        student.referral_discount_type === "percent"
+          ? (pkg!.price * Number(student.referral_discount_value)) / 100
+          : Number(student.referral_discount_value);
+      amount = Math.max(0, pkg!.price - discount);
+    }
+  }
+
   const { error } = await supabase.from("invoices").insert({
     student_id,
     program_package_id,
     package_name: pkg!.name,
     sessions_count: pkg!.sessions_count,
-    amount: pkg!.price,
+    amount,
     status: "draft",
   });
 

@@ -83,9 +83,13 @@ export default async function TagihanPage({
     <div className="flex flex-col gap-6">
       <GlassCard>
         <h2 className={`mb-2 ${HEADING}`}>Siswa Siap Ditagih</h2>
-        <p className="mb-4 text-sm text-slate-600">
+        <p className="mb-1 text-sm text-slate-600">
           Muncul saat sesi hadir siswa melebihi jumlah sesi yang sudah pernah
           ditagihkan. Pilih paket untuk membuat draft tagihan berikutnya.
+        </p>
+        <p className="mb-4 text-xs text-slate-500">
+          Siswa yang mendaftar dengan kode referral otomatis mendapat diskon
+          pada tagihan pertama saja — nominal di draft sudah terpotong.
         </p>
         {error && (
           <p className="mb-3 text-sm text-red-700">
