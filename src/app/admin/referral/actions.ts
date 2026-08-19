@@ -51,6 +51,23 @@ export async function createReferralCodeAction(formData: FormData) {
   redirect(`/admin/referral?pelatih_id=${pelatih_id}`);
 }
 
+export async function deleteReferralCodeAction(formData: FormData) {
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  const pelatih_id = String(formData.get("pelatih_id") ?? "");
+  if (!id) return;
+
+  // Safe unconditionally: students who already used this code carry their
+  // own snapshot of the discount/commission terms, never a live read of
+  // this row, so deleting it doesn't touch anything they already earned.
+  const supabase = await createClient();
+  await supabase.from("referral_codes").delete().eq("id", id);
+
+  revalidatePath("/admin/referral");
+  redirect(`/admin/referral?pelatih_id=${pelatih_id}`);
+}
+
 export async function toggleReferralCodeActiveAction(formData: FormData) {
   await requireAdmin();
 

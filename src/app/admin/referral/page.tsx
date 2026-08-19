@@ -4,7 +4,12 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
-import { createReferralCodeAction, toggleReferralCodeActiveAction } from "./actions";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import {
+  createReferralCodeAction,
+  toggleReferralCodeActiveAction,
+  deleteReferralCodeAction,
+} from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -133,18 +138,30 @@ export default async function AdminReferralPage({
                     : formatRupiah(c.discount_value)
                 } untuk siswa · Komisi ${formatRupiah(c.komisi_per_sesi)}/sesi`}
                 action={
-                  <form action={toggleReferralCodeActiveAction}>
-                    <input type="hidden" name="id" value={c.id} />
-                    <input type="hidden" name="pelatih_id" value={selectedPelatih.id} />
-                    <input
-                      type="hidden"
-                      name="next_active"
-                      value={(!c.active).toString()}
-                    />
-                    <GlassButton type="submit" className="px-3 py-1.5 text-xs">
-                      {c.active ? "Nonaktifkan" : "Aktifkan"}
-                    </GlassButton>
-                  </form>
+                  <>
+                    <form action={toggleReferralCodeActiveAction}>
+                      <input type="hidden" name="id" value={c.id} />
+                      <input type="hidden" name="pelatih_id" value={selectedPelatih.id} />
+                      <input
+                        type="hidden"
+                        name="next_active"
+                        value={(!c.active).toString()}
+                      />
+                      <GlassButton type="submit" className="px-3 py-1.5 text-xs">
+                        {c.active ? "Nonaktifkan" : "Aktifkan"}
+                      </GlassButton>
+                    </form>
+                    <form action={deleteReferralCodeAction}>
+                      <input type="hidden" name="id" value={c.id} />
+                      <input type="hidden" name="pelatih_id" value={selectedPelatih.id} />
+                      <ConfirmSubmitButton
+                        message="Hapus kode referral ini? Siswa yang sudah pernah pakai kode ini tidak akan terpengaruh — diskon dan komisi mereka sudah terkunci."
+                        className="!border-red-300 !bg-red-500/10 px-3 py-1.5 text-xs !text-red-700 hover:!bg-red-500/20"
+                      >
+                        Hapus
+                      </ConfirmSubmitButton>
+                    </form>
+                  </>
                 }
               />
             ))}

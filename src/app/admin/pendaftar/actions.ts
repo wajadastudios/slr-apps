@@ -78,6 +78,8 @@ export async function approveRegistrationAction(formData: FormData) {
   );
 
   revalidatePath("/admin/pendaftar");
+  revalidatePath("/admin/orang-tua");
+  revalidatePath("/admin/murid");
   redirect("/admin/pendaftar");
 }
 

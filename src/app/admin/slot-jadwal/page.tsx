@@ -106,7 +106,7 @@ export default async function SlotJadwalPage({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">Lokasi Kolam (opsional)</label>
+            <label className="text-sm text-slate-800">Lokasi Kolam</label>
             <GlassInput
               name="location"
               placeholder="Kolam A / Cabang Selatan"
