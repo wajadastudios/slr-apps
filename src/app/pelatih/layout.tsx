@@ -7,6 +7,7 @@ const NAV_GROUPS = [
     label: null,
     items: [
       { href: "/pelatih", label: "Ringkasan" },
+      { href: "/pelatih/trial", label: "Jadwal Trial" },
       { href: "/pelatih/gaji", label: "Gaji" },
       { href: "/pelatih/pengganti", label: "Pengajar Pengganti" },
       { href: "/pelatih/pengaturan", label: "Pengaturan" },
