@@ -4,6 +4,7 @@ import {
   Children,
   isValidElement,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -11,6 +12,7 @@ import {
   type ReactNode,
   type SelectHTMLAttributes,
 } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 type OptionData = { value: string; label: ReactNode; disabled?: boolean };
@@ -49,6 +51,14 @@ function extractOptions(children: ReactNode): OptionData[] {
 // the hidden select is what actually gets submitted in FormData, so every
 // existing <GlassSelect name required defaultValue> call site keeps working
 // unchanged.
+//
+// The listbox itself is rendered into a portal on document.body rather
+// than inline. GlassCard uses backdrop-blur, which creates a new CSS
+// stacking context -- an inline z-50 listbox would only ever rank above
+// its own card's other content, not above a *sibling* card later in the
+// DOM (e.g. the "Total gaji" summary card below the month/year picker),
+// so it would visibly get sliced up by whatever renders after it. A
+// portal escapes that entirely.
 export function GlassSelect({
   className,
   children,
@@ -69,8 +79,15 @@ export function GlassSelect({
 
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [menuStyle, setMenuStyle] = useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+  } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     if (isControlled) return;
@@ -80,13 +97,50 @@ export function GlassSelect({
 
   useEffect(() => {
     function handlePointerDown(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if (listRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
+
+  // Fixed-position coordinates are computed from the trigger's own
+  // viewport rect rather than relying on any CSS positioning context, so
+  // the menu always lands next to the trigger regardless of how deeply
+  // nested it is. Closing on scroll/resize avoids the alternative of
+  // tracking scroll to reposition -- simpler and the menu is short-lived.
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const menuMaxHeight = 256 + 8;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpward = spaceBelow < menuMaxHeight && rect.top > spaceBelow;
+
+    setMenuStyle(
+      openUpward
+        ? {
+            bottom: window.innerHeight - rect.top + 8,
+            left: rect.left,
+            width: rect.width,
+          }
+        : { top: rect.bottom + 8, left: rect.left, width: rect.width }
+    );
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function close() {
+      setOpen(false);
+    }
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
 
   const selectedIndex = options.findIndex((o) => o.value === currentValue);
   const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : undefined;
@@ -195,35 +249,48 @@ export function GlassSelect({
         </svg>
       </button>
 
-      {open && (
-        <ul
-          role="listbox"
-          tabIndex={-1}
-          onKeyDown={handleListKeyDown}
-          ref={(el) => el?.focus()}
-          className="absolute z-50 mt-2 max-h-64 w-full overflow-auto rounded-2xl border border-white/40 bg-white/70 p-1.5 shadow-[0_12px_32px_rgba(23,38,61,0.18)] backdrop-blur-2xl outline-none [animation:glass-dropdown_0.16s_ease-out]"
-        >
-          {options.map((o, i) => (
-            <li
-              key={i}
-              role="option"
-              aria-selected={o.value === currentValue}
-              onMouseEnter={() => setActiveIndex(i)}
-              onClick={() => !o.disabled && commitValue(o.value)}
-              className={cn(
-                "cursor-pointer rounded-xl px-3 py-2 text-sm text-slate-800 transition-colors duration-150",
-                o.disabled && "cursor-not-allowed text-slate-400",
-                !o.disabled && i === activeIndex && "bg-[#35C5D0]/15",
-                o.value === currentValue &&
-                  !o.disabled &&
-                  "bg-[#35C5D0]/20 font-medium text-[#17263D]"
-              )}
-            >
-              {o.label}
-            </li>
-          ))}
-        </ul>
-      )}
+      {open &&
+        menuStyle &&
+        createPortal(
+          <ul
+            ref={(el) => {
+              listRef.current = el;
+              el?.focus();
+            }}
+            role="listbox"
+            tabIndex={-1}
+            onKeyDown={handleListKeyDown}
+            style={{
+              position: "fixed",
+              top: menuStyle.top,
+              bottom: menuStyle.bottom,
+              left: menuStyle.left,
+              width: menuStyle.width,
+            }}
+            className="z-[100] max-h-64 overflow-auto rounded-2xl border border-white/40 bg-white/80 p-1.5 shadow-[0_12px_32px_rgba(23,38,61,0.22)] backdrop-blur-2xl outline-none [animation:glass-dropdown_0.16s_ease-out]"
+          >
+            {options.map((o, i) => (
+              <li
+                key={i}
+                role="option"
+                aria-selected={o.value === currentValue}
+                onMouseEnter={() => setActiveIndex(i)}
+                onClick={() => !o.disabled && commitValue(o.value)}
+                className={cn(
+                  "cursor-pointer rounded-xl px-3 py-2 text-sm text-slate-800 transition-colors duration-150",
+                  o.disabled && "cursor-not-allowed text-slate-400",
+                  !o.disabled && i === activeIndex && "bg-[#35C5D0]/15",
+                  o.value === currentValue &&
+                    !o.disabled &&
+                    "bg-[#35C5D0]/20 font-medium text-[#17263D]"
+                )}
+              >
+                {o.label}
+              </li>
+            ))}
+          </ul>,
+          document.body
+        )}
     </div>
   );
 }
