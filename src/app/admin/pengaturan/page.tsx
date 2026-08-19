@@ -113,7 +113,19 @@ export default async function PengaturanPage({
           />
         </div>
 
-        <h2 className={`mt-2 ${HEADING}`}>Pembayaran Trial (Rp50.000)</h2>
+        <h2 className={`mt-2 ${HEADING}`}>Pembayaran Trial</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Biaya Trial (Rp)</label>
+            <GlassInput
+              name="trial_fee_amount"
+              type="number"
+              min={0}
+              placeholder="50000"
+              defaultValue={get("trial_fee_amount")}
+            />
+          </div>
+        </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-sm text-slate-800">
             Info Transfer Manual
@@ -125,6 +137,24 @@ export default async function PengaturanPage({
             defaultValue={get("bank_transfer_info")}
           />
         </div>
+
+        <h2 className={`mt-2 ${HEADING}`}>Pendaftaran</h2>
+        <label className="flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            name="registrasi_dewasa_aktif"
+            value="true"
+            defaultChecked={get("registrasi_dewasa_aktif") === "true"}
+          />
+          <span className="text-sm text-slate-800">
+            Aktifkan Form Pendaftaran Remaja/Dewasa
+          </span>
+        </label>
+        <p className="text-xs text-slate-500">
+          Saat nonaktif, pilihan &quot;Untuk diri sendiri (remaja/dewasa)&quot;
+          disembunyikan dari form pendaftaran publik — hanya pendaftaran
+          orang tua untuk anak yang tersedia.
+        </p>
 
         {error && (
           <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>

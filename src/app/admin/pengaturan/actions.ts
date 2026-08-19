@@ -17,6 +17,7 @@ const KEYS = [
   "about_text",
   "founder_certifications",
   "bank_transfer_info",
+  "trial_fee_amount",
 ] as const;
 
 export async function saveSiteSettingsAction(formData: FormData) {
@@ -24,10 +25,17 @@ export async function saveSiteSettingsAction(formData: FormData) {
 
   const supabase = await createClient();
 
-  const rows = KEYS.map((key) => ({
+  const rows: { key: string; value: string }[] = KEYS.map((key) => ({
     key,
     value: String(formData.get(key) ?? "").trim(),
   }));
+
+  // Checkbox: absent from FormData when unchecked, so this can't use the
+  // same String(formData.get(key)) treatment as the text keys above.
+  rows.push({
+    key: "registrasi_dewasa_aktif",
+    value: formData.get("registrasi_dewasa_aktif") === "true" ? "true" : "false",
+  });
 
   const { error } = await supabase
     .from("site_settings")
