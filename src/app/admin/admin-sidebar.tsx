@@ -23,7 +23,13 @@ const NAV_GROUPS = [
       { href: "/admin/lokasi-kolam", label: "Lokasi Kolam" },
     ],
   },
-  { label: "Keuangan", items: [{ href: "/admin/tagihan", label: "Tagihan" }] },
+  {
+    label: "Keuangan",
+    items: [
+      { href: "/admin/tagihan", label: "Tagihan" },
+      { href: "/admin/gaji", label: "Gaji Pengajar" },
+    ],
+  },
   {
     label: "Konten",
     items: [

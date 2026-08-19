@@ -55,6 +55,26 @@ export function computeGaji(
   return { hadirCount, izinSakitCount, total };
 }
 
+export type ReferredStudent = {
+  id: string;
+  referral_komisi_per_sesi: number | null;
+};
+
+// Commission counts every report row for the student in the period,
+// regardless of attendance or who taught it -- it rewards the recruiting
+// pengajar for the student staying enrolled, not for who showed up to teach.
+export function computeReferralCommission(
+  reportCountsByStudent: Map<string, number>,
+  referredStudents: ReferredStudent[]
+): number {
+  let total = 0;
+  for (const s of referredStudents) {
+    const count = reportCountsByStudent.get(s.id) ?? 0;
+    total += count * (s.referral_komisi_per_sesi ?? 0);
+  }
+  return total;
+}
+
 // Period bounds as [start, end) date strings, for a straightforward
 // .gte(start).lt(end) query against session_date.
 export function periodBounds(
