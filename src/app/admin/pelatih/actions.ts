@@ -101,3 +101,43 @@ export async function deletePelatihAction(formData: FormData) {
   revalidatePath("/admin/pelatih");
   redirect("/admin/pelatih");
 }
+
+export async function setPelatihRateAction(formData: FormData) {
+  const session = await requireAdmin();
+
+  const pelatih_id = String(formData.get("pelatih_id") ?? "");
+  const rate_hadir = Number(formData.get("rate_hadir") ?? "");
+  const rate_izin_sakit = Number(formData.get("rate_izin_sakit") ?? "0") || 0;
+  const effective_from =
+    String(formData.get("effective_from") ?? "").trim() ||
+    new Date().toISOString().slice(0, 10);
+
+  if (!pelatih_id || !Number.isFinite(rate_hadir) || rate_hadir < 0) {
+    redirect(
+      `/admin/pelatih?error=${encodeURIComponent(
+        "Pilih pengajar dan isi rate hadir dengan angka yang valid."
+      )}`
+    );
+  }
+
+  const supabase = await createClient();
+
+  // A new row per change, never an update-in-place: point-in-time lookup
+  // against effective_from is what keeps past sessions paid at the rate
+  // that was live when they happened, unaffected by later changes.
+  const { error } = await supabase.from("pelatih_rates").insert({
+    pelatih_id,
+    rate_hadir,
+    rate_izin_sakit,
+    effective_from,
+    created_by: session.user.id,
+  });
+
+  if (error) {
+    redirect(`/admin/pelatih?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/admin/pelatih");
+  revalidatePath("/admin/gaji");
+  redirect("/admin/pelatih?rate_saved=1");
+}

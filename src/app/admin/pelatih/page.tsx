@@ -1,17 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
+import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import { resolveRateForDate } from "@/lib/payroll";
 import {
   createPelatihAction,
   updatePelatihTitleAction,
   togglePelatihActiveAction,
   deletePelatihAction,
+  setPelatihRateAction,
 } from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
+
+function formatRupiah(amount: number) {
+  return `Rp${amount.toLocaleString("id-ID")}`;
+}
 
 export default async function PelatihPage({
   searchParams,
@@ -21,11 +28,28 @@ export default async function PelatihPage({
   const { error } = await searchParams;
   const supabase = await createClient();
 
-  const { data: pelatihList } = await supabase
-    .from("users")
-    .select("id, full_name, email, title, active, created_at")
-    .eq("role", "pelatih")
-    .order("created_at", { ascending: false });
+  const [{ data: pelatihList }, { data: rateRows }] = await Promise.all([
+    supabase
+      .from("users")
+      .select("id, full_name, email, title, active, created_at")
+      .eq("role", "pelatih")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("pelatih_rates")
+      .select("pelatih_id, rate_hadir, rate_izin_sakit, effective_from")
+      .order("effective_from", { ascending: false }),
+  ]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const ratesByPelatih = new Map<
+    string,
+    { rate_hadir: number; rate_izin_sakit: number; effective_from: string }[]
+  >();
+  for (const r of rateRows ?? []) {
+    const list = ratesByPelatih.get(r.pelatih_id) ?? [];
+    list.push(r);
+    ratesByPelatih.set(r.pelatih_id, list);
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -65,6 +89,48 @@ export default async function PelatihPage({
       </GlassCard>
 
       <GlassCard>
+        <h2 className={`mb-4 ${HEADING}`}>Atur Rate Pengajar</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          Perubahan rate berlaku sejak tanggal &quot;Berlaku Mulai&quot; dan
+          tidak mengubah perhitungan gaji sesi yang sudah lewat.
+        </p>
+        <form
+          action={setPelatihRateAction}
+          className="grid gap-4 sm:grid-cols-4"
+        >
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Pengajar</label>
+            <GlassSelect name="pelatih_id" required>
+              <option value="">Pilih pengajar</option>
+              {pelatihList?.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title ? `${p.title} ${p.full_name}` : p.full_name}
+                </option>
+              ))}
+            </GlassSelect>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Rate Hadir</label>
+            <GlassInput name="rate_hadir" type="number" min={0} required />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Rate Izin/Sakit</label>
+            <GlassInput name="rate_izin_sakit" type="number" min={0} defaultValue={0} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Berlaku Mulai</label>
+            <GlassInput name="effective_from" type="date" defaultValue={today} />
+          </div>
+          <GlassButton
+            type="submit"
+            className="!bg-[#35C5D0] !text-white hover:!bg-[#2bb0ba] sm:col-span-4 sm:w-fit"
+          >
+            Simpan Rate
+          </GlassButton>
+        </form>
+      </GlassCard>
+
+      <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Daftar Pengajar</h2>
         <div className="flex flex-col gap-2">
           {(!pelatihList || pelatihList.length === 0) && (
@@ -84,7 +150,24 @@ export default async function PelatihPage({
                   )}
                 </>
               }
-              secondary={p.email}
+              secondary={
+                <>
+                  {p.email}
+                  {(() => {
+                    const rate = resolveRateForDate(
+                      ratesByPelatih.get(p.id) ?? [],
+                      today
+                    );
+                    return rate
+                      ? ` · Rate hadir ${formatRupiah(rate.rate_hadir)}${
+                          rate.rate_izin_sakit
+                            ? ` / izin-sakit ${formatRupiah(rate.rate_izin_sakit)}`
+                            : ""
+                        }`
+                      : " · Rate belum diatur";
+                  })()}
+                </>
+              }
               action={
                 <>
                   <form
