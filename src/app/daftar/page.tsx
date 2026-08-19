@@ -28,14 +28,13 @@ export default async function DaftarPage({
       supabase
         .from("site_settings")
         .select("key, value")
-        .in("key", ["qris_image_url", "bank_transfer_info"]),
+        .in("key", ["registrasi_dewasa_aktif"]),
     ]);
 
   const heroImage = gallery?.find((g) => g.media_type === "image")?.media_url;
-  const qrisImageUrl =
-    settings?.find((s) => s.key === "qris_image_url")?.value || "";
-  const bankTransferInfo =
-    settings?.find((s) => s.key === "bank_transfer_info")?.value || "";
+  const adultModeEnabled =
+    settings?.find((s) => s.key === "registrasi_dewasa_aktif")?.value ===
+    "true";
 
   if (success) {
     return (
@@ -46,8 +45,8 @@ export default async function DaftarPage({
             Pendaftaran Diterima
           </h1>
           <p className="mt-2 text-sm text-slate-700">
-            Terima kasih! Admin akan meninjau pendaftaran Anda. Anda akan
-            dihubungi untuk info akun login setelah disetujui.
+            Terima kasih! Admin kami akan segera menghubungi Anda melalui
+            WhatsApp untuk mengatur jadwal sesi trial.
           </p>
           <Link href="/" className="mt-6 inline-block">
             <GlassButton>Kembali ke Beranda</GlassButton>
@@ -76,8 +75,7 @@ export default async function DaftarPage({
 
         <RegistrationForm
           programs={programs ?? []}
-          qrisImageUrl={qrisImageUrl}
-          bankTransferInfo={bankTransferInfo}
+          adultModeEnabled={adultModeEnabled}
         />
       </GlassCard>
     </div>

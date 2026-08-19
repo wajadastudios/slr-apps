@@ -15,7 +15,6 @@ export async function submitRegistrationAction(formData: FormData) {
   const preferred_schedule = String(
     formData.get("preferred_schedule") ?? ""
   ).trim();
-  const payment_method = String(formData.get("payment_method") ?? "").trim();
   const referral_code = String(formData.get("referral_code") ?? "")
     .trim()
     .toUpperCase();
@@ -24,13 +23,14 @@ export async function submitRegistrationAction(formData: FormData) {
     !child_name ||
     !parent_name ||
     !parent_email ||
+    !parent_phone ||
     !birth_place ||
     !birth_date ||
     !program_id
   ) {
     redirect(
       `/daftar?error=${encodeURIComponent(
-        "Nama anak, nama orang tua, tempat/tanggal lahir, email, dan program wajib diisi."
+        "Nama anak, nama orang tua, tempat/tanggal lahir, email, nomor WhatsApp, dan program wajib diisi."
       )}`
     );
   }
@@ -76,12 +76,11 @@ export async function submitRegistrationAction(formData: FormData) {
     child_name,
     parent_name,
     parent_email,
-    parent_phone: parent_phone || null,
+    parent_phone,
     birth_place,
     birth_date,
     program_id,
     preferred_schedule: preferred_schedule || null,
-    payment_method: payment_method || null,
     referral_code: referral_code || null,
     referred_by_pelatih_id: referredByPelatihId,
     referral_discount_type: referralDiscountType,
@@ -101,9 +100,7 @@ export async function submitRegistrationAction(formData: FormData) {
 
   await sendWhatsApp(
     adminPhone?.value,
-    `Pendaftar baru: ${child_name} — ortu ${parent_name} (${parent_email}${
-      parent_phone ? `, ${parent_phone}` : ""
-    }). Cek di /admin/pendaftar.`
+    `Pendaftar baru: ${child_name} — ortu ${parent_name} (${parent_email}, ${parent_phone}). Hubungi untuk atur jadwal trial. Cek di /admin/pendaftar.`
   );
 
   redirect("/daftar?success=1");
