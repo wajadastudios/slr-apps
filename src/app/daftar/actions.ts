@@ -16,6 +16,9 @@ export async function submitRegistrationAction(formData: FormData) {
     formData.get("preferred_schedule") ?? ""
   ).trim();
   const payment_method = String(formData.get("payment_method") ?? "").trim();
+  const referral_code = String(formData.get("referral_code") ?? "")
+    .trim()
+    .toUpperCase();
 
   if (
     !child_name ||
@@ -33,6 +36,42 @@ export async function submitRegistrationAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+
+  // Referral terms are snapshotted here, at submission, rather than read
+  // live later -- so a code being edited or retired while this
+  // registration sits in the approval queue never changes what was
+  // already promised to this parent.
+  let referredByPelatihId: string | null = null;
+  let referralDiscountType: string | null = null;
+  let referralDiscountValue: number | null = null;
+  let referralKomisiPerSesi: number | null = null;
+
+  if (referral_code) {
+    const { data: match } = (await supabase
+      .rpc("lookup_referral_code", { p_code: referral_code })
+      .maybeSingle()) as {
+      data: {
+        pelatih_id: string;
+        discount_type: string;
+        discount_value: number;
+        komisi_per_sesi: number;
+      } | null;
+    };
+
+    if (!match) {
+      redirect(
+        `/daftar?error=${encodeURIComponent(
+          "Kode referral tidak ditemukan. Periksa kembali penulisan kodenya, atau tanyakan ke pengajar yang memberikan kode tersebut."
+        )}`
+      );
+    }
+
+    referredByPelatihId = match.pelatih_id;
+    referralDiscountType = match.discount_type;
+    referralDiscountValue = match.discount_value;
+    referralKomisiPerSesi = match.komisi_per_sesi;
+  }
+
   const { error } = await supabase.from("registrations").insert({
     child_name,
     parent_name,
@@ -43,6 +82,11 @@ export async function submitRegistrationAction(formData: FormData) {
     program_id,
     preferred_schedule: preferred_schedule || null,
     payment_method: payment_method || null,
+    referral_code: referral_code || null,
+    referred_by_pelatih_id: referredByPelatihId,
+    referral_discount_type: referralDiscountType,
+    referral_discount_value: referralDiscountValue,
+    referral_komisi_per_sesi: referralKomisiPerSesi,
   });
 
   if (error) {

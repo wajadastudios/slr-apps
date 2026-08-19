@@ -24,7 +24,7 @@ export async function approveRegistrationAction(formData: FormData) {
   const { data: registration } = await supabase
     .from("registrations")
     .select(
-      "child_name, parent_name, parent_phone, program_id, birth_place, birth_date"
+      "child_name, parent_name, parent_phone, program_id, birth_place, birth_date, referral_code, referred_by_pelatih_id, referral_discount_type, referral_discount_value, referral_komisi_per_sesi"
     )
     .eq("id", registration_id)
     .single();
@@ -59,6 +59,11 @@ export async function approveRegistrationAction(formData: FormData) {
     program_id: registration!.program_id,
     birth_place: registration!.birth_place,
     birth_date: registration!.birth_date,
+    referral_code_used: registration!.referral_code,
+    referred_by_pelatih_id: registration!.referred_by_pelatih_id,
+    referral_discount_type: registration!.referral_discount_type,
+    referral_discount_value: registration!.referral_discount_value,
+    referral_komisi_per_sesi: registration!.referral_komisi_per_sesi,
   });
 
   await supabase

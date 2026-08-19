@@ -127,6 +127,17 @@ export function RegistrationForm({
         <GlassInput name="preferred_schedule" placeholder="Contoh: Sabtu pagi" />
       </div>
 
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm text-slate-800">
+          Kode Referral (opsional)
+        </label>
+        <GlassInput
+          name="referral_code"
+          placeholder="Kode dari pengajar, jika ada"
+          className="uppercase placeholder:normal-case"
+        />
+      </div>
+
       <div className="flex flex-col gap-3 rounded-2xl border border-[#35C5D0]/30 bg-[#EEF9FB] p-4">
         <p className="text-sm font-semibold text-[#17263D]">
           Biaya Pendaftaran Kelas Trial: Rp50.000
