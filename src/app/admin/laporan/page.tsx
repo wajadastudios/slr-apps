@@ -17,7 +17,11 @@ export default async function AdminLaporanPage({
 
   const { data: students } = await supabase
     .from("students")
-    .select("id, full_name, program:program_id(name, skill_template)")
+    .select(
+      "id, full_name, program:program_id!inner(name, skill_template), schedules!inner(class_slots!inner(label))"
+    )
+    .eq("program.name", "Kids Swim")
+    .eq("schedules.class_slots.label", "Private")
     .order("full_name");
 
   const selectedId = id || students?.[0]?.id;
