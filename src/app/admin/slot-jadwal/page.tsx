@@ -99,11 +99,11 @@ export default async function SlotJadwalPage({
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Label (opsional)</label>
-            <GlassInput
-              name="label"
-              placeholder="Grup / Private"
-              defaultValue={editingSlot?.label ?? ""}
-            />
+            <GlassSelect name="label" defaultValue={editingSlot?.label ?? ""}>
+              <option value="">Tanpa label</option>
+              <option value="Grup">Grup</option>
+              <option value="Private">Private</option>
+            </GlassSelect>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Lokasi Kolam</label>
