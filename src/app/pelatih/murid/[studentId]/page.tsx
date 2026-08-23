@@ -6,8 +6,11 @@ import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
 import { SkillScoresField } from "@/components/skill-scores-field";
+import { PerformanceRecordField } from "@/components/performance-record-field";
+import { PerformanceRecordsCard } from "@/components/performance-records-card";
 import { ReportHistoryCard } from "@/components/report-history-card";
 import { computeProgressPercent } from "@/lib/progress";
+import { formatAge } from "@/lib/performance";
 import { createReportAction } from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
@@ -27,7 +30,7 @@ export default async function MuridReportPage({
   // pelatih actually teaches — an empty result means access denied.
   const { data: student } = await supabase
     .from("students")
-    .select("id, full_name, program:program_id(name, skill_template)")
+    .select("id, full_name, birth_date, program:program_id(name, skill_template)")
     .eq("id", studentId)
     .single();
 
@@ -40,14 +43,21 @@ export default async function MuridReportPage({
     skill_template: string[];
   } | null;
   const skillTemplate = program?.skill_template ?? [];
+  const age = formatAge(student.birth_date);
 
-  const { data: reports } = await supabase
-    .from("progress_reports")
-    .select(
-      "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls, substitute_for"
-    )
-    .eq("student_id", studentId)
-    .order("session_date", { ascending: false });
+  const [{ data: reports }, { data: performanceRecords }] = await Promise.all([
+    supabase
+      .from("progress_reports")
+      .select(
+        "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls, substitute_for"
+      )
+      .eq("student_id", studentId)
+      .order("session_date", { ascending: false }),
+    supabase
+      .from("performance_records")
+      .select("id, metric_type, stroke, distance_m, duration_seconds, recorded_at")
+      .eq("student_id", studentId),
+  ]);
 
   const nextSessionNumber = (reports?.length ?? 0) + 1;
   const today = new Date().toISOString().slice(0, 10);
@@ -63,6 +73,7 @@ export default async function MuridReportPage({
           {student.full_name}{" "}
           <span className="text-base font-normal text-slate-600">
             &mdash; {program?.name}
+            {age ? ` · ${age}` : ""}
           </span>
         </h1>
         {progressPercent !== null && (
@@ -108,6 +119,8 @@ export default async function MuridReportPage({
 
           <SkillScoresField initialSkills={skillTemplate} />
 
+          <PerformanceRecordField />
+
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Catatan</label>
             <GlassTextarea name="notes" rows={3} />
@@ -147,6 +160,8 @@ export default async function MuridReportPage({
           </GlassButton>
         </form>
       </GlassCard>
+
+      <PerformanceRecordsCard records={performanceRecords ?? []} />
 
       <ReportHistoryCard reports={reports ?? []} />
     </div>

@@ -58,6 +58,41 @@ async function resolveSubstituteFor(
   return replaced?.full_name ?? null;
 }
 
+const METRIC_TYPES = ["waktu_tempuh", "jarak_tempuh", "tahan_nafas", "treading_water"];
+const STROKES = ["Bebas", "Dada", "Punggung", "Kupu-kupu"];
+
+function parsePerformanceRecords(raw: unknown): {
+  metric_type: string;
+  stroke: string | null;
+  distance_m: number | null;
+  duration_seconds: number | null;
+}[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ReturnType<typeof parsePerformanceRecords> = [];
+
+  for (const item of raw.slice(0, 20)) {
+    if (!item || typeof item !== "object") continue;
+    const metric_type = String((item as { metric_type?: unknown }).metric_type ?? "");
+    if (!METRIC_TYPES.includes(metric_type)) continue;
+
+    const strokeRaw = String((item as { stroke?: unknown }).stroke ?? "");
+    const stroke = STROKES.includes(strokeRaw) ? strokeRaw : null;
+
+    const distanceRaw = Number((item as { distance_m?: unknown }).distance_m);
+    const distance_m = Number.isFinite(distanceRaw) && distanceRaw > 0 ? distanceRaw : null;
+
+    const durationRaw = Number((item as { duration_seconds?: unknown }).duration_seconds);
+    const duration_seconds =
+      Number.isFinite(durationRaw) && durationRaw > 0 ? durationRaw : null;
+
+    if (distance_m === null && duration_seconds === null) continue;
+
+    out.push({ metric_type, stroke, distance_m, duration_seconds });
+  }
+
+  return out;
+}
+
 export async function createReportAction(formData: FormData) {
   const session = await requirePelatih();
 
@@ -122,22 +157,46 @@ export async function createReportAction(formData: FormData) {
 
   const substitute_for = await resolveSubstituteFor(student_id, session.user.id);
 
-  const { error } = await supabase.from("progress_reports").insert({
-    student_id,
-    pelatih_id: session.user.id,
-    substitute_for,
-    session_date,
-    session_number,
-    attendance,
-    scores,
-    notes,
-    media_urls,
-    next_focus,
-  });
+  const { data: report, error } = await supabase
+    .from("progress_reports")
+    .insert({
+      student_id,
+      pelatih_id: session.user.id,
+      substitute_for,
+      session_date,
+      session_number,
+      attendance,
+      scores,
+      notes,
+      media_urls,
+      next_focus,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     redirect(
       `/pelatih/murid/${student_id}?error=${encodeURIComponent(error.message)}`
+    );
+  }
+
+  let parsedRecords: unknown;
+  try {
+    parsedRecords = JSON.parse(String(formData.get("performance_records_json") ?? "[]"));
+  } catch {
+    parsedRecords = [];
+  }
+  const performanceRecords = parsePerformanceRecords(parsedRecords);
+
+  if (performanceRecords.length > 0) {
+    await supabase.from("performance_records").insert(
+      performanceRecords.map((r) => ({
+        student_id,
+        progress_report_id: report?.id ?? null,
+        pelatih_id: session.user.id,
+        recorded_at: session_date,
+        ...r,
+      }))
     );
   }
 

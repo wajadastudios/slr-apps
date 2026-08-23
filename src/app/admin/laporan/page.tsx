@@ -3,7 +3,10 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { ReportHistoryCard } from "@/components/report-history-card";
+import { PerformanceRecordsCard } from "@/components/performance-records-card";
+import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { computeProgressPercent } from "@/lib/progress";
+import { formatAge } from "@/lib/performance";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -18,7 +21,7 @@ export default async function AdminLaporanPage({
   const { data: students } = await supabase
     .from("students")
     .select(
-      "id, full_name, program:program_id!inner(name, skill_template), schedules!inner(class_slots!inner(label))"
+      "id, full_name, birth_date, program:program_id!inner(name, skill_template), schedules!inner(class_slots!inner(label))"
     )
     .eq("program.name", "Kids Swim")
     .eq("schedules.class_slots.label", "Private")
@@ -26,15 +29,21 @@ export default async function AdminLaporanPage({
 
   const selectedId = id || students?.[0]?.id;
 
-  const { data: reports } = selectedId
-    ? await supabase
-        .from("progress_reports")
-        .select(
-          "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls, substitute_for"
-        )
-        .eq("student_id", selectedId)
-        .order("session_date", { ascending: false })
-    : { data: null };
+  const [{ data: reports }, { data: performanceRecords }] = selectedId
+    ? await Promise.all([
+        supabase
+          .from("progress_reports")
+          .select(
+            "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls, substitute_for"
+          )
+          .eq("student_id", selectedId)
+          .order("session_date", { ascending: false }),
+        supabase
+          .from("performance_records")
+          .select("id, metric_type, stroke, distance_m, duration_seconds, recorded_at")
+          .eq("student_id", selectedId),
+      ])
+    : [{ data: null }, { data: null }];
 
   const selectedStudent = students?.find((s) => s.id === selectedId);
   const selectedSkillTemplate =
@@ -44,6 +53,7 @@ export default async function AdminLaporanPage({
     selectedSkillTemplate,
     reports?.[0]?.scores as Record<string, number> | null | undefined
   );
+  const selectedAge = formatAge(selectedStudent?.birth_date);
 
   return (
     <div className="flex flex-col gap-6">
@@ -81,17 +91,20 @@ export default async function AdminLaporanPage({
 
       {selectedStudent && (
         <>
-          {progressPercent !== null && (
-            <GlassCard className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-slate-700">
-                Progress keseluruhan {selectedStudent.full_name}
-              </p>
+          <GlassCard className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-slate-700">
+              {selectedStudent.full_name}
+              {selectedAge ? ` · ${selectedAge}` : ""}
+            </p>
+            {progressPercent !== null && (
               <span className="rounded-full bg-[#EEF9FB] px-3 py-1.5 text-sm font-semibold text-[#35C5D0]">
-                {progressPercent}%
+                Progress {progressPercent}%
               </span>
-            </GlassCard>
-          )}
+            )}
+          </GlassCard>
+          <PerformanceRecordsCard records={performanceRecords ?? []} />
           <ReportHistoryCard reports={reports ?? []} />
+          <AssessmentGuideCard />
         </>
       )}
     </div>

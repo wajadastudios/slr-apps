@@ -6,8 +6,11 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { ProgressTrend } from "@/components/progress-trend";
 import { ReportHistoryCard } from "@/components/report-history-card";
+import { PerformanceRecordsCard } from "@/components/performance-records-card";
+import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { ChildSummaryWidget } from "@/components/child-summary-widget";
 import { computeProgressPercent, computeNextSession, getGreeting } from "@/lib/progress";
+import { formatAge } from "@/lib/performance";
 import { DAYS } from "@/lib/days";
 import { setPackagePreferenceAction } from "./actions";
 
@@ -39,9 +42,11 @@ export default async function AnakDetailPage({
     skill_template: string[];
   } | null;
   const skillTemplate = program?.skill_template ?? [];
+  const age = formatAge(student.birth_date);
 
   const [
     { data: reports },
+    { data: performanceRecords },
     { data: invoices },
     { data: availablePackages },
     { data: scheduleRows },
@@ -54,6 +59,10 @@ export default async function AnakDetailPage({
       )
       .eq("student_id", studentId)
       .order("session_date", { ascending: false }),
+    supabase
+      .from("performance_records")
+      .select("id, metric_type, stroke, distance_m, duration_seconds, recorded_at")
+      .eq("student_id", studentId),
     supabase
       .from("invoices")
       .select("sessions_count, status, created_at")
@@ -136,7 +145,7 @@ export default async function AnakDetailPage({
     <div className="flex flex-col gap-6">
       <ChildSummaryWidget
         greeting={`${getGreeting()}, ${session?.fullName ?? "Orang Tua"}`}
-        childLabel={`${student.nickname || student.full_name} · ${program?.name ?? "Belum ada program"}`}
+        childLabel={`${student.nickname || student.full_name} · ${program?.name ?? "Belum ada program"}${age ? ` · ${age}` : ""}`}
         kehadiranLabel={`${hadirCount} / ${totalConfirmedSessions} sesi`}
         tagihanLabel={tagihanLabel}
         tagihanOk={tagihanOk}
@@ -202,7 +211,11 @@ export default async function AnakDetailPage({
 
       <ProgressTrend skillTemplate={skillTemplate} reports={reports ?? []} />
 
+      <PerformanceRecordsCard records={performanceRecords ?? []} />
+
       <ReportHistoryCard reports={reports ?? []} />
+
+      <AssessmentGuideCard />
     </div>
   );
 }
