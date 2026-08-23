@@ -12,6 +12,24 @@ type NavGroup = {
   items: { href: string; label: string }[];
 };
 
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")}
+    >
+      <path
+        d="M5 7.5L10 12.5L15 7.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function NavLinks({
   navGroups,
   pathname,
@@ -21,35 +39,54 @@ function NavLinks({
   pathname: string;
   onNavigate?: () => void;
 }) {
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+
   return (
-    <nav className="flex flex-1 flex-col gap-4 overflow-y-auto">
-      {navGroups.map((group, i) => (
-        <div key={i} className="flex flex-col gap-1">
-          {group.label && (
-            <p className="px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              {group.label}
-            </p>
-          )}
-          {group.items.map((item) => {
-            const active = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onNavigate}
-                className={cn(
-                  "rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-[#35C5D0] text-white"
-                    : "text-slate-700 hover:bg-white/60"
-                )}
+    <nav className="flex flex-1 flex-col gap-2 overflow-y-auto">
+      {navGroups.map((group, i) => {
+        const hasActiveItem = group.items.some((item) => item.href === pathname);
+        const isOpen = group.label
+          ? overrides[group.label] ?? hasActiveItem
+          : true;
+        return (
+          <div key={i} className="flex flex-col gap-1">
+            {group.label && (
+              <button
+                type="button"
+                onClick={() =>
+                  setOverrides((prev) => ({
+                    ...prev,
+                    [group.label as string]: !isOpen,
+                  }))
+                }
+                className="flex items-center justify-between rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 transition-colors hover:bg-white/60 hover:text-slate-700"
               >
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-      ))}
+                {group.label}
+                <ChevronIcon open={!!isOpen} />
+              </button>
+            )}
+            {isOpen &&
+              group.items.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onNavigate}
+                    className={cn(
+                      "rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                      active
+                        ? "bg-[#35C5D0] text-white"
+                        : "text-slate-700 hover:bg-white/60"
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+          </div>
+        );
+      })}
     </nav>
   );
 }

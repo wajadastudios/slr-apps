@@ -1,9 +1,9 @@
 import { PortalSidebar } from "@/components/portal-sidebar";
 
 const NAV_GROUPS = [
-  { label: null, items: [{ href: "/admin", label: "Ringkasan" }] },
+  { label: null, items: [{ href: "/admin", label: "Dashboard" }] },
   {
-    label: "Orang",
+    label: "Pengguna",
     items: [
       { href: "/admin/murid", label: "Siswa" },
       { href: "/admin/laporan", label: "Laporan" },
@@ -38,8 +38,11 @@ const NAV_GROUPS = [
       { href: "/admin/galeri", label: "Galeri" },
       { href: "/admin/media-ads", label: "Media Ads" },
       { href: "/admin/faq", label: "FAQ" },
-      { href: "/admin/pengaturan", label: "Pengaturan" },
     ],
+  },
+  {
+    label: "Pengaturan",
+    items: [{ href: "/admin/pengaturan", label: "Pengaturan" }],
   },
 ];
 
