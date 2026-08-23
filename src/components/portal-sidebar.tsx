@@ -59,7 +59,7 @@ function NavLinks({
                     [group.label as string]: !isOpen,
                   }))
                 }
-                className="flex items-center justify-between rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 transition-colors hover:bg-white/60 hover:text-slate-700"
+                className="flex items-center justify-between rounded-lg px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-700 transition-colors hover:bg-white/60 hover:text-[#17263D]"
               >
                 {group.label}
                 <ChevronIcon open={!!isOpen} />

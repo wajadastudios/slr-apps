@@ -41,7 +41,7 @@ const NAV_GROUPS = [
     ],
   },
   {
-    label: "Pengaturan",
+    label: null,
     items: [{ href: "/admin/pengaturan", label: "Pengaturan" }],
   },
 ];
