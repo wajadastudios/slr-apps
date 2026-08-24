@@ -436,10 +436,6 @@ export default async function Home() {
                 rangkuman tiap 4 sesi
               </li>
               <li>
-                <span className="font-medium text-[#17263D]">Jadwal:</span>{" "}
-                tetap, sejadwal dengan kelompok
-              </li>
-              <li>
                 <span className="font-medium text-[#17263D]">Nilai tambah:</span>{" "}
                 belajar sosial &amp; motivasi dari teman
               </li>
@@ -472,10 +468,6 @@ export default async function Home() {
               <li>
                 <span className="font-medium text-[#17263D]">Laporan progress:</span>{" "}
                 tiap sesi, real-time
-              </li>
-              <li>
-                <span className="font-medium text-[#17263D]">Jadwal:</span>{" "}
-                lebih fleksibel, mudah reschedule
               </li>
               <li>
                 <span className="font-medium text-[#17263D]">Nilai tambah:</span>{" "}
