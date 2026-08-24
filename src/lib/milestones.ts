@@ -15,8 +15,13 @@ export const TIER_ICONS: Record<Tier, string> = {
   gold: "🥇",
 };
 
+// Same 4 stages as AssessmentGuideCard, in training order.
+export const LEVELS = ["Dasar 1", "Dasar 2", "Menengah", "Mahir"] as const;
+export type Level = (typeof LEVELS)[number];
+
 export type Milestone = {
   id: string;
+  level: Level;
   metric_type: MetricType;
   label: string;
   stroke: Stroke | null;
@@ -28,22 +33,53 @@ export type Milestone = {
   tiers: Record<Tier, number>;
 };
 
-// Defaults adapted from the Swim England / Red Cross research earlier in
-// this project: 25m is the first "real distance" benchmark (Swim England
-// Stage 6-7), 5m/10m glide distances (Stage 2-3), and 30s treading water
-// (Stage 5). Times per stroke are scaled for beginner Kids Swim pace, not
-// competitive splits.
+// One flagship, quantifiable record per training stage (Dasar 1 = pemula),
+// scaled to what's realistic to attempt at that stage — a beginner isn't
+// timed over 25m, and an advanced swimmer isn't scored on a 3-second
+// breath-hold. Mahir carries the per-stroke 25m targets since it's the
+// stage where multiple strokes are expected. Adapted from the Swim England
+// / Red Cross research earlier in this project (5m/10m glide at Stage 2-3,
+// 25m swims at Stage 6-7, 30s treading water at Stage 5).
 export const MILESTONES: Milestone[] = [
   {
+    id: "tahan-nafas",
+    level: "Dasar 1",
+    metric_type: "tahan_nafas",
+    label: "Tahan Nafas",
+    stroke: null,
+    distance_m: null,
+    tiers: { bronze: 3, silver: 5, gold: 8 },
+  },
+  {
+    id: "jarak-meluncur",
+    level: "Dasar 2",
+    metric_type: "jarak_tempuh",
+    label: "Jarak Meluncur",
+    stroke: null,
+    distance_m: null,
+    tiers: { bronze: 5, silver: 8, gold: 10 },
+  },
+  {
     id: "waktu-25m-bebas",
+    level: "Menengah",
     metric_type: "waktu_tempuh",
-    label: "25m Gaya Bebas",
+    label: "Waktu 25m Gaya Bebas",
     stroke: "Bebas",
     distance_m: 25,
-    tiers: { bronze: 60, silver: 45, gold: 30 },
+    tiers: { bronze: 60, silver: 50, gold: 40 },
+  },
+  {
+    id: "treading-water",
+    level: "Mahir",
+    metric_type: "treading_water",
+    label: "Treading Water",
+    stroke: null,
+    distance_m: null,
+    tiers: { bronze: 15, silver: 22, gold: 30 },
   },
   {
     id: "waktu-25m-punggung",
+    level: "Mahir",
     metric_type: "waktu_tempuh",
     label: "25m Gaya Punggung",
     stroke: "Punggung",
@@ -52,6 +88,7 @@ export const MILESTONES: Milestone[] = [
   },
   {
     id: "waktu-25m-dada",
+    level: "Mahir",
     metric_type: "waktu_tempuh",
     label: "25m Gaya Dada",
     stroke: "Dada",
@@ -60,35 +97,12 @@ export const MILESTONES: Milestone[] = [
   },
   {
     id: "waktu-25m-kupu",
+    level: "Mahir",
     metric_type: "waktu_tempuh",
     label: "25m Gaya Kupu-kupu",
     stroke: "Kupu-kupu",
     distance_m: 25,
     tiers: { bronze: 80, silver: 60, gold: 45 },
-  },
-  {
-    id: "jarak-meluncur",
-    metric_type: "jarak_tempuh",
-    label: "Jarak Meluncur",
-    stroke: null,
-    distance_m: null,
-    tiers: { bronze: 5, silver: 10, gold: 15 },
-  },
-  {
-    id: "tahan-nafas",
-    metric_type: "tahan_nafas",
-    label: "Tahan Nafas",
-    stroke: null,
-    distance_m: null,
-    tiers: { bronze: 5, silver: 10, gold: 20 },
-  },
-  {
-    id: "treading-water",
-    metric_type: "treading_water",
-    label: "Treading Water",
-    stroke: null,
-    distance_m: null,
-    tiers: { bronze: 10, silver: 20, gold: 30 },
   },
 ];
 
@@ -159,4 +173,13 @@ export function computeMilestoneStatuses(
       achievedAt: best?.recorded_at ?? null,
     };
   });
+}
+
+export function groupStatusesByLevel(
+  statuses: MilestoneStatus[]
+): { level: Level; statuses: MilestoneStatus[] }[] {
+  return LEVELS.map((level) => ({
+    level,
+    statuses: statuses.filter((s) => s.milestone.level === level),
+  }));
 }

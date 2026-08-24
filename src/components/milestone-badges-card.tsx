@@ -2,6 +2,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import {
   computeMilestoneStatuses,
   formatMilestoneValue,
+  groupStatusesByLevel,
   TIER_ICONS,
   TIER_LABELS,
   type Tier,
@@ -32,6 +33,7 @@ export function MilestoneBadgesCard({
   records: PerformanceRecordRow[];
 }) {
   const statuses = computeMilestoneStatuses(records);
+  const grouped = groupStatusesByLevel(statuses);
 
   return (
     <GlassCard>
@@ -39,56 +41,69 @@ export function MilestoneBadgesCard({
         Record Unlock
       </h2>
       <p className="mb-4 text-sm text-slate-600">
-        Target rekor standar &mdash; tercapai atau lebih baik akan membuka lencana
-        perunggu, perak, atau emas.
+        Satu rekor andalan per jenjang latihan &mdash; tercapai atau lebih baik
+        membuka lencana perunggu, perak, atau emas.
       </p>
 
-      <div className="grid gap-2.5 sm:grid-cols-2">
-        {statuses.map(({ milestone, bestValue, tier, achievedAt }) => {
-          const style = tier ? TIER_STYLE[tier] : null;
-          return (
-            <div
-              key={milestone.id}
-              className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 ${
-                style
-                  ? `${style.border} ${style.bg}`
-                  : "border-dashed border-slate-300/60 bg-white/30"
-              }`}
-            >
-              <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${
-                  tier ? "bg-white/50" : "bg-slate-200/50 grayscale opacity-60"
-                }`}
-              >
-                {tier ? TIER_ICONS[tier] : "🔒"}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p
-                  className={`text-sm font-semibold ${
-                    style ? style.text : "text-slate-600"
-                  }`}
-                >
-                  {milestone.label}
-                </p>
-                {tier && bestValue !== null ? (
-                  <p className={`text-xs ${style!.text}`}>
-                    {TIER_LABELS[tier]} &middot;{" "}
-                    {formatMilestoneValue(milestone.metric_type, bestValue)}
-                    {achievedAt ? ` · ${achievedAt}` : ""}
-                  </p>
-                ) : bestValue !== null ? (
-                  <p className="text-xs text-slate-500">
-                    Percobaan terbaik: {formatMilestoneValue(milestone.metric_type, bestValue)}{" "}
-                    &middot; target perunggu:{" "}
-                    {formatMilestoneValue(milestone.metric_type, milestone.tiers.bronze)}
-                  </p>
-                ) : (
-                  <p className="text-xs text-slate-500">Belum ada percobaan</p>
-                )}
-              </div>
+      <div className="flex flex-col gap-4">
+        {grouped.map(({ level, statuses: levelStatuses }) => (
+          <div key={level}>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              {level}
+            </p>
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {levelStatuses.map(({ milestone, bestValue, tier, achievedAt }) => {
+                const style = tier ? TIER_STYLE[tier] : null;
+                return (
+                  <div
+                    key={milestone.id}
+                    className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 ${
+                      style
+                        ? `${style.border} ${style.bg}`
+                        : "border-dashed border-slate-300/60 bg-white/30"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${
+                        tier ? "bg-white/50" : "bg-slate-200/50 grayscale opacity-60"
+                      }`}
+                    >
+                      {tier ? TIER_ICONS[tier] : "🔒"}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`text-sm font-semibold ${
+                          style ? style.text : "text-slate-600"
+                        }`}
+                      >
+                        {milestone.label}
+                      </p>
+                      {tier && bestValue !== null ? (
+                        <p className={`text-xs ${style!.text}`}>
+                          {TIER_LABELS[tier]} &middot;{" "}
+                          {formatMilestoneValue(milestone.metric_type, bestValue)}
+                          {achievedAt ? ` · ${achievedAt}` : ""}
+                        </p>
+                      ) : bestValue !== null ? (
+                        <p className="text-xs text-slate-500">
+                          Percobaan terbaik:{" "}
+                          {formatMilestoneValue(milestone.metric_type, bestValue)} &middot; target
+                          perunggu:{" "}
+                          {formatMilestoneValue(milestone.metric_type, milestone.tiers.bronze)}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-slate-500">
+                          Belum ada percobaan &middot; target perunggu:{" "}
+                          {formatMilestoneValue(milestone.metric_type, milestone.tiers.bronze)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </GlassCard>
   );
