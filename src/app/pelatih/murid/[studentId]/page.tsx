@@ -8,6 +8,7 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { SkillScoresField } from "@/components/skill-scores-field";
 import { PerformanceRecordField } from "@/components/performance-record-field";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
+import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
 import { ReportHistoryCard } from "@/components/report-history-card";
 import { computeProgressPercent } from "@/lib/progress";
 import { formatAge } from "@/lib/performance";
@@ -160,6 +161,8 @@ export default async function MuridReportPage({
           </GlassButton>
         </form>
       </GlassCard>
+
+      <MilestoneBadgesCard records={performanceRecords ?? []} />
 
       <PerformanceRecordsCard records={performanceRecords ?? []} />
 

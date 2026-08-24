@@ -7,6 +7,7 @@ import { DataRow } from "@/components/ui/data-row";
 import { ProgressTrend } from "@/components/progress-trend";
 import { ReportHistoryCard } from "@/components/report-history-card";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
+import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { ChildSummaryWidget } from "@/components/child-summary-widget";
 import { computeProgressPercent, computeNextSession, getGreeting } from "@/lib/progress";
@@ -210,6 +211,8 @@ export default async function AnakDetailPage({
       )}
 
       <ProgressTrend skillTemplate={skillTemplate} reports={reports ?? []} />
+
+      <MilestoneBadgesCard records={performanceRecords ?? []} />
 
       <PerformanceRecordsCard records={performanceRecords ?? []} />
 
