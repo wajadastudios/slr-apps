@@ -401,6 +401,96 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* Grup vs Private */}
+      <section id="grup-vs-private" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6 text-center">
+        <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D] sm:text-3xl`}>
+          Kelas Grup atau Private?
+        </h2>
+        <p className="mx-auto max-w-xl text-sm text-slate-600">
+          Dua-duanya sama-sama efektif &mdash; bedanya di cara mengajarnya,
+          bukan hasil akhirnya. Kecepatan berkembang tetap mengikuti anak
+          itu sendiri.
+        </p>
+        <div className="mt-2 grid gap-4 text-left sm:grid-cols-2">
+          <GlassCard>
+            <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#EEF9FB] text-lg">
+              🏊
+            </span>
+            <h3 className="text-lg font-semibold text-[#17263D]">
+              Kelas Grup
+            </h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Belajar bareng, tumbuh bareng.
+            </p>
+            <ul className="mt-4 flex flex-col gap-2.5 text-sm text-slate-700">
+              <li>
+                <span className="font-medium text-[#17263D]">Fokus pelatih:</span>{" "}
+                terbagi ke 4&ndash;6 anak
+              </li>
+              <li>
+                <span className="font-medium text-[#17263D]">Ritme belajar:</span>{" "}
+                mengikuti rata-rata kecepatan kelompok
+              </li>
+              <li>
+                <span className="font-medium text-[#17263D]">Laporan progress:</span>{" "}
+                rangkuman tiap 4 sesi
+              </li>
+              <li>
+                <span className="font-medium text-[#17263D]">Jadwal:</span>{" "}
+                tetap, sejadwal dengan kelompok
+              </li>
+              <li>
+                <span className="font-medium text-[#17263D]">Nilai tambah:</span>{" "}
+                belajar sosial &amp; motivasi dari teman
+              </li>
+              <li>
+                <span className="font-medium text-[#17263D]">Cocok untuk:</span>{" "}
+                anak yang senang suasana ramai &amp; kompetisi sehat
+              </li>
+            </ul>
+          </GlassCard>
+
+          <GlassCard>
+            <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#EEF9FB] text-lg">
+              🎯
+            </span>
+            <h3 className="text-lg font-semibold text-[#17263D]">
+              Kelas Private
+            </h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Fokus 100% untuk si kecil.
+            </p>
+            <ul className="mt-4 flex flex-col gap-2.5 text-sm text-slate-700">
+              <li>
+                <span className="font-medium text-[#17263D]">Fokus pelatih:</span>{" "}
+                100% untuk 1 anak
+              </li>
+              <li>
+                <span className="font-medium text-[#17263D]">Ritme belajar:</span>{" "}
+                disesuaikan penuh ke kondisi anak saat itu
+              </li>
+              <li>
+                <span className="font-medium text-[#17263D]">Laporan progress:</span>{" "}
+                tiap sesi, real-time
+              </li>
+              <li>
+                <span className="font-medium text-[#17263D]">Jadwal:</span>{" "}
+                lebih fleksibel, mudah reschedule
+              </li>
+              <li>
+                <span className="font-medium text-[#17263D]">Nilai tambah:</span>{" "}
+                koreksi personal &amp; perhatian penuh tiap gerakan
+              </li>
+              <li>
+                <span className="font-medium text-[#17263D]">Cocok untuk:</span>{" "}
+                anak yang butuh perhatian penuh, misal masih takut air atau
+                punya kebutuhan khusus
+              </li>
+            </ul>
+          </GlassCard>
+        </div>
+      </section>
+
       {/* Harga & Paket */}
       <section id="harga" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
         <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
