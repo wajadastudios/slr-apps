@@ -7,7 +7,6 @@ import {
   computeGaji,
   computeReferralCommission,
   periodBounds,
-  resolveRateForDate,
   MONTH_NAMES,
   type RateRow,
   type ReportForPayroll,

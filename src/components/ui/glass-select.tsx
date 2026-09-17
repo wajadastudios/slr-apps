@@ -90,12 +90,6 @@ export function GlassSelect({
   const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
-    if (isControlled) return;
-    setInternalValue(String(defaultValue ?? ""));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultValue]);
-
-  useEffect(() => {
     function handlePointerDown(e: MouseEvent) {
       const target = e.target as Node;
       if (rootRef.current?.contains(target)) return;

@@ -29,13 +29,6 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-const PACKAGE_BADGES: Record<string, { label: string; className: string }> = {
-  promo: { label: "Promo", className: "bg-[#FFC800] text-[#5c4400]" },
-  diskon: { label: "Diskon", className: "bg-[#FF8A65] text-white" },
-  best_deal: { label: "Best Deal", className: "bg-[#35C5D0] text-white" },
-  direkomendasikan: { label: "Direkomendasikan", className: "bg-[#55D6A6] text-white" },
-};
-
 function programIcon(name: string) {
   const n = name.toLowerCase();
   if (n.includes("aquanatal") || n.includes("hamil")) return "🤰";

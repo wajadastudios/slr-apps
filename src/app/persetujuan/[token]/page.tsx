@@ -28,6 +28,10 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function isExpired(tokenExpiresAt: string) {
+  return new Date(tokenExpiresAt).getTime() < Date.now();
+}
+
 export default async function PersetujuanPage({
   params,
   searchParams,
@@ -106,7 +110,7 @@ export default async function PersetujuanPage({
 
   const isSlotOwner = slot?.pelatih_id === session.user.id;
   const canDecide = session.role === "admin" || isSlotOwner;
-  const expired = new Date(request.token_expires_at).getTime() < Date.now();
+  const expired = isExpired(request.token_expires_at);
 
   return (
     <Shell>

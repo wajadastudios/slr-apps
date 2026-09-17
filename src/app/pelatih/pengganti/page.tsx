@@ -15,8 +15,6 @@ import {
 } from "@/lib/week";
 import { requestSubstitutionAction } from "./actions";
 
-const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
-
 // Back 2 weeks covers writing a late report; forward 2 weeks lets a
 // pengajar prepare and read the student's notes before the session.
 const MAX_OFFSET = 2;

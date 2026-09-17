@@ -18,20 +18,43 @@ export function ImageCropPicker({
   onConfirm: (blob: Blob) => void;
   onCancel: () => void;
 }) {
+  // Remounting when a different file is selected gives each file its own
+  // object URL and resets crop state without a synchronous effect update.
+  const fileKey = `${file.name}:${file.size}:${file.lastModified}`;
+  return (
+    <ImageCropEditor
+      key={fileKey}
+      file={file}
+      aspect={aspect}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
+  );
+}
+
+function ImageCropEditor({
+  file,
+  aspect,
+  onConfirm,
+  onCancel,
+}: {
+  file: File;
+  aspect: number;
+  onConfirm: (blob: Blob) => void;
+  onCancel: () => void;
+}) {
   const viewportHeight = Math.round(VIEWPORT_WIDTH / aspect);
 
   const imgRef = useRef<HTMLImageElement>(null);
-  const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [imgUrl] = useState(() => URL.createObjectURL(file));
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState<Vec>({ x: 0, y: 0 });
   const dragState = useRef<{ start: Vec; startOffset: Vec } | null>(null);
 
   useEffect(() => {
-    const url = URL.createObjectURL(file);
-    setImgUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
+    return () => URL.revokeObjectURL(imgUrl);
+  }, [imgUrl]);
 
   const baseScale = useMemo(() => {
     if (!natural) return 1;

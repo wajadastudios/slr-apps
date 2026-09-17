@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -11,18 +11,21 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { WaterBg } from "@/components/water-bg";
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [deactivated, setDeactivated] = useState(false);
-
-  useEffect(() => {
-    setDeactivated(
-      new URLSearchParams(window.location.search).get("nonaktif") === "1"
-    );
-  }, []);
+  const deactivated = searchParams.get("nonaktif") === "1";
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -45,7 +48,7 @@ export default function LoginPage() {
     // Return to where the user came from (e.g. a substitution approval link
     // opened from WhatsApp) instead of the role home. Only same-origin
     // relative paths, so a crafted ?next= cannot redirect off-site.
-    const next = new URLSearchParams(window.location.search).get("next");
+    const next = searchParams.get("next");
     if (next && next.startsWith("/") && !next.startsWith("//")) {
       router.replace(next);
       return;
