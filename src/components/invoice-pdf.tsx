@@ -5,15 +5,15 @@ const STATUS_LABEL: Record<string, string> = {
   paid: "Lunas",
 };
 
-const STATUS_COLOR: Record<string, string> = {
-  sent: "#b45309",
-  paid: "#1a8f6f",
+const STATUS_COLOR: Record<string, { text: string; bg: string }> = {
+  sent: { text: "#b45309", bg: "#fef3c7" },
+  paid: { text: "#1a8f6f", bg: "#dcfce7" },
 };
 
 const styles = StyleSheet.create({
   page: {
     padding: 40,
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: "Helvetica",
     color: "#17263D",
   },
@@ -21,51 +21,89 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 20,
+    marginBottom: 18,
   },
-  logo: { width: 90, height: 90 },
-  contact: { fontSize: 9, color: "#64748b", textAlign: "right" },
-  contactLine: { marginBottom: 2 },
+  logo: { width: 80, height: 80 },
+  contact: { fontSize: 9, color: "#64748b", textAlign: "right", lineHeight: 1.5 },
   divider: { borderBottom: "2 solid #17263D", marginBottom: 20 },
-  title: { fontSize: 22, fontWeight: 700, marginBottom: 2 },
-  subtitle: { fontSize: 11, color: "#64748b", marginBottom: 20 },
-  infoRow: { flexDirection: "row", marginBottom: 24 },
-  infoCol: { flex: 1 },
-  infoLabel: {
-    fontSize: 9,
-    color: "#64748b",
-    textTransform: "uppercase",
-    marginBottom: 4,
+  titleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 24,
   },
-  infoValue: { fontWeight: 700, marginBottom: 2 },
-  table: { marginTop: 4 },
+  title: { fontSize: 22, fontWeight: 700, marginBottom: 3 },
+  subtitle: { fontSize: 10, color: "#64748b" },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 4,
+  },
+  statusPillText: { fontSize: 9, fontWeight: 700 },
+  infoRow: {
+    flexDirection: "row",
+    marginBottom: 24,
+    border: "1 solid #e2e8f0",
+    borderRadius: 4,
+  },
+  infoCol: {
+    flex: 1,
+    padding: 12,
+    borderLeft: "1 solid #e2e8f0",
+  },
+  infoColFirst: { borderLeft: "none" },
+  infoLabel: {
+    fontSize: 8,
+    color: "#94a3b8",
+    textTransform: "uppercase",
+    marginBottom: 5,
+    letterSpacing: 0.5,
+  },
+  infoValue: { fontSize: 11, fontWeight: 700, marginBottom: 3 },
+  infoSub: { fontSize: 9, color: "#64748b" },
+  table: {
+    border: "1 solid #e2e8f0",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
   tableHead: {
     flexDirection: "row",
-    borderBottom: "1 solid #17263D",
-    paddingBottom: 6,
-    marginBottom: 2,
+    backgroundColor: "#17263D",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   tableRow: {
     flexDirection: "row",
-    paddingVertical: 10,
-    borderBottom: "1 solid #e2e8f0",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderTop: "1 solid #e2e8f0",
   },
   colProgram: { flex: 3 },
-  colSesi: { flex: 1, textAlign: "right" },
+  colSesi: { flex: 1, textAlign: "center" },
+  colPeriode: { flex: 1.2, textAlign: "center" },
   colTotal: { flex: 1.5, textAlign: "right" },
   tableHeadText: {
-    fontSize: 9,
-    color: "#64748b",
+    fontSize: 8,
+    color: "#ffffff",
     textTransform: "uppercase",
+    fontWeight: 700,
+    letterSpacing: 0.5,
   },
-  totalRow: {
+  totalBlock: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    alignItems: "baseline",
-    paddingTop: 16,
-    gap: 12,
+    marginTop: 14,
   },
-  totalLabel: { fontSize: 12, fontWeight: 700 },
+  totalBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 24,
+    backgroundColor: "#f0fdf9",
+    borderRadius: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  totalLabel: { fontSize: 11, fontWeight: 700, color: "#17263D" },
   totalValue: { fontSize: 18, fontWeight: 700, color: "#1a8f6f" },
   footer: {
     position: "absolute",
@@ -111,6 +149,8 @@ export function InvoicePdf({
   sessionsCount: number;
   amount: number;
 }) {
+  const statusColor = STATUS_COLOR[status] ?? { text: "#17263D", bg: "#f1f5f9" };
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -118,38 +158,36 @@ export function InvoicePdf({
           {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer's Image, not an HTML img */}
           <Image src={logoUrl} style={styles.logo} />
           <View style={styles.contact}>
-            {address && <Text style={styles.contactLine}>{address}</Text>}
-            {phone && <Text style={styles.contactLine}>{phone}</Text>}
-            {email && <Text style={styles.contactLine}>{email}</Text>}
+            {address && <Text>{address}</Text>}
+            {phone && <Text>{phone}</Text>}
+            {email && <Text>{email}</Text>}
           </View>
         </View>
 
         <View style={styles.divider} />
 
-        <Text style={styles.title}>INVOICE</Text>
-        <Text style={styles.subtitle}>Tagihan Program Sari Les Renang</Text>
+        <View style={styles.titleRow}>
+          <View>
+            <Text style={styles.title}>INVOICE</Text>
+            <Text style={styles.subtitle}>Tagihan Program Sari Les Renang</Text>
+          </View>
+          <View style={[styles.statusPill, { backgroundColor: statusColor.bg }]}>
+            <Text style={[styles.statusPillText, { color: statusColor.text }]}>
+              {STATUS_LABEL[status] ?? status}
+            </Text>
+          </View>
+        </View>
 
         <View style={styles.infoRow}>
-          <View style={styles.infoCol}>
+          <View style={[styles.infoCol, styles.infoColFirst]}>
             <Text style={styles.infoLabel}>Ditagihkan Kepada</Text>
             <Text style={styles.infoValue}>{parentName}</Text>
-            <Text>Siswa: {studentName}</Text>
+            <Text style={styles.infoSub}>Siswa: {studentName}</Text>
           </View>
           <View style={styles.infoCol}>
             <Text style={styles.infoLabel}>Nomor Invoice</Text>
             <Text style={styles.infoValue}>{invoiceNumber}</Text>
-            <Text>Terbit: {sentAt ?? "-"}</Text>
-          </View>
-          <View style={styles.infoCol}>
-            <Text style={styles.infoLabel}>Status</Text>
-            <Text
-              style={{
-                ...styles.infoValue,
-                color: STATUS_COLOR[status] ?? "#17263D",
-              }}
-            >
-              {STATUS_LABEL[status] ?? status}
-            </Text>
+            <Text style={styles.infoSub}>Terbit: {sentAt ?? "-"}</Text>
           </View>
         </View>
 
@@ -161,27 +199,30 @@ export function InvoicePdf({
             <Text style={[styles.tableHeadText, styles.colSesi]}>
               Jumlah Sesi
             </Text>
+            <Text style={[styles.tableHeadText, styles.colPeriode]}>
+              Periode
+            </Text>
             <Text style={[styles.tableHeadText, styles.colTotal]}>
               Total Tagihan
             </Text>
           </View>
           <View style={styles.tableRow}>
-            <View style={styles.colProgram}>
-              <Text style={{ fontWeight: 700 }}>{packageName}</Text>
-              <Text style={{ color: "#64748b", fontSize: 10, marginTop: 2 }}>
-                Paket ke-{packageNumber}
-              </Text>
-            </View>
+            <Text style={[styles.colProgram, { fontWeight: 700 }]}>
+              {packageName}
+            </Text>
             <Text style={styles.colSesi}>{sessionsCount} sesi</Text>
+            <Text style={styles.colPeriode}>Paket ke-{packageNumber}</Text>
             <Text style={[styles.colTotal, { fontWeight: 700 }]}>
               {formatRupiah(amount)}
             </Text>
           </View>
         </View>
 
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>TOTAL TAGIHAN</Text>
-          <Text style={styles.totalValue}>{formatRupiah(amount)}</Text>
+        <View style={styles.totalBlock}>
+          <View style={styles.totalBox}>
+            <Text style={styles.totalLabel}>TOTAL TAGIHAN</Text>
+            <Text style={styles.totalValue}>{formatRupiah(amount)}</Text>
+          </View>
         </View>
 
         <Text style={styles.footer}>
