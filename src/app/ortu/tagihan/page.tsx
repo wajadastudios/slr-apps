@@ -11,7 +11,7 @@ export default async function OrtuTagihanPage() {
   const origin = await getSiteOrigin();
 
   // RLS already scopes this to the caller's own children and to
-  // status in ('sent', 'paid') — drafts stay invisible.
+  // status in ('sent', 'processing', 'paid') — drafts stay invisible.
   const { data: invoices } = await supabase
     .from("invoices")
     .select(
@@ -20,6 +20,9 @@ export default async function OrtuTagihanPage() {
     .order("id", { ascending: false });
 
   const belumBayar = (invoices ?? []).filter((i) => i.status === "sent");
+  const sedangDiproses = (invoices ?? []).filter(
+    (i) => i.status === "processing"
+  );
   const sudahBayar = (invoices ?? []).filter((i) => i.status === "paid");
 
   function InvoiceRow({ inv }: { inv: (typeof belumBayar)[number] }) {
@@ -67,6 +70,17 @@ export default async function OrtuTagihanPage() {
           ))}
         </div>
       </GlassCard>
+
+      {sedangDiproses.length > 0 && (
+        <GlassCard>
+          <h2 className={`mb-4 ${HEADING}`}>Menunggu Verifikasi</h2>
+          <div className="flex flex-col gap-2">
+            {sedangDiproses.map((inv) => (
+              <InvoiceRow key={inv.id} inv={inv} />
+            ))}
+          </div>
+        </GlassCard>
+      )}
 
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Riwayat Pembayaran</h2>

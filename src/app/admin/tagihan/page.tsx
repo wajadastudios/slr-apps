@@ -14,6 +14,7 @@ const STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
   approved: "Disetujui",
   sent: "Terkirim",
+  processing: "Menunggu Verifikasi",
   paid: "Sudah Bayar",
 };
 
@@ -35,7 +36,7 @@ export default async function TagihanPage({
     supabase
       .from("invoices")
       .select(
-        "id, student_id, package_name, sessions_count, amount, status, student:student_id(full_name, parent:parent_id(email))"
+        "id, student_id, package_name, sessions_count, amount, status, payment_method, payment_proof_url, student:student_id(full_name, parent:parent_id(email))"
       )
       .order("id", { ascending: false }),
     supabase
@@ -195,7 +196,17 @@ export default async function TagihanPage({
                 secondary={
                   <div className="flex flex-col gap-1">
                     <span>{STATUS_LABEL[inv.status] ?? inv.status}</span>
-                    {(inv.status === "sent" || inv.status === "paid") && (
+                    {inv.status === "processing" && inv.payment_proof_url && (
+                      <a
+                        href={inv.payment_proof_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-[#35C5D0] underline"
+                      >
+                        Lihat Bukti Transfer ({inv.payment_method === "qris" ? "QRIS" : "Transfer"})
+                      </a>
+                    )}
+                    {["sent", "processing", "paid"].includes(inv.status) && (
                       <InvoiceShareLinks
                         origin={origin}
                         invoiceId={inv.id}
@@ -231,7 +242,7 @@ export default async function TagihanPage({
                       </form>
                     )}
 
-                    {inv.status === "sent" && (
+                    {(inv.status === "sent" || inv.status === "processing") && (
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-[#17263D]">
                           Rp{Number(inv.amount).toLocaleString("id-ID")}
@@ -242,7 +253,9 @@ export default async function TagihanPage({
                             type="submit"
                             className="!bg-[#35C5D0] px-4 py-2 text-sm !text-white hover:!bg-[#2bb0ba]"
                           >
-                            Tandai Sudah Bayar
+                            {inv.status === "processing"
+                              ? "Konfirmasi Lunas"
+                              : "Tandai Sudah Bayar"}
                           </GlassButton>
                         </form>
                       </div>

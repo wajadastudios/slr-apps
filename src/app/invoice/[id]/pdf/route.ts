@@ -12,7 +12,7 @@ export async function GET(
   const supabase = await createClient();
 
   // RLS scopes this the same way it does everywhere else: admin sees
-  // any invoice, ortu only their own (and only sent/paid, per the
+  // any invoice, ortu only their own (sent/processing/paid, per the
   // "ortu can read own invoices" policy) — no extra check needed here
   // beyond confirming a row came back.
   const [{ data: invoice }, { data: settings }] = await Promise.all([
