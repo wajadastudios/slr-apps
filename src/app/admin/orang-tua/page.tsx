@@ -17,7 +17,9 @@ export default async function OrangTuaPage({
 
   const { data: ortuList } = await supabase
     .from("users")
-    .select("id, full_name, email, phone, address, created_at, students(full_name)")
+    .select(
+      "id, full_name, email, phone, address, created_at, students!students_parent_id_fkey(full_name)"
+    )
     .eq("role", "ortu")
     .order("created_at", { ascending: false });
 
