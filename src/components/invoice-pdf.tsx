@@ -23,7 +23,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 18,
   },
-  logo: { width: 80, height: 80 },
+  logo: { width: 130, height: 130 },
   contact: { fontSize: 9, color: "#64748b", textAlign: "right", lineHeight: 1.5 },
   divider: { borderBottom: "2 solid #17263D", marginBottom: 20 },
   titleRow: {
