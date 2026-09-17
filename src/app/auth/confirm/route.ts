@@ -19,7 +19,14 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({ type, token_hash });
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      // {{ .RedirectTo }} in the email template renders as the full absolute
+      // URL originally passed to resetPasswordForEmail() (e.g.
+      // "https://sarilesrenang.com/reset-password"), not a bare path -- so
+      // prefixing it with `origin` again produced a mangled, unreachable
+      // URL. Only fall back to origin-relative joining if `next` really is
+      // just a path.
+      const redirectUrl = /^https?:\/\//.test(next) ? next : `${origin}${next}`;
+      return NextResponse.redirect(redirectUrl);
     }
   }
 
