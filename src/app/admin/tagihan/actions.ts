@@ -155,10 +155,14 @@ export async function markPaidAction(formData: FormData) {
   const invoice_id = String(formData.get("invoice_id") ?? "");
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("invoices")
     .update({ status: "paid" })
     .eq("id", invoice_id);
+
+  if (error) {
+    redirect(`/admin/tagihan?error=${encodeURIComponent(error.message)}`);
+  }
 
   const { studentName, parentPhone, packageName } = await getInvoiceNotifyInfo(
     supabase,

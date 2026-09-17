@@ -180,10 +180,14 @@ export async function markTrialPaidAction(formData: FormData) {
   const registration_id = String(formData.get("registration_id") ?? "");
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("registrations")
     .update({ trial_fee_status: "paid" })
     .eq("id", registration_id);
+
+  if (error) {
+    redirect(`/admin/pendaftar?error=${encodeURIComponent(error.message)}`);
+  }
 
   revalidatePath("/admin/pendaftar");
 }

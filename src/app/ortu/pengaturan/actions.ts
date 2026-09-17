@@ -19,20 +19,32 @@ async function uploadAvatar(
 
 export async function updateOwnProfileAction(formData: FormData) {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
 
   const full_name = String(formData.get("full_name") ?? "").trim() || null;
   const phone = String(formData.get("phone") ?? "").trim() || null;
   const address = String(formData.get("address") ?? "").trim() || null;
   const photo = formData.get("photo");
 
-  const previous_avatar_url =
-    String(formData.get("current_avatar_url") ?? "") || null;
-  let avatar_url: string | null = previous_avatar_url;
+  // The avatar to delete is read from this account's own row, never from a
+  // client-supplied "current_avatar_url" field -- that field is attacker
+  // controlled and could point at any file in the shared progress-media
+  // bucket.
+  const { data: current } = await supabase
+    .from("users")
+    .select("avatar_url")
+    .eq("id", user.id)
+    .single();
+
+  let avatar_url: string | null = current?.avatar_url ?? null;
   if (photo instanceof File && photo.size > 0) {
     const uploaded = await uploadAvatar(supabase, photo);
     if (uploaded) {
+      if (avatar_url) await deleteStorageFileFromUrl(supabase, avatar_url);
       avatar_url = uploaded;
-      await deleteStorageFileFromUrl(supabase, previous_avatar_url);
     }
   }
 
@@ -48,6 +60,10 @@ export async function updateOwnProfileAction(formData: FormData) {
 
 export async function updateChildProfileAction(formData: FormData) {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
 
   const student_id = String(formData.get("student_id") ?? "");
   const full_name = String(formData.get("full_name") ?? "").trim() || null;
@@ -56,14 +72,25 @@ export async function updateChildProfileAction(formData: FormData) {
 
   if (!student_id) return;
 
-  const previous_avatar_url =
-    String(formData.get("current_avatar_url") ?? "") || null;
-  let avatar_url: string | null = previous_avatar_url;
+  // Confirm this parent actually owns the student -- and read the avatar to
+  // delete from that row -- before touching storage. The RPC below enforces
+  // the same ownership rule for the DB update, but the storage delete has
+  // to be gated here too, since a client-supplied "current_avatar_url"
+  // could otherwise point at any file in the shared progress-media bucket.
+  const { data: current } = await supabase
+    .from("students")
+    .select("avatar_url, parent_id")
+    .eq("id", student_id)
+    .single();
+
+  if (!current || current.parent_id !== user.id) return;
+
+  let avatar_url: string | null = current.avatar_url;
   if (photo instanceof File && photo.size > 0) {
     const uploaded = await uploadAvatar(supabase, photo);
     if (uploaded) {
+      if (avatar_url) await deleteStorageFileFromUrl(supabase, avatar_url);
       avatar_url = uploaded;
-      await deleteStorageFileFromUrl(supabase, previous_avatar_url);
     }
   }
 

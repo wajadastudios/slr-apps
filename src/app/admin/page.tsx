@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { DataRow } from "@/components/ui/data-row";
 import { DAYS } from "@/lib/days";
+import { jakartaToday, toISODate } from "@/lib/week";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -23,6 +24,11 @@ async function countRows(
   return count ?? 0;
 }
 
+// Monday-start week for the "laporan minggu ini" widget. Takes a Jakarta
+// calendar date (see jakartaToday()) rather than a raw instant -- the
+// server runs in UTC, so a naive new Date() would mislabel the week for
+// the whole WIB morning. Formatted with toISODate(), never toISOString(),
+// which would shift the date back a day. See lib/week.ts for details.
 function startOfWeek(d: Date) {
   const date = new Date(d);
   const day = date.getDay();
@@ -79,7 +85,7 @@ export default async function AdminDashboardPage() {
     supabase
       .from("progress_reports")
       .select("student_id")
-      .gte("session_date", startOfWeek(new Date()).toISOString().slice(0, 10)),
+      .gte("session_date", toISODate(startOfWeek(jakartaToday()))),
     supabase.from("registrations").select("id").eq("status", "pending"),
   ]);
 

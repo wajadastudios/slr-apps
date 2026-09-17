@@ -113,6 +113,24 @@ export async function createReportAction(formData: FormData) {
 
   const supabase = await createClient();
 
+  // Check assignment before touching storage: the progress_reports insert
+  // below is already RLS-gated on pelatih_teaches_student, but media files
+  // were being uploaded to the shared, unscoped progress-media bucket
+  // first -- an unauthorized pelatih could plant a public file under a
+  // student they don't teach even though the later DB insert would reject
+  // it. Calling the same check function up front closes that gap.
+  const { data: teachesStudent } = await supabase.rpc(
+    "pelatih_teaches_student",
+    { p_student_id: student_id }
+  );
+  if (!teachesStudent) {
+    redirect(
+      `/pelatih/murid/${student_id}?error=${encodeURIComponent(
+        "Anda tidak mengajar siswa ini."
+      )}`
+    );
+  }
+
   // Indicators are pelatih-customizable (not limited to the program's
   // skill_template) — parse the client-submitted list and sanitize each
   // entry rather than trusting it verbatim.

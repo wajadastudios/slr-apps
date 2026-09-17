@@ -39,12 +39,10 @@ export default async function JadwalMuridPage({
         .order("start_time"),
     ]);
 
-  const { data: allEnrollmentSlots } = await supabase
-    .from("schedules")
-    .select("slot_id");
-
+  // enrollments already carries every schedules row (with slot_id), so
+  // counting fill per slot from it avoids a second, redundant query.
   const filledCount = new Map<string, number>();
-  for (const e of allEnrollmentSlots ?? []) {
+  for (const e of enrollments ?? []) {
     filledCount.set(e.slot_id, (filledCount.get(e.slot_id) ?? 0) + 1);
   }
 
