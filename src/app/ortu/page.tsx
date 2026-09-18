@@ -2,19 +2,20 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getUserWithRole } from "@/lib/auth";
 import { GlassCard } from "@/components/ui/glass-card";
+import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { ChildSummaryWidget } from "@/components/child-summary-widget";
 import { computeProgressPercent, computeNextSession, getGreeting } from "@/lib/progress";
 import { DAYS } from "@/lib/days";
-import { selfRegisterAction } from "./actions";
+import { selfRegisterAction, addChildAndRegisterAction } from "./actions";
 
 export default async function OrtuDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; child_added?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, child_added } = await searchParams;
   const supabase = await createClient();
   const session = await getUserWithRole();
 
@@ -25,6 +26,8 @@ export default async function OrtuDashboardPage({
     { data: reports },
     { data: scheduleRows },
     { data: pelatihNames },
+    { data: classSlots },
+    { data: availability },
   ] = await Promise.all([
     supabase
       .from("students")
@@ -49,7 +52,34 @@ export default async function OrtuDashboardPage({
       .from("schedules")
       .select("student_id, slot:slot_id(day_of_week, start_time, pelatih_id)"),
     supabase.rpc("get_public_pelatih_names"),
+    supabase
+      .from("class_slots")
+      .select(
+        "id, label, day_of_week, start_time, capacity, program:program_id(name)"
+      )
+      .order("day_of_week")
+      .order("start_time"),
+    supabase.rpc("get_slot_availability"),
   ]);
+
+  const filledBySlot = new Map<string, number>();
+  for (const row of availability ?? []) {
+    filledBySlot.set(row.slot_id, Number(row.filled));
+  }
+
+  const availableSlots = (classSlots ?? [])
+    .map((s) => {
+      const program = s.program as unknown as { name: string } | null;
+      const filled = filledBySlot.get(s.id) ?? 0;
+      return {
+        id: s.id,
+        remaining: s.capacity - filled,
+        label: `${DAYS[s.day_of_week]}, ${s.start_time.slice(0, 5)} WIB — ${
+          program?.name ?? "Program"
+        }${s.label ? ` (${s.label})` : ""} · Sisa ${Math.max(s.capacity - filled, 0)}`,
+      };
+    })
+    .filter((s) => s.remaining > 0);
 
   const latestInvoiceStatus = new Map<string, string>();
   const confirmedSessions = new Map<string, number>();
@@ -160,6 +190,62 @@ export default async function OrtuDashboardPage({
 
       <GlassCard>
         <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
+          Tambah Anak &amp; Daftar Jadwal
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Daftarkan anak baru dan pilih jadwal kelas yang masih tersedia.
+          Admin akan langsung dihubungi untuk follow up setelah Anda daftar.
+        </p>
+        <form
+          action={addChildAndRegisterAction}
+          className="mt-3 grid gap-3 sm:grid-cols-3"
+        >
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Nama Anak</label>
+            <GlassInput name="full_name" required />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Tanggal Lahir</label>
+            <GlassInput name="birth_date" type="date" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Jadwal Kelas</label>
+            <GlassSelect name="slot_id" required defaultValue="">
+              <option value="" disabled>
+                Pilih jadwal
+              </option>
+              {availableSlots.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </GlassSelect>
+          </div>
+          <GlassButton
+            type="submit"
+            disabled={availableSlots.length === 0}
+            className="!bg-[#35C5D0] px-4 py-2 text-sm !text-white hover:!bg-[#2bb0ba] active:!bg-[#2bb0ba] sm:col-span-3 sm:w-fit"
+          >
+            Daftar
+          </GlassButton>
+        </form>
+        {availableSlots.length === 0 && (
+          <p className="mt-2 text-sm text-slate-600">
+            Belum ada jadwal yang tersedia saat ini.
+          </p>
+        )}
+        {child_added && (
+          <p className="mt-2 text-sm text-[#1a8f6f]">
+            Pendaftaran berhasil! Admin akan segera menghubungi Anda.
+          </p>
+        )}
+        {error && (
+          <p className="mt-2 text-sm text-red-700">{decodeURIComponent(error)}</p>
+        )}
+      </GlassCard>
+
+      <GlassCard>
+        <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
           Daftarkan Diri Sendiri ke Kelas
         </h2>
         <p className="mt-1 text-sm text-slate-600">
@@ -191,9 +277,6 @@ export default async function OrtuDashboardPage({
             Daftarkan
           </GlassButton>
         </form>
-        {error && (
-          <p className="mt-2 text-sm text-red-700">{decodeURIComponent(error)}</p>
-        )}
       </GlassCard>
     </div>
   );
