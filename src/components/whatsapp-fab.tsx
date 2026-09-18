@@ -11,7 +11,7 @@ export function WhatsappFab({ phone }: { phone?: string | null }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full border border-white/40 bg-white/30 shadow-[0_8px_24px_rgba(0,0,0,0.25)] backdrop-blur-xl transition-transform hover:scale-105"
+      className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full border border-white/40 bg-white/30 shadow-[0_8px_24px_rgba(0,0,0,0.25)] backdrop-blur-xl transition-transform hover:scale-105 active:scale-95 active:bg-white/50"
       aria-label="Chat WhatsApp"
     >
       <svg

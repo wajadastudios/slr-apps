@@ -8,15 +8,8 @@ import { WhatsappFab } from "@/components/whatsapp-fab";
 import { VideoAdsPlayer } from "@/components/video-ads-player";
 import { FaqAccordion } from "@/components/faq-accordion";
 import { PriceAccordion, type PriceGroup } from "@/components/price-accordion";
+import { SiteNav } from "@/components/site-nav";
 import { DAYS } from "@/lib/days";
-
-const NAV = [
-  { href: "#kelas", label: "Program" },
-  { href: "#tentang", label: "Tentang Kami" },
-  { href: "#testimoni", label: "Testimoni" },
-  { href: "#faq", label: "FAQ" },
-  { href: "#kontak", label: "Kontak" },
-];
 
 const HEADING_FONT = "font-[family-name:var(--font-quicksand)]";
 
@@ -148,39 +141,7 @@ export default async function Home() {
       <WhatsappFab phone={get("phone")} />
 
       {/* Sticky nav */}
-      <div className="sticky top-4 z-40 mx-auto w-full max-w-6xl px-4">
-        <nav className="flex flex-nowrap items-center justify-between gap-2 overflow-x-auto rounded-2xl border border-white/30 bg-white/20 px-4 py-1 shadow-[0_8px_32px_rgba(31,38,135,0.1)] backdrop-blur-xl">
-          <Link href="/" className="flex shrink-0 items-center gap-1.5 pl-1">
-            <Image src="/logo.png" alt="Sari Les Renang" width={48} height={48} />
-            <span className={`${HEADING_FONT} whitespace-nowrap text-sm font-bold text-[#17263D]`}>
-              Sari Les Renang
-            </span>
-          </Link>
-          <div className="flex shrink-0 flex-nowrap items-center gap-1">
-            {NAV.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/50"
-              >
-                {item.label}
-              </a>
-            ))}
-            <span className="mx-2 h-5 w-px shrink-0 bg-slate-300/70" />
-            <Link
-              href="/login"
-              className="whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-medium text-slate-800 transition-colors hover:bg-white/50"
-            >
-              Masuk
-            </Link>
-            <Link href="/daftar">
-              <GlassButton className="!border-[#35C5D0]/60 !bg-[#35C5D0] whitespace-nowrap px-4 py-1.5 text-sm font-semibold !text-white hover:!bg-[#2bb0ba]">
-                Daftar Kelas Trial
-              </GlassButton>
-            </Link>
-          </div>
-        </nav>
-      </div>
+      <SiteNav />
 
       {/* Hero */}
       <section className="relative overflow-hidden px-6 pt-8 pb-16">
@@ -231,7 +192,7 @@ export default async function Home() {
           </div>
 
           {/* Photo + dashboard preview column */}
-          <div className="relative mx-auto w-full max-w-md pb-16 lg:pb-24">
+          <div className="relative mx-auto w-full max-w-md pb-40 lg:pb-24">
             <div className="relative overflow-hidden rounded-3xl border border-white/40 shadow-[0_20px_60px_rgba(23,38,61,0.25)]">
               {mediaAd1Url && mediaAd1Type === "video" ? (
                 <video
@@ -260,7 +221,7 @@ export default async function Home() {
             </div>
 
             {/* Floating dashboard mock */}
-            <div className="absolute -bottom-2 left-1/2 w-[92%] -translate-x-1/2 rounded-2xl border border-white/50 bg-white/60 p-4 shadow-[0_16px_40px_rgba(23,38,61,0.2)] backdrop-blur-xl">
+            <div className="absolute -bottom-24 left-1/2 w-[92%] -translate-x-1/2 rounded-2xl border border-white/50 bg-white/60 p-4 shadow-[0_16px_40px_rgba(23,38,61,0.2)] backdrop-blur-xl">
               <p className="text-sm font-semibold text-[#17263D]">
                 Selamat pagi, Bunda Riani 👋
               </p>
@@ -342,7 +303,7 @@ export default async function Home() {
               )}
               <a
                 href="/daftar"
-                className="mt-3 inline-block text-sm font-medium text-[#35C5D0] hover:underline"
+                className="mt-3 inline-block text-sm font-medium text-[#35C5D0] hover:underline active:text-[#2bb0ba]"
               >
                 Pelajari lebih lanjut &rarr;
               </a>
@@ -368,8 +329,8 @@ export default async function Home() {
             const filled = filledBySlot.get(s.id) ?? 0;
             const full = filled >= s.capacity;
             return (
-              <GlassCard key={s.id} className="flex items-center justify-between">
-                <div>
+              <GlassCard key={s.id} className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-[#17263D]">
                     {DAYS[s.day_of_week]}, {s.start_time} &mdash; {program?.name}
                     {s.label ? ` (${s.label})` : ""}
@@ -380,7 +341,7 @@ export default async function Home() {
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                  className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-center text-xs font-medium ${
                     full
                       ? "bg-red-500/20 text-red-700"
                       : "bg-[#55D6A6]/20 text-[#1a8f6f]"
@@ -714,7 +675,7 @@ export default async function Home() {
             </Link>
             <a
               href="#kontak"
-              className="text-sm font-semibold text-[#17263D] hover:underline"
+              className="text-sm font-semibold text-[#17263D] hover:underline active:text-[#35C5D0]"
             >
               Hubungi Kami
             </a>
@@ -736,7 +697,7 @@ export default async function Home() {
                 href={`https://instagram.com/${get("instagram").replace(/^@/, "")}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mx-auto mt-2 inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/40 px-4 py-1.5 font-medium text-[#17263D] backdrop-blur-md transition hover:bg-white/60"
+                className="mx-auto mt-2 inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/40 px-4 py-1.5 font-medium text-[#17263D] backdrop-blur-md transition hover:bg-white/60 active:bg-white/70"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -786,13 +747,13 @@ export default async function Home() {
           dilindungi.
         </p>
         <div className="flex gap-4 text-xs text-slate-600">
-          <Link href="/privasi" className="hover:underline">
+          <Link href="/privasi" className="hover:underline active:text-[#35C5D0]">
             Kebijakan Privasi
           </Link>
-          <Link href="/syarat" className="hover:underline">
+          <Link href="/syarat" className="hover:underline active:text-[#35C5D0]">
             Syarat &amp; Ketentuan
           </Link>
-          <a href="#kontak" className="hover:underline">
+          <a href="#kontak" className="hover:underline active:text-[#35C5D0]">
             Kontak
           </a>
         </div>

@@ -46,7 +46,7 @@ export function PriceAccordion({ groups }: { groups: PriceGroup[] }) {
             <button
               type="button"
               onClick={() => setOpenId(isOpen ? null : group.programId)}
-              className="flex w-full items-center justify-between gap-3 px-6 py-4 text-left"
+              className="flex w-full items-center justify-between gap-3 px-6 py-4 text-left transition-colors hover:bg-white/20 active:bg-white/30"
             >
               <span>
                 <span className="block text-lg font-semibold text-[#17263D]">
@@ -71,14 +71,16 @@ export function PriceAccordion({ groups }: { groups: PriceGroup[] }) {
                 {group.packages.map((pkg) => (
                   <div
                     key={pkg.id}
-                    className="relative rounded-xl border border-[#35C5D0]/30 bg-white/20 p-3 backdrop-blur-md"
+                    className="rounded-xl border border-[#35C5D0]/30 bg-white/20 p-3 backdrop-blur-md"
                   >
                     {pkg.badge && PACKAGE_BADGES[pkg.badge] && (
-                      <span
-                        className={`absolute right-3 top-3 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${PACKAGE_BADGES[pkg.badge].className}`}
-                      >
-                        {PACKAGE_BADGES[pkg.badge].label}
-                      </span>
+                      <div className="mb-2 flex justify-end">
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${PACKAGE_BADGES[pkg.badge].className}`}
+                        >
+                          {PACKAGE_BADGES[pkg.badge].label}
+                        </span>
+                      </div>
                     )}
                     <p className="font-medium text-[#17263D]">
                       {pkg.name} &middot; {pkg.sessions_count} sesi
