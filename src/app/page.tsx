@@ -192,7 +192,7 @@ export default async function Home() {
           </div>
 
           {/* Photo + dashboard preview column */}
-          <div className="relative mx-auto w-full max-w-md pb-40 lg:pb-24">
+          <div className="relative mx-auto w-full max-w-md pb-44">
             <div className="relative overflow-hidden rounded-3xl border border-white/40 shadow-[0_20px_60px_rgba(23,38,61,0.25)]">
               {mediaAd1Url && mediaAd1Type === "video" ? (
                 <video
@@ -221,7 +221,7 @@ export default async function Home() {
             </div>
 
             {/* Floating dashboard mock */}
-            <div className="absolute -bottom-24 left-1/2 w-[92%] -translate-x-1/2 rounded-2xl border border-white/50 bg-white/60 p-4 shadow-[0_16px_40px_rgba(23,38,61,0.2)] backdrop-blur-xl">
+            <div className="absolute bottom-0 left-1/2 w-[92%] -translate-x-1/2 rounded-2xl border border-white/50 bg-white/60 p-4 shadow-[0_16px_40px_rgba(23,38,61,0.2)] backdrop-blur-xl">
               <p className="text-sm font-semibold text-[#17263D]">
                 Selamat pagi, Bunda Riani 👋
               </p>
