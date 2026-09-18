@@ -3,6 +3,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
+import { OrtuAccountEditor } from "@/components/ortu-account-editor";
 import { createOrangTuaAction } from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
@@ -10,9 +11,9 @@ const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text
 export default async function OrangTuaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; account_updated?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, account_updated } = await searchParams;
   const supabase = await createClient();
 
   const { data: ortuList } = await supabase
@@ -56,6 +57,11 @@ export default async function OrangTuaPage({
 
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Daftar Orang Tua</h2>
+        {account_updated && (
+          <p className="mb-4 text-sm text-[#1a8f6f]">
+            Akun orang tua berhasil diperbarui.
+          </p>
+        )}
         <div className="flex flex-col gap-2">
           {(!ortuList || ortuList.length === 0) && (
             <p className="text-sm text-slate-600">Belum ada orang tua.</p>
@@ -76,6 +82,7 @@ export default async function OrangTuaPage({
                       : "-"}
                   </>
                 }
+                action={<OrtuAccountEditor id={o.id} currentEmail={o.email} />}
               />
             );
           })}
