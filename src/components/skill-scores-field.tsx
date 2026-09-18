@@ -17,7 +17,7 @@ export function SkillScoresField({
   fieldName?: string;
 }) {
   const [rows, setRows] = useState<Row[]>(
-    initialSkills.map((s) => ({ name: s, score: 3 }))
+    initialSkills.map((s) => ({ name: s, score: 0 }))
   );
 
   function updateRow(i: number, score: number) {
@@ -27,7 +27,7 @@ export function SkillScoresField({
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-slate-800">
-        Skor Indikator (1&ndash;5, boleh setengah)
+        Skor Indikator (0 = belum mampu, 1&ndash;5, boleh setengah)
       </p>
       <div className="flex flex-col gap-2">
         {rows.map((row, i) => (

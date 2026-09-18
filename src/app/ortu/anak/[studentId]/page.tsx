@@ -216,7 +216,7 @@ export default async function AnakDetailPage({
 
       <PerformanceRecordsCard records={performanceRecords ?? []} />
 
-      <ReportHistoryCard reports={reports ?? []} />
+      <ReportHistoryCard reports={reports ?? []} lockZeroScores />
 
       <AssessmentGuideCard />
     </div>

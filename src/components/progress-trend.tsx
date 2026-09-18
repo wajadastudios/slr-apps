@@ -11,8 +11,9 @@ const HEIGHT = 70;
 const PAD = 10;
 
 function scoreToY(score: number) {
-  // score 1-5 -> y within [HEIGHT - PAD, PAD], higher score = higher up
-  return HEIGHT - PAD - ((score - 1) / 4) * (HEIGHT - 2 * PAD);
+  // score 0-5 (0 = belum mampu/locked) -> y within [HEIGHT - PAD, PAD],
+  // higher score = higher up
+  return HEIGHT - PAD - (score / 5) * (HEIGHT - 2 * PAD);
 }
 
 export function ProgressTrend({

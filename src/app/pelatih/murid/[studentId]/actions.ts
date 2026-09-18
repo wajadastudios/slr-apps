@@ -160,7 +160,7 @@ export async function createReportAction(formData: FormData) {
       if (!name || !allowedSkills.has(name)) continue;
       const rawScore = Number((item as { score?: unknown }).score);
       if (!Number.isFinite(rawScore)) continue;
-      const score = Math.min(5, Math.max(0.5, Math.round(rawScore * 2) / 2));
+      const score = Math.min(5, Math.max(0, Math.round(rawScore * 2) / 2));
       scores[name] = score;
     }
   }

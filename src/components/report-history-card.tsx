@@ -25,7 +25,16 @@ export type ReportRow = {
   substitute_for?: string | null;
 };
 
-export function ReportHistoryCard({ reports }: { reports: ReportRow[] }) {
+export function ReportHistoryCard({
+  reports,
+  lockZeroScores = false,
+}: {
+  reports: ReportRow[];
+  // Orang tua sees a skill scored 0 as "not unlocked yet" rather than a
+  // bare 0-star rating, since 0 means the student hasn't been assessed as
+  // capable of that stage yet -- pelatih/admin still see the real score.
+  lockZeroScores?: boolean;
+}) {
   return (
     <GlassCard>
       <h2 className="mb-4 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
@@ -71,7 +80,13 @@ export function ReportHistoryCard({ reports }: { reports: ReportRow[] }) {
                       className="flex items-center justify-between gap-3"
                     >
                       <span className="text-sm text-slate-700">{skill}</span>
-                      <StarRating value={scores[skill]} size={14} />
+                      {lockZeroScores && scores[skill] === 0 ? (
+                        <span className="flex items-center gap-1 text-xs font-medium text-slate-500">
+                          🔒 Terkunci
+                        </span>
+                      ) : (
+                        <StarRating value={scores[skill]} size={14} />
+                      )}
                     </div>
                   ))}
                 </div>

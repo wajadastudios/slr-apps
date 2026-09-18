@@ -19,7 +19,7 @@ export function StarRating({
     <span
       className={cn("inline-flex gap-0.5", className)}
       role={readOnly ? undefined : "slider"}
-      aria-valuemin={readOnly ? undefined : 0.5}
+      aria-valuemin={readOnly ? undefined : 0}
       aria-valuemax={readOnly ? undefined : 5}
       aria-valuenow={readOnly ? undefined : value}
       aria-label={readOnly ? `${value} dari 5 bintang` : "Nilai bintang"}
@@ -35,7 +35,11 @@ export function StarRating({
               if (!onChange) return;
               const rect = e.currentTarget.getBoundingClientRect();
               const isHalf = e.clientX - rect.left < rect.width / 2;
-              onChange(i - (isHalf ? 0.5 : 0));
+              const next = i - (isHalf ? 0.5 : 0);
+              // Clicking the same spot again clears it to 0 ("belum
+              // mampu") -- otherwise 0.5 would be the lowest reachable
+              // value, with no way back down to "not yet able".
+              onChange(next === value ? 0 : next);
             }}
             className={cn(
               "relative inline-block select-none text-slate-300",
