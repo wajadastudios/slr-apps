@@ -11,13 +11,15 @@ type Row = { name: string; score: number };
 // otherwise be looking at incomparable, freely-renamed metrics.
 export function SkillScoresField({
   initialSkills,
+  initialScores,
   fieldName = "scores_json",
 }: {
   initialSkills: string[];
+  initialScores?: Record<string, number>;
   fieldName?: string;
 }) {
   const [rows, setRows] = useState<Row[]>(
-    initialSkills.map((s) => ({ name: s, score: 0 }))
+    initialSkills.map((s) => ({ name: s, score: initialScores?.[s] ?? 0 }))
   );
 
   function updateRow(i: number, score: number) {

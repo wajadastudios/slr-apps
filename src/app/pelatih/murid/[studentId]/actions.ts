@@ -58,6 +58,48 @@ async function resolveSubstituteFor(
   return replaced?.full_name ?? null;
 }
 
+async function getAllowedSkills(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  student_id: string
+): Promise<Set<string>> {
+  const { data: studentProgram } = await supabase
+    .from("students")
+    .select("program:program_id(skill_template)")
+    .eq("id", student_id)
+    .single();
+
+  return new Set(
+    (studentProgram?.program as unknown as { skill_template: string[] } | null)
+      ?.skill_template ?? []
+  );
+}
+
+function parseScoresFromForm(
+  formData: FormData,
+  allowedSkills: Set<string>
+): Record<string, number> {
+  let parsedScores: unknown;
+  try {
+    parsedScores = JSON.parse(String(formData.get("scores_json") ?? "[]"));
+  } catch {
+    parsedScores = [];
+  }
+
+  const scores: Record<string, number> = {};
+  if (Array.isArray(parsedScores)) {
+    for (const item of parsedScores.slice(0, 20)) {
+      if (!item || typeof item !== "object") continue;
+      const name = String((item as { name?: unknown }).name ?? "").trim();
+      if (!name || !allowedSkills.has(name)) continue;
+      const rawScore = Number((item as { score?: unknown }).score);
+      if (!Number.isFinite(rawScore)) continue;
+      const score = Math.min(5, Math.max(0, Math.round(rawScore * 2) / 2));
+      scores[name] = score;
+    }
+  }
+  return scores;
+}
+
 const METRIC_TYPES = ["waktu_tempuh", "jarak_tempuh", "tahan_nafas", "treading_water"];
 const STROKES = ["Bebas", "Dada", "Punggung", "Kupu-kupu"];
 
@@ -135,35 +177,8 @@ export async function createReportAction(formData: FormData) {
   // (set under Admin > Program) so every pelatih scores the same things —
   // the client only lets a pelatih pick names from that list, but a direct
   // POST could still forge others, so re-check against the template here.
-  const { data: studentProgram } = await supabase
-    .from("students")
-    .select("program:program_id(skill_template)")
-    .eq("id", student_id)
-    .single();
-  const allowedSkills = new Set(
-    (studentProgram?.program as unknown as { skill_template: string[] } | null)
-      ?.skill_template ?? []
-  );
-
-  let parsedScores: unknown;
-  try {
-    parsedScores = JSON.parse(String(formData.get("scores_json") ?? "[]"));
-  } catch {
-    parsedScores = [];
-  }
-
-  const scores: Record<string, number> = {};
-  if (Array.isArray(parsedScores)) {
-    for (const item of parsedScores.slice(0, 20)) {
-      if (!item || typeof item !== "object") continue;
-      const name = String((item as { name?: unknown }).name ?? "").trim();
-      if (!name || !allowedSkills.has(name)) continue;
-      const rawScore = Number((item as { score?: unknown }).score);
-      if (!Number.isFinite(rawScore)) continue;
-      const score = Math.min(5, Math.max(0, Math.round(rawScore * 2) / 2));
-      scores[name] = score;
-    }
-  }
+  const allowedSkills = await getAllowedSkills(supabase, student_id);
+  const scores = parseScoresFromForm(formData, allowedSkills);
 
   const files = formData
     .getAll("media")
@@ -226,6 +241,113 @@ export async function createReportAction(formData: FormData) {
         recorded_at: session_date,
         ...r,
       }))
+    );
+  }
+
+  revalidatePath(`/pelatih/murid/${student_id}`);
+  redirect(`/pelatih/murid/${student_id}`);
+}
+
+export async function updateReportAction(formData: FormData) {
+  const session = await requirePelatih();
+
+  const report_id = String(formData.get("report_id") ?? "");
+  const student_id = String(formData.get("student_id") ?? "");
+  const session_date = String(formData.get("session_date") ?? "");
+  const session_number = Number(formData.get("session_number") ?? "0") || null;
+  const attendance = String(formData.get("attendance") ?? "");
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const next_focus = String(formData.get("next_focus") ?? "").trim() || null;
+
+  if (!report_id || !student_id || !session_date || !attendance) {
+    redirect(
+      `/pelatih/murid/${student_id}?error=${encodeURIComponent(
+        "Tanggal dan kehadiran wajib diisi."
+      )}`
+    );
+  }
+
+  const supabase = await createClient();
+
+  const allowedSkills = await getAllowedSkills(supabase, student_id);
+  const scores = parseScoresFromForm(formData, allowedSkills);
+
+  // New uploads are appended to whatever was already attached rather than
+  // replacing it -- this form has no way to pick which existing file to
+  // remove, so overwriting media_urls outright would silently drop them.
+  const { data: existing } = await supabase
+    .from("progress_reports")
+    .select("media_urls")
+    .eq("id", report_id)
+    .single();
+
+  const files = formData
+    .getAll("media")
+    .filter((f): f is File => f instanceof File && f.size > 0);
+
+  const media_urls: string[] = [...(existing?.media_urls ?? [])];
+  for (const file of files) {
+    const path = `${student_id}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from("progress-media")
+      .upload(path, file, { contentType: file.type });
+
+    if (!uploadError) {
+      const { data: publicUrl } = supabase.storage
+        .from("progress-media")
+        .getPublicUrl(path);
+      media_urls.push(publicUrl.publicUrl);
+    }
+  }
+
+  // RLS ("pelatih can update own reports") already scopes this to the
+  // caller's own reports; the explicit pelatih_id match here is
+  // defense-in-depth, not the actual boundary.
+  const { error } = await supabase
+    .from("progress_reports")
+    .update({
+      session_date,
+      session_number,
+      attendance,
+      scores,
+      notes,
+      media_urls,
+      next_focus,
+    })
+    .eq("id", report_id)
+    .eq("pelatih_id", session.user.id);
+
+  if (error) {
+    redirect(
+      `/pelatih/murid/${student_id}?error=${encodeURIComponent(error.message)}`
+    );
+  }
+
+  revalidatePath(`/pelatih/murid/${student_id}`);
+  redirect(`/pelatih/murid/${student_id}`);
+}
+
+export async function deleteReportAction(formData: FormData) {
+  const session = await requirePelatih();
+
+  const report_id = String(formData.get("report_id") ?? "");
+  const student_id = String(formData.get("student_id") ?? "");
+  if (!report_id) return;
+
+  const supabase = await createClient();
+
+  // RLS ("pelatih can delete own reports") already scopes this to the
+  // caller's own reports; the explicit pelatih_id match here is
+  // defense-in-depth, not the actual boundary.
+  const { error } = await supabase
+    .from("progress_reports")
+    .delete()
+    .eq("id", report_id)
+    .eq("pelatih_id", session.user.id);
+
+  if (error) {
+    redirect(
+      `/pelatih/murid/${student_id}?error=${encodeURIComponent(error.message)}`
     );
   }
 

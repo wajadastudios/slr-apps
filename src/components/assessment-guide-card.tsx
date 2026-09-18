@@ -1,41 +1,31 @@
 import { GlassCard } from "@/components/ui/glass-card";
 
-const LEVELS: { name: string; milestones: string[] }[] = [
-  {
-    name: "Dasar 1 — Pengenalan Air",
-    milestones: [
-      "Masuk & keluar kolam dengan aman",
-      "Nyaman disiram air dari atas kepala",
-      "Meluncur di dinding kolam",
-    ],
-  },
-  {
-    name: "Dasar 2 — Kenyamanan & Apung",
-    milestones: [
-      "Meniup gelembung 3x berturut, wajah terendam",
-      "Mengapung telentang dengan bantuan",
-      "Menendang 5 meter tanpa alat bantu",
-    ],
-  },
-  {
-    name: "Menengah — Gerak Dasar",
-    milestones: [
-      "Meluncur & berenang 10 meter (gaya bebas dasar)",
-      "Menyelam mengambil benda di dasar kolam",
-      "Mengapung posisi tuck selama 3 detik",
-    ],
-  },
-  {
-    name: "Mahir — Teknik & Ketahanan",
-    milestones: [
-      "Berenang 25 meter gaya bebas dengan nafas berirama",
-      "Menguasai minimal 2 gaya (bebas, dada, punggung, atau kupu-kupu)",
-      "Treading water (mengapung berdiri) 30 detik",
-    ],
-  },
-];
+// Groups a flat skill_template into categories using its "Kategori - Nama"
+// naming convention (e.g. "Gaya Bebas - Posisi Tubuh" -> category "Gaya
+// Bebas"). Templates without that convention (older/simpler programs) fall
+// back to a single group so they still render something sensible.
+function groupSkills(skillTemplate: string[]): { category: string; skills: string[] }[] {
+  const groups = new Map<string, string[]>();
 
-export function AssessmentGuideCard() {
+  for (const skill of skillTemplate) {
+    const separatorIndex = skill.indexOf(" - ");
+    const category = separatorIndex === -1 ? "Indikator Penilaian" : skill.slice(0, separatorIndex);
+    const name = separatorIndex === -1 ? skill : skill.slice(separatorIndex + 3);
+    const list = groups.get(category) ?? [];
+    list.push(name);
+    groups.set(category, list);
+  }
+
+  return Array.from(groups.entries()).map(([category, skills]) => ({ category, skills }));
+}
+
+export function AssessmentGuideCard({
+  skillTemplate = [],
+}: {
+  skillTemplate?: string[];
+}) {
+  const groups = groupSkills(skillTemplate);
+
   return (
     <GlassCard>
       <details>
@@ -48,8 +38,9 @@ export function AssessmentGuideCard() {
               Dua jenis bukti perkembangan
             </p>
             <p>
-              <span className="font-medium">Skill Progress</span> menilai penguasaan
-              teknik (0&ndash;100%) berdasarkan penilaian pelatih tiap sesi.{" "}
+              <span className="font-medium">Skor Indikator</span> menilai penguasaan
+              tiap gerakan/teknik (skala 0&ndash;5, lihat "Arti Skor Bintang" di
+              bawah) berdasarkan penilaian pengajar tiap sesi.{" "}
               <span className="font-medium">Rekor Performa</span> mencatat angka
               konkret &mdash; waktu tempuh, jarak, tahan nafas, dan treading water &mdash;
               yang bisa dibandingkan dari waktu ke waktu.
@@ -61,29 +52,31 @@ export function AssessmentGuideCard() {
               Usia bukan patokan naik level
             </p>
             <p>
-              Usia anak ditampilkan sebagai informasi saja. Kenaikan level murni
-              berdasarkan pencapaian skill dan rekor &mdash; setiap anak berkembang
-              dengan kecepatannya sendiri.
+              Usia anak ditampilkan sebagai informasi saja. Kenaikan skor murni
+              berdasarkan pencapaian indikator dan rekor &mdash; setiap anak
+              berkembang dengan kecepatannya sendiri.
             </p>
           </div>
 
-          <div>
-            <p className="mb-2 font-semibold text-[#17263D]">
-              Tahapan level (gambaran umum)
-            </p>
-            <div className="flex flex-col gap-3">
-              {LEVELS.map((level) => (
-                <div key={level.name}>
-                  <p className="font-medium text-[#17263D]">{level.name}</p>
-                  <ul className="mt-1 list-inside list-disc text-slate-600">
-                    {level.milestones.map((m) => (
-                      <li key={m}>{m}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+          {groups.length > 0 && (
+            <div>
+              <p className="mb-2 font-semibold text-[#17263D]">
+                Indikator penilaian untuk program ini
+              </p>
+              <div className="flex flex-col gap-3">
+                {groups.map((group) => (
+                  <div key={group.category}>
+                    <p className="font-medium text-[#17263D]">{group.category}</p>
+                    <ul className="mt-1 list-inside list-disc text-slate-600">
+                      {group.skills.map((skill) => (
+                        <li key={skill}>{skill}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </details>
     </GlassCard>

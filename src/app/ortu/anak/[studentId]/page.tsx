@@ -9,6 +9,7 @@ import { ReportHistoryCard } from "@/components/report-history-card";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
 import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
+import { StarScoreLegend } from "@/components/star-score-legend";
 import { ChildSummaryWidget } from "@/components/child-summary-widget";
 import { computeProgressPercent, computeNextSession, getGreeting } from "@/lib/progress";
 import { formatAge } from "@/lib/performance";
@@ -216,9 +217,15 @@ export default async function AnakDetailPage({
 
       <PerformanceRecordsCard records={performanceRecords ?? []} />
 
-      <ReportHistoryCard reports={reports ?? []} lockZeroScores />
+      <AssessmentGuideCard skillTemplate={skillTemplate} />
 
-      <AssessmentGuideCard />
+      <StarScoreLegend />
+
+      <ReportHistoryCard
+        reports={reports ?? []}
+        skillTemplate={skillTemplate}
+        lockZeroScores
+      />
     </div>
   );
 }

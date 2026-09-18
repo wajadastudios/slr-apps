@@ -6,6 +6,7 @@ import { ReportHistoryCard } from "@/components/report-history-card";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
 import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
+import { StarScoreLegend } from "@/components/star-score-legend";
 import { computeProgressPercent } from "@/lib/progress";
 import { formatAge } from "@/lib/performance";
 
@@ -105,8 +106,12 @@ export default async function AdminLaporanPage({
           </GlassCard>
           <MilestoneBadgesCard records={performanceRecords ?? []} />
           <PerformanceRecordsCard records={performanceRecords ?? []} />
-          <ReportHistoryCard reports={reports ?? []} />
-          <AssessmentGuideCard />
+          <AssessmentGuideCard skillTemplate={selectedSkillTemplate} />
+          <StarScoreLegend />
+          <ReportHistoryCard
+            reports={reports ?? []}
+            skillTemplate={selectedSkillTemplate}
+          />
         </>
       )}
     </div>

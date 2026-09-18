@@ -12,7 +12,11 @@ import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
 import { ReportHistoryCard } from "@/components/report-history-card";
 import { computeProgressPercent } from "@/lib/progress";
 import { formatAge } from "@/lib/performance";
-import { createReportAction } from "./actions";
+import {
+  createReportAction,
+  updateReportAction,
+  deleteReportAction,
+} from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -166,7 +170,14 @@ export default async function MuridReportPage({
 
       <PerformanceRecordsCard records={performanceRecords ?? []} />
 
-      <ReportHistoryCard reports={reports ?? []} />
+      <ReportHistoryCard
+        reports={reports ?? []}
+        skillTemplate={skillTemplate}
+        editable
+        studentId={studentId}
+        updateAction={updateReportAction}
+        deleteAction={deleteReportAction}
+      />
     </div>
   );
 }
