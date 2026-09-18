@@ -5,9 +5,11 @@ import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import { AccountEditor } from "@/components/account-editor";
 import { resolveRateForDate } from "@/lib/payroll";
 import {
   createPelatihAction,
+  updatePelatihAccountAction,
   updatePelatihTitleAction,
   togglePelatihActiveAction,
   deletePelatihAction,
@@ -23,9 +25,9 @@ function formatRupiah(amount: number) {
 export default async function PelatihPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; account_updated?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, account_updated } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: pelatihList }, { data: rateRows }] = await Promise.all([
@@ -132,6 +134,11 @@ export default async function PelatihPage({
 
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Daftar Pengajar</h2>
+        {account_updated && (
+          <p className="mb-4 text-sm text-[#1a8f6f]">
+            Akun pengajar berhasil diperbarui.
+          </p>
+        )}
         <div className="flex flex-col gap-2">
           {(!pelatihList || pelatihList.length === 0) && (
             <p className="text-sm text-slate-600">Belum ada pengajar.</p>
@@ -170,6 +177,11 @@ export default async function PelatihPage({
               }
               action={
                 <>
+                  <AccountEditor
+                    id={p.id}
+                    currentEmail={p.email}
+                    action={updatePelatihAccountAction}
+                  />
                   <form
                     action={updatePelatihTitleAction}
                     className="flex items-center gap-2"

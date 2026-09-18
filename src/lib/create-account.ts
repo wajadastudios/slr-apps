@@ -18,6 +18,50 @@ export async function requirePelatih() {
   return session;
 }
 
+// Account-recovery helper for admins: lets support fix a login (wrong email
+// typo, lost access, forgotten password) without the account holder needing
+// their own working inbox to reset it themselves.
+export async function updateAccountCredentials(
+  role: "pelatih" | "ortu",
+  formData: FormData
+): Promise<{ error: string | null }> {
+  const id = String(formData.get("id") ?? "");
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+
+  if (!id || !email) {
+    return { error: "Email wajib diisi." };
+  }
+  if (password && password.length < 6) {
+    return { error: "Password baru minimal 6 karakter." };
+  }
+
+  const supabase = createAdminClient();
+  const { data: target } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", id)
+    .single();
+
+  if (target?.role !== role) {
+    return { error: "Akun tidak ditemukan." };
+  }
+
+  const { error } = await supabase.auth.admin.updateUserById(id, {
+    email,
+    email_confirm: true,
+    ...(password ? { password } : {}),
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  await supabase.from("users").update({ email }).eq("id", id);
+
+  return { error: null };
+}
+
 export async function createAccount(
   role: "pelatih" | "ortu",
   formData: FormData

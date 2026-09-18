@@ -3,8 +3,8 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
-import { OrtuAccountEditor } from "@/components/ortu-account-editor";
-import { createOrangTuaAction } from "./actions";
+import { AccountEditor } from "@/components/account-editor";
+import { createOrangTuaAction, updateOrtuAccountAction } from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -82,7 +82,13 @@ export default async function OrangTuaPage({
                       : "-"}
                   </>
                 }
-                action={<OrtuAccountEditor id={o.id} currentEmail={o.email} />}
+                action={
+                  <AccountEditor
+                    id={o.id}
+                    currentEmail={o.email}
+                    action={updateOrtuAccountAction}
+                  />
+                }
               />
             );
           })}

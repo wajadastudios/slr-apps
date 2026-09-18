@@ -2,7 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAdmin, createAccount } from "@/lib/create-account";
+import {
+  requireAdmin,
+  createAccount,
+  updateAccountCredentials,
+} from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -24,6 +28,18 @@ export async function createPelatihAction(formData: FormData) {
 
   revalidatePath("/admin/pelatih");
   redirect("/admin/pelatih");
+}
+
+export async function updatePelatihAccountAction(formData: FormData) {
+  await requireAdmin();
+
+  const { error } = await updateAccountCredentials("pelatih", formData);
+  if (error) {
+    redirect(`/admin/pelatih?error=${encodeURIComponent(error)}`);
+  }
+
+  revalidatePath("/admin/pelatih");
+  redirect("/admin/pelatih?account_updated=1");
 }
 
 export async function updatePelatihTitleAction(formData: FormData) {

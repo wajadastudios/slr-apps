@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { GlassButton } from "@/components/ui/glass-button";
 import { GlassInput } from "@/components/ui/glass-input";
-import { updateOrtuAccountAction } from "@/app/admin/orang-tua/actions";
 
-export function OrtuAccountEditor({
+export function AccountEditor({
   id,
   currentEmail,
+  action,
 }: {
   id: string;
   currentEmail: string;
+  action: (formData: FormData) => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -28,7 +29,7 @@ export function OrtuAccountEditor({
 
   return (
     <form
-      action={updateOrtuAccountAction}
+      action={action}
       className="flex w-full flex-col gap-2 rounded-xl border border-[#35C5D0]/30 bg-white/50 p-3 sm:min-w-[280px]"
     >
       <input type="hidden" name="id" value={id} />
