@@ -1,3 +1,16 @@
+export function isAbsent(attendance: string | null | undefined): boolean {
+  return attendance === "izin" || attendance === "sakit";
+}
+
+// Skill scores describe what the child can do, so a session they missed
+// (izin/sakit) says nothing about that -- progress is read from the newest
+// session they actually attended. Expects reports newest-first.
+export function latestAttendedReport<T extends { attendance?: string | null }>(
+  reports: T[]
+): T | undefined {
+  return reports.find((r) => !isAbsent(r.attendance));
+}
+
 export function computeProgressPercent(
   skillTemplate: string[],
   scores: Record<string, number> | null | undefined

@@ -4,7 +4,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { DAYS } from "@/lib/days";
-import { computeProgressPercent } from "@/lib/progress";
+import { computeProgressPercent, isAbsent } from "@/lib/progress";
 
 export default async function PelatihDashboardPage() {
   const supabase = await createClient();
@@ -17,13 +17,14 @@ export default async function PelatihDashboardPage() {
       ),
     supabase
       .from("progress_reports")
-      .select("student_id, session_date, scores")
+      .select("student_id, session_date, attendance, scores")
       .order("session_date", { ascending: false }),
   ]);
 
-  // reports arrive newest-first, so the first one seen per student wins
+  // reports arrive newest-first, so the first attended one per student wins
   const latestScores = new Map<string, Record<string, number> | null>();
   for (const r of reports ?? []) {
+    if (isAbsent(r.attendance)) continue;
     if (!latestScores.has(r.student_id)) {
       latestScores.set(r.student_id, r.scores as Record<string, number> | null);
     }

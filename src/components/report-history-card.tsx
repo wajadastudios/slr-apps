@@ -9,6 +9,7 @@ import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import { StarRating } from "@/components/ui/star-rating";
 import { SkillScoresField } from "@/components/skill-scores-field";
+import { LockIcon, LOCKED_HINT } from "@/components/ui/lock-icon";
 
 const ATTENDANCE_LABEL: Record<string, string> = {
   hadir: "Hadir",
@@ -66,8 +67,13 @@ function ReportEntry({
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
 
+  const [lockedOpen, setLockedOpen] = useState(false);
+
   const scores = (report.scores as Record<string, number>) ?? {};
   const skillNames = orderedSkillNames(scores, skillTemplate);
+  const isLocked = (skill: string) => lockZeroScores && scores[skill] === 0;
+  const unlockedNames = skillNames.filter((s) => !isLocked(s));
+  const lockedNames = skillNames.filter(isLocked);
 
   if (editing && editable && updateAction) {
     return (
@@ -206,18 +212,41 @@ function ReportEntry({
           </button>
           {indicatorsOpen && (
             <div className="mt-2 flex flex-col gap-1.5">
-              {skillNames.map((skill) => (
+              {unlockedNames.map((skill) => (
                 <div key={skill} className="flex items-center justify-between gap-3">
                   <span className="text-sm text-slate-700">{skill}</span>
-                  {lockZeroScores && scores[skill] === 0 ? (
-                    <span className="flex items-center gap-1 text-xs font-medium text-slate-500">
-                      🔒 Terkunci
-                    </span>
-                  ) : (
-                    <StarRating value={scores[skill]} size={14} />
-                  )}
+                  <StarRating value={scores[skill]} size={14} />
                 </div>
               ))}
+              {lockedNames.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setLockedOpen((v) => !v)}
+                    className="mt-1 flex w-fit items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-white/60 active:bg-white/70"
+                  >
+                    <LockIcon />
+                    {lockedNames.length} indikator belum dibuka
+                    <span className={`transition-transform ${lockedOpen ? "rotate-180" : ""}`}>
+                      &#9660;
+                    </span>
+                  </button>
+                  {lockedOpen &&
+                    lockedNames.map((skill) => (
+                      <div
+                        key={skill}
+                        title={LOCKED_HINT}
+                        className="flex items-center justify-between gap-3 text-slate-400"
+                      >
+                        <span className="text-sm">{skill}</span>
+                        <span className="flex items-center gap-1 text-xs">
+                          <LockIcon className="h-3 w-3" />
+                          Belum dibuka
+                        </span>
+                      </div>
+                    ))}
+                </>
+              )}
             </div>
           )}
         </div>

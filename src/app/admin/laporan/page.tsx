@@ -7,7 +7,7 @@ import { PerformanceRecordsCard } from "@/components/performance-records-card";
 import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { StarScoreLegend } from "@/components/star-score-legend";
-import { computeProgressPercent } from "@/lib/progress";
+import { computeProgressPercent, latestAttendedReport } from "@/lib/progress";
 import { formatAge } from "@/lib/performance";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
@@ -53,7 +53,10 @@ export default async function AdminLaporanPage({
       ?.skill_template ?? [];
   const progressPercent = computeProgressPercent(
     selectedSkillTemplate,
-    reports?.[0]?.scores as Record<string, number> | null | undefined
+    latestAttendedReport(reports ?? [])?.scores as
+      | Record<string, number>
+      | null
+      | undefined
   );
   const selectedAge = formatAge(selectedStudent?.birth_date);
 

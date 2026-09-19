@@ -11,7 +11,13 @@ import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { StarScoreLegend } from "@/components/star-score-legend";
 import { ChildSummaryWidget } from "@/components/child-summary-widget";
-import { computeProgressPercent, computeNextSession, getGreeting } from "@/lib/progress";
+import {
+  computeProgressPercent,
+  computeNextSession,
+  getGreeting,
+  latestAttendedReport,
+} from "@/lib/progress";
+import { AttendanceConsistencyCard } from "@/components/attendance-consistency-card";
 import { formatAge } from "@/lib/performance";
 import { DAYS } from "@/lib/days";
 import { setPackagePreferenceAction } from "./actions";
@@ -140,7 +146,10 @@ export default async function AnakDetailPage({
 
   const progressPercent = computeProgressPercent(
     skillTemplate,
-    reports?.[0]?.scores as Record<string, number> | null | undefined
+    latestAttendedReport(reports ?? [])?.scores as
+      | Record<string, number>
+      | null
+      | undefined
   );
 
   return (
@@ -210,6 +219,8 @@ export default async function AnakDetailPage({
           </div>
         </GlassCard>
       )}
+
+      <AttendanceConsistencyCard reports={reports ?? []} />
 
       <ProgressTrend skillTemplate={skillTemplate} reports={reports ?? []} />
 

@@ -6,7 +6,12 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { ChildSummaryWidget } from "@/components/child-summary-widget";
-import { computeProgressPercent, computeNextSession, getGreeting } from "@/lib/progress";
+import {
+  computeProgressPercent,
+  computeNextSession,
+  getGreeting,
+  isAbsent,
+} from "@/lib/progress";
 import { DAYS } from "@/lib/days";
 import { selfRegisterAction, addChildAndRegisterAction } from "./actions";
 
@@ -103,8 +108,8 @@ export default async function OrtuDashboardPage({
     if (r.attendance === "hadir") {
       hadirCount.set(r.student_id, (hadirCount.get(r.student_id) ?? 0) + 1);
     }
-    // reports arrive newest-first, so the first one seen per student wins
-    if (!latestScores.has(r.student_id)) {
+    // reports arrive newest-first, so the first attended one per student wins
+    if (!isAbsent(r.attendance) && !latestScores.has(r.student_id)) {
       latestScores.set(r.student_id, r.scores as Record<string, number> | null);
     }
   }

@@ -10,7 +10,7 @@ import { PerformanceRecordField } from "@/components/performance-record-field";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
 import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
 import { ReportHistoryCard } from "@/components/report-history-card";
-import { computeProgressPercent } from "@/lib/progress";
+import { computeProgressPercent, latestAttendedReport } from "@/lib/progress";
 import { formatAge } from "@/lib/performance";
 import {
   createReportAction,
@@ -68,7 +68,10 @@ export default async function MuridReportPage({
   const today = new Date().toISOString().slice(0, 10);
   const progressPercent = computeProgressPercent(
     skillTemplate,
-    reports?.[0]?.scores as Record<string, number> | null | undefined
+    latestAttendedReport(reports ?? [])?.scores as
+      | Record<string, number>
+      | null
+      | undefined
   );
 
   return (

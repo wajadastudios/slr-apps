@@ -2,6 +2,8 @@
 
 import { useId, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { isAbsent } from "@/lib/progress";
+import { LockIcon, LOCKED_HINT } from "@/components/ui/lock-icon";
 
 type Report = {
   session_date: string;
@@ -11,10 +13,13 @@ type Report = {
   scores: Record<string, number> | null;
 };
 
-type Point = {
+// One entry per session. Attended sessions carry a score; izin/sakit
+// sessions have score = null and sit at the carried-forward level, so an
+// absence shows up as a marked pause instead of a fake drop in skill.
+type SessionEvent = {
   x: number;
   y: number;
-  score: number;
+  score: number | null;
   date: string;
   sessionNumber: number | null;
   notes: string | null;
@@ -32,6 +37,7 @@ const X_MIN = 3;
 const X_MAX = 92;
 const Y_TOP = 24;
 const Y_BOTTOM = 82;
+const STEP_WIDTH = 5;
 
 function scoreToY(score: number) {
   return Y_BOTTOM - (score / 5) * (Y_BOTTOM - Y_TOP);
@@ -46,68 +52,102 @@ function formatDate(iso: string) {
   });
 }
 
-// A dip should read as context, not as a broken chart: absence explains
-// itself, and a sharp drop without absence is flagged for a second look.
-function markerFor(
-  attendance: string | null | undefined,
-  prevScore: number | null,
-  score: number
-): string | null {
-  if (attendance === "izin") return "Izin";
-  if (attendance === "sakit") return "Sakit";
-  if (prevScore !== null) {
-    const drop = prevScore - score;
-    if (drop >= 3) return "Perlu perhatian";
-    if (drop >= 2) return "Evaluasi ulang";
+function absenceLabel(attendance: string | null | undefined) {
+  return attendance === "sakit" ? "Sakit" : "Izin";
+}
+
+function buildEvents(
+  skill: string,
+  chronological: Report[],
+  minT: number,
+  maxT: number
+): SessionEvent[] {
+  const xFor = (iso: string) =>
+    maxT === minT
+      ? 50
+      : X_MIN + ((new Date(iso).getTime() - minT) / (maxT - minT)) * (X_MAX - X_MIN);
+
+  const rows = chronological
+    .map((r) => ({
+      r,
+      score: isAbsent(r.attendance) ? null : r.scores?.[skill],
+    }))
+    .filter(
+      (p) => isAbsent(p.r.attendance) || typeof p.score === "number"
+    ) as { r: Report; score: number | null }[];
+
+  if (!rows.some((p) => p.score !== null)) return [];
+
+  const events: SessionEvent[] = [];
+  let prevScore: number | null = null;
+
+  for (const { r, score } of rows) {
+    let marker: string | null = null;
+    if (score === null) {
+      marker = absenceLabel(r.attendance);
+    } else if (prevScore !== null) {
+      const drop = prevScore - score;
+      if (drop >= 3) marker = "Perlu perhatian";
+      else if (drop >= 2) marker = "Evaluasi ulang";
+    }
+
+    events.push({
+      x: xFor(r.session_date),
+      // Absent sessions borrow the level from before; resolved below for
+      // any that come before the first scored session.
+      y: score === null ? Number.NaN : scoreToY(score),
+      score,
+      date: r.session_date,
+      sessionNumber: r.session_number,
+      notes: r.notes ?? null,
+      marker,
+    });
+    if (score !== null) prevScore = score;
   }
-  return null;
+
+  let lastY = events.find((e) => e.score !== null)!.y;
+  for (const e of events) {
+    if (e.score !== null) lastY = e.y;
+    else e.y = lastY;
+  }
+
+  return events;
 }
 
-function buildPoints(skill: string, chronological: Report[]): Point[] {
-  const raw = chronological
-    .map((r) => ({ r, score: r.scores?.[skill] }))
-    .filter((p): p is { r: Report; score: number } => typeof p.score === "number");
-
-  return raw.map((p, i) => ({
-    x: raw.length > 1 ? X_MIN + (i / (raw.length - 1)) * (X_MAX - X_MIN) : 50,
-    y: scoreToY(p.score),
-    score: p.score,
-    date: p.r.session_date,
-    sessionNumber: p.r.session_number,
-    notes: p.r.notes ?? null,
-    marker: markerFor(p.r.attendance, i > 0 ? raw[i - 1].score : null, p.score),
-  }));
-}
-
-// Smooth "step" line: each level change is an S-curve between sessions
-// instead of a sharp diagonal, since scores move in discrete jumps.
-function stepPath(points: Point[]) {
+// Step line: the level holds flat until a session changes it, then eases
+// to the new level right at that session -- an honest "changed here"
+// rather than a slope that implies gradual change between sessions.
+function stepPath(points: SessionEvent[]) {
   let d = `M ${points[0].x} ${points[0].y}`;
   for (let i = 0; i < points.length - 1; i++) {
     const a = points[i];
     const b = points[i + 1];
-    const mid = (a.x + b.x) / 2;
-    d += ` C ${mid} ${a.y}, ${mid} ${b.y}, ${b.x} ${b.y}`;
+    if (a.y === b.y) {
+      d += ` L ${b.x} ${b.y}`;
+      continue;
+    }
+    const tx = Math.min(b.x - a.x, STEP_WIDTH);
+    d += ` L ${b.x - tx} ${a.y} C ${b.x - tx / 2} ${a.y}, ${b.x - tx / 2} ${b.y}, ${b.x} ${b.y}`;
   }
   return d;
 }
 
-function SkillRibbon({ skill, points }: { skill: string; points: Point[] }) {
+function SkillRibbon({ skill, events }: { skill: string; events: SessionEvent[] }) {
   const gradientId = useId().replace(/:/g, "");
   const [active, setActive] = useState<number | null>(null);
 
-  const latest = points[points.length - 1];
-  const line = stepPath(points);
-  const area = `${line} L ${latest.x} 100 L ${points[0].x} 100 Z`;
-  const step = points.length > 1 ? (X_MAX - X_MIN) / (points.length - 1) : 100;
+  const scored = events.filter((e) => e.score !== null);
+  const latest = scored[scored.length - 1];
+  const line = stepPath(scored);
+  const area = `${line} L ${latest.x} 100 L ${scored[0].x} 100 Z`;
 
-  const activePoint = active !== null ? points[active] : null;
+  const activeEvent = active !== null ? events[active] : null;
   const tooltipAlign =
-    activePoint === null
+    activeEvent === null
       ? ""
-      : activePoint.x > 60
+      : activeEvent.x > 60
         ? "right-0"
-        : activePoint.x < 40
+        : activeEvent.x < 40
           ? "left-0"
           : "left-1/2 -translate-x-1/2";
 
@@ -120,7 +160,7 @@ function SkillRibbon({ skill, points }: { skill: string; points: Point[] }) {
         onMouseLeave={() => setActive(null)}
       >
         <span className="sr-only">
-          Skor terbaru {latest.score} dari 5 setelah {points.length} sesi.
+          Skor terbaru {latest.score} dari 5 setelah {scored.length} sesi.
         </span>
 
         <svg
@@ -148,7 +188,7 @@ function SkillRibbon({ skill, points }: { skill: string; points: Point[] }) {
               vectorEffect="non-scaling-stroke"
             />
           ))}
-          {points.length > 1 && (
+          {scored.length > 1 && (
             <>
               <path d={area} fill={`url(#${gradientId})`} />
               <path
@@ -165,52 +205,54 @@ function SkillRibbon({ skill, points }: { skill: string; points: Point[] }) {
           )}
         </svg>
 
-        {/* Hover/tap strips: one per session, full height, so the whole
-            column is the target instead of a tiny invisible dot. */}
-        {points.map((p, i) => (
-          <div
-            key={i}
-            onMouseEnter={() => setActive(i)}
-            onClick={(e) => {
-              e.stopPropagation();
-              setActive(i);
-            }}
-            className="absolute top-0 h-full cursor-pointer"
-            style={{
-              left: `${p.x}%`,
-              width: `${Math.max(step, 4)}%`,
-              transform: "translateX(-50%)",
-            }}
-          />
-        ))}
+        {/* Hover/tap strips: one per session, spanning halfway to each
+            neighbour, so the whole column is the target. */}
+        {events.map((e, i) => {
+          const left = i === 0 ? 0 : (events[i - 1].x + e.x) / 2;
+          const right = i === events.length - 1 ? 100 : (e.x + events[i + 1].x) / 2;
+          return (
+            <div
+              key={i}
+              onMouseEnter={() => setActive(i)}
+              onClick={(ev) => {
+                ev.stopPropagation();
+                setActive(i);
+              }}
+              className="absolute top-0 h-full cursor-pointer"
+              style={{ left: `${left}%`, width: `${right - left}%` }}
+            />
+          );
+        })}
 
-        {/* Extreme-dip markers */}
-        {points.map((p, i) =>
-          p.marker ? (
+        {/* Pause / dip markers */}
+        {events.map((e, i) =>
+          e.marker ? (
             <div
               key={`m${i}`}
               className="pointer-events-none absolute flex -translate-x-1/2 flex-col items-center"
-              style={{ left: `${p.x}%`, top: `${p.y}%`, marginTop: -4 }}
+              style={{ left: `${e.x}%`, top: `${e.y}%`, marginTop: -4 }}
             >
               <span className="h-2 w-2 rounded-full border border-[#FFC800] bg-[#FFF8E1]" />
               <span className="mt-0.5 whitespace-nowrap text-[9px] font-medium leading-none text-[#a67c00]">
-                {p.marker}
+                {e.marker}
               </span>
             </div>
           ) : null
         )}
 
         {/* Hovered point */}
-        {activePoint && active !== points.length - 1 && (
+        {activeEvent && (
           <>
             <span
               className="pointer-events-none absolute top-0 h-full w-px bg-[#35C5D0]/30"
-              style={{ left: `${activePoint.x}%` }}
+              style={{ left: `${activeEvent.x}%` }}
             />
-            <span
-              className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-[#35C5D0] shadow-[0_0_8px_rgba(53,197,208,0.8)]"
-              style={{ left: `${activePoint.x}%`, top: `${activePoint.y}%` }}
-            />
+            {activeEvent.score !== null && activeEvent !== latest && (
+              <span
+                className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-[#35C5D0] shadow-[0_0_8px_rgba(53,197,208,0.8)]"
+                style={{ left: `${activeEvent.x}%`, top: `${activeEvent.y}%` }}
+              />
+            )}
           </>
         )}
 
@@ -233,24 +275,65 @@ function SkillRibbon({ skill, points }: { skill: string; points: Point[] }) {
           </span>
         </div>
 
-        {activePoint && (
+        {activeEvent && (
           <div
             className={`absolute top-full z-30 mt-1 w-48 rounded-xl border border-white/60 bg-white/90 p-2.5 text-xs shadow-[0_8px_24px_rgba(23,38,61,0.18)] backdrop-blur-md ${tooltipAlign}`}
           >
             <p className="font-semibold text-[#17263D]">
-              {formatDate(activePoint.date)}
-              {activePoint.sessionNumber ? ` · Sesi ${activePoint.sessionNumber}` : ""}
+              {formatDate(activeEvent.date)}
+              {activeEvent.sessionNumber ? ` · Sesi ${activeEvent.sessionNumber}` : ""}
             </p>
-            <p className="mt-0.5 text-[#0f8a94]">Skor {activePoint.score}/5</p>
-            {activePoint.marker && (
-              <p className="mt-0.5 font-medium text-[#a67c00]">{activePoint.marker}</p>
+            {activeEvent.score !== null ? (
+              <p className="mt-0.5 text-[#0f8a94]">Skor {activeEvent.score}/5</p>
+            ) : (
+              <p className="mt-0.5 text-slate-500">
+                Tidak berlatih &mdash; skor tetap di level sebelumnya
+              </p>
             )}
-            {activePoint.notes && (
-              <p className="mt-1 line-clamp-3 text-slate-600">{activePoint.notes}</p>
+            {activeEvent.marker && (
+              <p className="mt-0.5 font-medium text-[#a67c00]">{activeEvent.marker}</p>
+            )}
+            {activeEvent.notes && (
+              <p className="mt-1 line-clamp-3 text-slate-600">{activeEvent.notes}</p>
             )}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function LockedSkills({ skills }: { skills: string[] }) {
+  const [open, setOpen] = useState(false);
+  if (skills.length === 0) return null;
+
+  return (
+    <div className="mt-5 border-t border-white/40 pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-slate-500 transition-colors hover:bg-white/60 active:bg-white/70"
+      >
+        <LockIcon className="h-4 w-4" />
+        {skills.length} indikator belum dibuka
+        <span className={`text-xs transition-transform ${open ? "rotate-180" : ""}`}>
+          &#9660;
+        </span>
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {skills.map((skill) => (
+            <span
+              key={skill}
+              title={LOCKED_HINT}
+              className="flex items-center gap-1 rounded-full border border-slate-200/70 bg-white/50 px-2.5 py-1 text-xs text-slate-500"
+            >
+              <LockIcon className="h-3 w-3" />
+              {skill}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -267,11 +350,28 @@ export function ProgressTrend({
       new Date(a.session_date).getTime() - new Date(b.session_date).getTime()
   );
 
-  const skills = skillTemplate
-    .map((skill) => ({ skill, points: buildPoints(skill, chronological) }))
-    .filter((s) => s.points.length > 0);
+  // One shared time axis for every skill, so a gap between sessions looks
+  // the same width on every chart.
+  const times = chronological.map((r) => new Date(r.session_date).getTime());
+  const minT = Math.min(...times);
+  const maxT = Math.max(...times);
 
-  if (skills.length === 0) {
+  const all = skillTemplate.map((skill) => ({
+    skill,
+    events: buildEvents(skill, chronological, minT, maxT),
+  }));
+
+  // A skill still at 0 (or never scored) hasn't been "opened" yet -- a flat
+  // line at the floor says nothing, so those collapse into a chip list
+  // instead of taking up a chart each.
+  const isOpened = (events: SessionEvent[]) => {
+    const scored = events.filter((e) => e.score !== null);
+    return scored.length > 0 && scored[scored.length - 1].score! > 0;
+  };
+  const skills = all.filter((s) => isOpened(s.events));
+  const lockedSkills = all.filter((s) => !isOpened(s.events)).map((s) => s.skill);
+
+  if (reports.length === 0) {
     return (
       <GlassCard>
         <p className="text-sm text-slate-600">
@@ -292,14 +392,19 @@ export function ProgressTrend({
         }}
       />
       <div className="relative">
-        <h2 className="mb-4 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
+        <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
           Tren Perkembangan
         </h2>
+        <p className="mb-4 text-xs text-slate-500">
+          Sumbu waktu mengikuti tanggal sesi. Sesi izin/sakit ditandai dan tidak
+          menurunkan skor.
+        </p>
         <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-          {skills.map(({ skill, points }) => (
-            <SkillRibbon key={skill} skill={skill} points={points} />
+          {skills.map(({ skill, events }) => (
+            <SkillRibbon key={skill} skill={skill} events={events} />
           ))}
         </div>
+        <LockedSkills skills={lockedSkills} />
       </div>
     </GlassCard>
   );
