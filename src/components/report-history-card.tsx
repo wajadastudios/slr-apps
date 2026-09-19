@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { GlassInput } from "@/components/ui/glass-input";
@@ -313,16 +313,34 @@ export function ReportHistoryCard({
   updateAction?: ReportAction;
   deleteAction?: ReportAction;
 }) {
+  const [page, setPage] = useState(1);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  const totalPages = Math.max(1, Math.ceil(reports.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const visible = reports.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  function goTo(next: number) {
+    setPage(next);
+    headingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <GlassCard>
-      <h2 className="mb-4 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
+      <h2
+        ref={headingRef}
+        className="mb-4 scroll-mt-6 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]"
+      >
         Riwayat Laporan
       </h2>
       <div className="flex flex-col gap-3">
         {reports.length === 0 && (
           <p className="text-sm text-slate-600">Belum ada laporan.</p>
         )}
-        {reports.map((r) => (
+        {visible.map((r) => (
           <ReportEntry
             key={r.id}
             report={r}
@@ -335,6 +353,75 @@ export function ReportHistoryCard({
           />
         ))}
       </div>
+      {totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onChange={goTo}
+        />
+      )}
     </GlassCard>
+  );
+}
+
+const PAGE_SIZE = 5;
+const PAGE_WINDOW = 5;
+
+function pageWindow(current: number, total: number): number[] {
+  const size = Math.min(PAGE_WINDOW, total);
+  let start = Math.max(1, current - Math.floor(size / 2));
+  start = Math.min(start, total - size + 1);
+  return Array.from({ length: size }, (_, i) => start + i);
+}
+
+function Pagination({
+  currentPage,
+  totalPages,
+  onChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+}) {
+  const base =
+    "rounded-lg px-2.5 py-1 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+
+  return (
+    <nav
+      aria-label="Halaman riwayat laporan"
+      className="mt-4 flex flex-wrap items-center justify-center gap-1"
+    >
+      <button
+        type="button"
+        disabled={currentPage === 1}
+        onClick={() => onChange(currentPage - 1)}
+        className={`${base} text-[#17263D] hover:bg-white/60 active:bg-white/70`}
+      >
+        Sebelumnya
+      </button>
+      {pageWindow(currentPage, totalPages).map((p) => (
+        <button
+          key={p}
+          type="button"
+          aria-current={p === currentPage ? "page" : undefined}
+          onClick={() => onChange(p)}
+          className={`${base} min-w-8 ${
+            p === currentPage
+              ? "bg-[#35C5D0] text-white"
+              : "text-[#17263D] hover:bg-white/60 active:bg-white/70"
+          }`}
+        >
+          {p}
+        </button>
+      ))}
+      <button
+        type="button"
+        disabled={currentPage === totalPages}
+        onClick={() => onChange(currentPage + 1)}
+        className={`${base} text-[#17263D] hover:bg-white/60 active:bg-white/70`}
+      >
+        Selanjutnya
+      </button>
+    </nav>
   );
 }
