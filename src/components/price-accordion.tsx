@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AccordionItem } from "@/components/ui/accordion";
 
 const PACKAGE_BADGES: Record<string, { label: string; className: string }> = {
   promo: { label: "Promo", className: "bg-[#FFC800] text-[#5c4400]" },
@@ -29,7 +30,10 @@ export type PriceGroup = {
 
 export function PriceAccordion({ groups }: { groups: PriceGroup[] }) {
   const [openId, setOpenId] = useState<string | null>(
-    groups[0]?.programId ?? null
+    (
+      groups.find((g) => g.programName.toLowerCase().includes("kids swim")) ??
+      groups[0]
+    )?.programId ?? null
   );
 
   return (
@@ -39,15 +43,13 @@ export function PriceAccordion({ groups }: { groups: PriceGroup[] }) {
         const cheapest = Math.min(...group.packages.map((p) => Number(p.price)));
 
         return (
-          <div
+          <AccordionItem
             key={group.programId}
-            className="overflow-hidden rounded-3xl border border-white/30 bg-white/20 shadow-[0_8px_32px_rgba(23,38,61,0.15)] backdrop-blur-xl"
-          >
-            <button
-              type="button"
-              onClick={() => setOpenId(isOpen ? null : group.programId)}
-              className="flex w-full items-center justify-between gap-3 px-6 py-4 text-left transition-colors hover:bg-white/20 active:bg-white/30"
-            >
+            open={isOpen}
+            onToggle={() => setOpenId(isOpen ? null : group.programId)}
+            className="overflow-hidden rounded-3xl border border-white/40 bg-white/45 shadow-[0_4px_20px_rgba(23,38,61,0.08)] backdrop-blur-xl"
+            headerClassName="px-6 py-3"
+            header={
               <span>
                 <span className="block text-lg font-semibold text-[#17263D]">
                   {group.programName}
@@ -57,49 +59,40 @@ export function PriceAccordion({ groups }: { groups: PriceGroup[] }) {
                   {cheapest.toLocaleString("id-ID")}
                 </span>
               </span>
-              <span
-                className={`shrink-0 text-[#35C5D0] transition-transform ${
-                  isOpen ? "rotate-180" : ""
-                }`}
-              >
-                &#9660;
-              </span>
-            </button>
-
-            {isOpen && (
-              <div className="grid gap-3 px-6 pb-6 sm:grid-cols-2">
-                {group.packages.map((pkg) => (
-                  <div
-                    key={pkg.id}
-                    className="rounded-xl border border-[#35C5D0]/30 bg-white/20 p-3 backdrop-blur-md"
-                  >
-                    {pkg.badge && PACKAGE_BADGES[pkg.badge] && (
-                      <div className="mb-2 flex justify-end">
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${PACKAGE_BADGES[pkg.badge].className}`}
-                        >
-                          {PACKAGE_BADGES[pkg.badge].label}
-                        </span>
-                      </div>
-                    )}
-                    <p className="font-medium text-[#17263D]">
-                      {pkg.name} &middot; {pkg.sessions_count} sesi
-                    </p>
-                    <p className="text-lg font-semibold text-[#17263D]">
-                      Rp{Number(pkg.price).toLocaleString("id-ID")}
-                    </p>
-                    {pkg.benefits && pkg.benefits.length > 0 && (
-                      <ul className="mt-1 list-inside list-disc text-sm text-slate-600">
-                        {pkg.benefits.map((b, i) => (
-                          <li key={i}>{b}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+            }
+          >
+            <div className="grid gap-3 px-6 pb-6 pt-1 sm:grid-cols-2">
+              {group.packages.map((pkg) => (
+                <div
+                  key={pkg.id}
+                  className="rounded-xl border border-[#35C5D0]/30 bg-white/50 p-3 backdrop-blur-md"
+                >
+                  {pkg.badge && PACKAGE_BADGES[pkg.badge] && (
+                    <div className="mb-2 flex justify-end">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${PACKAGE_BADGES[pkg.badge].className}`}
+                      >
+                        {PACKAGE_BADGES[pkg.badge].label}
+                      </span>
+                    </div>
+                  )}
+                  <p className="font-medium text-[#17263D]">
+                    {pkg.name} &middot; {pkg.sessions_count} sesi
+                  </p>
+                  <p className="text-lg font-semibold text-[#17263D]">
+                    Rp{Number(pkg.price).toLocaleString("id-ID")}
+                  </p>
+                  {pkg.benefits && pkg.benefits.length > 0 && (
+                    <ul className="mt-1 list-inside list-disc text-sm text-slate-600">
+                      {pkg.benefits.map((b, i) => (
+                        <li key={i}>{b}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          </AccordionItem>
         );
       })}
     </div>

@@ -59,7 +59,7 @@ function LoginForm() {
 
   return (
     <div className="relative flex min-h-screen flex-1 items-center justify-center overflow-hidden p-6 font-[family-name:var(--font-plus-jakarta)]">
-      <WaterBg imageUrl={undefined} />
+      <WaterBg />
       <GlassCard className="w-full max-w-sm">
         <Link href="/" className="mb-4 flex flex-col items-center gap-2">
           <Image src="/logo.png" alt="Sari Les Renang" width={96} height={96} />

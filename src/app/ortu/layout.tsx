@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getUserWithRole } from "@/lib/auth";
+import { WaterBg } from "@/components/water-bg";
 import { PortalSidebar } from "@/components/portal-sidebar";
 
 const NAV_GROUPS = [
@@ -26,6 +27,7 @@ export default async function OrtuLayout({
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 lg:flex-row lg:gap-6 lg:p-6">
+      <WaterBg variant="dashboard" />
       <PortalSidebar
         navGroups={NAV_GROUPS}
         homeHref="/ortu"

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
+import { WaterBg } from "@/components/water-bg";
 
 export default async function PrivasiPage() {
   const supabase = await createClient();
@@ -11,6 +12,7 @@ export default async function PrivasiPage() {
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 p-6">
+      <WaterBg variant="public" />
       <GlassCard>
         <h1 className="text-2xl font-semibold text-slate-900">
           Kebijakan Privasi

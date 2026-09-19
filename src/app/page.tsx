@@ -9,6 +9,7 @@ import { VideoAdsPlayer } from "@/components/video-ads-player";
 import { FaqAccordion } from "@/components/faq-accordion";
 import { PriceAccordion, type PriceGroup } from "@/components/price-accordion";
 import { SiteNav } from "@/components/site-nav";
+import { ScheduleList, type ScheduleItem } from "@/components/schedule-list";
 import { DAYS } from "@/lib/days";
 
 const HEADING_FONT = "font-[family-name:var(--font-quicksand)]";
@@ -105,6 +106,28 @@ export default async function Home() {
     filledBySlot.set(row.slot_id, Number(row.filled));
   }
 
+  const allScheduleItems: ScheduleItem[] = (slots ?? []).map((s) => {
+    const program = s.program as unknown as { name: string } | null;
+    const pelatihName = pelatihNameById.get(s.pelatih_id);
+    const filled = filledBySlot.get(s.id) ?? 0;
+    return {
+      id: s.id,
+      title: `${DAYS[s.day_of_week]}, ${s.start_time} — ${program?.name}${
+        s.label ? ` (${s.label})` : ""
+      }`,
+      subtitle: `Pengajar: ${pelatihName ?? "-"}${
+        s.location ? ` · ${s.location}` : ""
+      }`,
+      full: filled >= s.capacity,
+      remaining: s.capacity - filled,
+    };
+  });
+  // Open slots first: those are the ones a visitor can actually act on.
+  const scheduleItems = [
+    ...allScheduleItems.filter((i) => !i.full),
+    ...allScheduleItems.filter((i) => i.full),
+  ];
+
   const packagesByProgram = new Map<string, typeof packages>();
   for (const p of packages ?? []) {
     const list = packagesByProgram.get(p.program_id) ?? [];
@@ -137,7 +160,9 @@ export default async function Home() {
   const founderCertifications = get("founder_certifications");
 
   return (
-    <div className="relative flex min-h-screen flex-col gap-16 overflow-hidden bg-gradient-to-b from-[#DDF7FA] via-[#EEF9FB] to-[#FEFCE8] pb-20 font-[family-name:var(--font-plus-jakarta)]">
+    <div className="relative flex min-h-screen flex-col gap-16 overflow-hidden pb-20 font-[family-name:var(--font-plus-jakarta)]">
+      <WaterBg variant="public" />
+      <WaterBg variant="hero" />
       <WhatsappFab phone={get("phone")} />
 
       {/* Sticky nav */}
@@ -145,10 +170,6 @@ export default async function Home() {
 
       {/* Hero */}
       <section className="relative overflow-hidden px-6 pt-8 pb-16">
-        <WaterBg
-          imageUrl={mediaAd1Type === "image" ? mediaAd1Url : undefined}
-          videoUrl={mediaAd1Type === "video" ? mediaAd1Url : undefined}
-        />
         <div className="mx-auto grid w-full max-w-6xl items-center gap-14 lg:grid-cols-2">
           {/* Text column */}
           <div className="flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
@@ -180,7 +201,7 @@ export default async function Home() {
             {stats.length > 0 && (
               <div className="mt-2 grid w-full max-w-xl grid-cols-2 gap-3 sm:grid-cols-3">
                 {stats.map((s) => (
-                  <GlassCard key={s.label} className="text-center">
+                  <GlassCard key={s.label} tone="soft" className="text-center">
                     <p className="text-2xl font-bold text-[#35C5D0]">
                       {s.value}
                     </p>
@@ -284,7 +305,7 @@ export default async function Home() {
         </p>
         <div className="mt-2 grid gap-4 text-left sm:grid-cols-3">
           {programs?.map((p) => (
-            <GlassCard key={p.id} className="relative">
+            <GlassCard key={p.id} tone="soft" className="relative">
               {p.badge && (
                 <span className="absolute right-4 top-4 rounded-full bg-gradient-to-r from-[#35C5D0] to-[#55D6A6] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                   {p.badge}
@@ -312,49 +333,6 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Jadwal Tersedia */}
-      <section id="jadwal" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
-        <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
-          Jadwal Tersedia
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(!slots || slots.length === 0) && (
-            <p className="text-sm text-slate-600">
-              Jadwal akan segera diumumkan.
-            </p>
-          )}
-          {slots?.map((s) => {
-            const program = s.program as unknown as { name: string } | null;
-            const pelatihName = pelatihNameById.get(s.pelatih_id);
-            const filled = filledBySlot.get(s.id) ?? 0;
-            const full = filled >= s.capacity;
-            return (
-              <GlassCard key={s.id} className="flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-[#17263D]">
-                    {DAYS[s.day_of_week]}, {s.start_time} &mdash; {program?.name}
-                    {s.label ? ` (${s.label})` : ""}
-                  </p>
-                  <p className="text-sm text-slate-600">
-                    Pengajar: {pelatihName ?? "-"}
-                    {s.location ? ` · ${s.location}` : ""}
-                  </p>
-                </div>
-                <span
-                  className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-center text-xs font-medium ${
-                    full
-                      ? "bg-red-500/20 text-red-700"
-                      : "bg-[#55D6A6]/20 text-[#1a8f6f]"
-                  }`}
-                >
-                  {full ? "Penuh" : `Sisa ${s.capacity - filled}`}
-                </span>
-              </GlassCard>
-            );
-          })}
-        </div>
-      </section>
-
       {/* Grup vs Private */}
       <section id="grup-vs-private" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6 text-center">
         <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D] sm:text-3xl`}>
@@ -366,7 +344,7 @@ export default async function Home() {
           itu sendiri.
         </p>
         <div className="mt-2 grid gap-4 text-left sm:grid-cols-2">
-          <GlassCard>
+          <GlassCard tone="soft">
             <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#EEF9FB] text-lg">
               🏊
             </span>
@@ -400,7 +378,7 @@ export default async function Home() {
             </ul>
           </GlassCard>
 
-          <GlassCard>
+          <GlassCard tone="soft">
             <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#EEF9FB] text-lg">
               🎯
             </span>
@@ -448,6 +426,20 @@ export default async function Home() {
           <p className="text-sm text-slate-600">
             Info harga akan segera diumumkan.
           </p>
+        )}
+      </section>
+
+      {/* Jadwal Tersedia */}
+      <section id="jadwal" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
+        <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
+          Jadwal Tersedia
+        </h2>
+        {scheduleItems.length === 0 ? (
+          <p className="text-sm text-slate-600">
+            Jadwal akan segera diumumkan.
+          </p>
+        ) : (
+          <ScheduleList items={scheduleItems} />
         )}
       </section>
 
@@ -518,7 +510,7 @@ export default async function Home() {
           </p>
           <div className="mt-2 grid gap-4 text-left sm:grid-cols-2 lg:grid-cols-3">
             {testimonials.map((t, i) => (
-              <GlassCard key={i}>
+              <GlassCard key={i} tone="soft">
                 {t.rating && (
                   <p className="mb-1">
                     <Stars rating={t.rating} />
@@ -650,7 +642,7 @@ export default async function Home() {
 
       {/* CTA banner */}
       <section className="mx-auto w-full max-w-3xl px-6">
-        <GlassCard className="relative flex flex-col items-center gap-3 overflow-hidden border-[#35C5D0]/30 bg-gradient-to-br from-[#EEF9FB] to-[#FEFCE8] text-center">
+        <GlassCard tone="strong" className="relative flex flex-col items-center gap-3 overflow-hidden border-[#35C5D0]/30 bg-gradient-to-br from-[#EEF9FB] to-[#FEFCE8] text-center">
           <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[#35C5D0]/20 blur-2xl" />
           <div className="absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-[#FFC800]/20 blur-2xl" />
           <Image
@@ -685,7 +677,7 @@ export default async function Home() {
 
       {/* Contact */}
       <section id="kontak" className="mx-auto w-full max-w-2xl scroll-mt-24 px-6">
-        <GlassCard className="text-center">
+        <GlassCard tone="strong" className="text-center">
           <h2 className={`${HEADING_FONT} mb-3 text-2xl font-bold text-[#17263D]`}>
             Hubungi Tim SLR
           </h2>

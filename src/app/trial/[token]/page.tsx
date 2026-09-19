@@ -10,7 +10,7 @@ const HEADING = "font-[family-name:var(--font-quicksand)] text-xl font-bold text
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex min-h-screen flex-1 items-center justify-center overflow-hidden p-6 font-[family-name:var(--font-plus-jakarta)]">
-      <WaterBg imageUrl={undefined} />
+      <WaterBg />
       <GlassCard className="w-full max-w-md">{children}</GlassCard>
     </div>
   );

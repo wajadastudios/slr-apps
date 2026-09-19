@@ -39,7 +39,7 @@ export function AssessmentGuideCard({
             </p>
             <p>
               <span className="font-medium">Skor Indikator</span> menilai penguasaan
-              tiap gerakan/teknik (skala 0&ndash;5, lihat "Arti Skor Bintang" di
+              tiap gerakan/teknik (skala 0&ndash;5, lihat &quot;Arti Skor Bintang&quot; di
               bawah) berdasarkan penilaian pengajar tiap sesi.{" "}
               <span className="font-medium">Rekor Performa</span> mencatat angka
               konkret &mdash; waktu tempuh, jarak, tahan nafas, dan treading water &mdash;
