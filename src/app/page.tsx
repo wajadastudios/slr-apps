@@ -14,6 +14,29 @@ import { DAYS } from "@/lib/days";
 
 const HEADING_FONT = "font-[family-name:var(--font-quicksand)]";
 
+const WHY_SLR = [
+  {
+    icon: "💧",
+    title: "Kolam higienis dan terjaga",
+    description: "Air diuji dan dijaga standar kebersihan harian.",
+  },
+  {
+    icon: "🎓",
+    title: "Pengajar bersertifikat",
+    description: "Dengan rasio kelas kecil, perhatian tiap anak lebih terjaga.",
+  },
+  {
+    icon: "📊",
+    title: "Laporan perkembangan digital",
+    description: "Dapat diakses orang tua setiap sesi.",
+  },
+  {
+    icon: "🐣",
+    title: "Belajar bertahap dan ramah anak",
+    description: "Materi mengikuti tahap dan kecepatan tiap anak.",
+  },
+];
+
 function Stars({ rating }: { rating: number }) {
   return (
     <span className="text-[#FFC800]" aria-label={`${rating} dari 5 bintang`}>
@@ -415,6 +438,86 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* Kenapa Memilih SLR (nav "Tentang Kami" anchors here) */}
+      <section id="tentang" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-5 px-6">
+        <div className="text-center">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#35C5D0]">
+            Tentang Kami
+          </p>
+          <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D] sm:text-3xl`}>
+            Kenapa Keluarga Memilih SLR?
+          </h2>
+          {aboutText && (
+            <p className="mx-auto mt-2 max-w-2xl whitespace-pre-line text-sm text-slate-600">
+              {aboutText}
+            </p>
+          )}
+        </div>
+
+        {mediaAd2Url && (
+          <div className="relative h-44 overflow-hidden rounded-3xl border border-white/50 shadow-[0_8px_28px_rgba(23,38,61,0.12)] sm:h-56">
+            {mediaAd2Type === "video" ? (
+              <video
+                src={mediaAd2Url}
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={mediaAd2Url}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            )}
+          </div>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {WHY_SLR.map((item) => (
+            <GlassCard key={item.title} tone="soft" className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EEF9FB] text-lg">
+                {item.icon}
+              </span>
+              <div>
+                <h3 className="font-semibold text-[#17263D]">{item.title}</h3>
+                <p className="mt-0.5 text-sm text-slate-600">{item.description}</p>
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-2 rounded-2xl border border-[#FFC800]/35 bg-[#FFC800]/10 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#a67c00]">
+              Bersertifikat
+            </p>
+            <Image
+              src="/Logo AASM.png"
+              alt="AASM — Association Aquatic of Sport Medicine"
+              width={140}
+              height={44}
+              className="h-7 w-auto object-contain"
+            />
+            <Image
+              src="/Akuatik_Indonesia_HD_transparent.png"
+              alt="Akuatik Indonesia"
+              width={44}
+              height={44}
+              className="h-8 w-auto object-contain"
+            />
+          </div>
+          {founderCertifications && (
+            <p className="whitespace-pre-line text-xs text-slate-600">
+              {founderCertifications}
+            </p>
+          )}
+        </div>
+      </section>
+
       {/* Harga & Paket */}
       <section id="harga" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6">
         <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D]`}>
@@ -541,90 +644,6 @@ export default async function Home() {
           </div>
         </section>
       )}
-
-      {/* Tentang Kami */}
-      <section id="tentang" className="mx-auto w-full max-w-4xl scroll-mt-24 px-6">
-        <GlassCard className="grid gap-0 overflow-hidden p-0 sm:grid-cols-2">
-          <div className="relative min-h-[220px] sm:min-h-full">
-            {mediaAd2Url && mediaAd2Type === "video" ? (
-              <video
-                src={mediaAd2Url}
-                autoPlay
-                muted
-                loop
-                playsInline
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            ) : mediaAd2Url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={mediaAd2Url}
-                alt=""
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#35C5D0] to-[#55D6A6] text-5xl">
-                🏊
-              </div>
-            )}
-          </div>
-          <div className="p-6 sm:p-8">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#35C5D0]">
-              Tentang Kami
-            </p>
-            <h2 className={`${HEADING_FONT} text-2xl font-bold leading-snug text-[#17263D]`}>
-              Bukan sekadar kolam renang &mdash; tempat keluarga tumbuh
-              bersama
-            </h2>
-            {aboutText && (
-              <p className="mt-3 whitespace-pre-line text-sm text-slate-700">
-                {aboutText}
-              </p>
-            )}
-            <ul className="mt-4 flex flex-col gap-2 text-sm text-slate-700">
-              <li className="flex items-start gap-2">
-                <span className="text-[#55D6A6]">✅</span>
-                Kolam higienis &mdash; air diuji dan dijaga standar
-                kebersihan harian
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[#55D6A6]">✅</span>
-                Pengajar bersertifikat dengan rasio kelas kecil
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[#55D6A6]">✅</span>
-                Laporan progres digital dapat diakses orang tua setiap sesi
-              </li>
-            </ul>
-            <div className="mt-4 rounded-2xl border border-[#FFC800]/40 bg-[#FFC800]/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#a67c00]">
-                BERSERTIFIKAT:
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-5">
-                <Image
-                  src="/Logo AASM.png"
-                  alt="AASM — Association Aquatic of Sport Medicine"
-                  width={140}
-                  height={44}
-                  className="h-9 w-auto object-contain"
-                />
-                <Image
-                  src="/Akuatik_Indonesia_HD_transparent.png"
-                  alt="Akuatik Indonesia"
-                  width={44}
-                  height={44}
-                  className="h-11 w-auto object-contain"
-                />
-              </div>
-              {founderCertifications && (
-                <p className="mt-2 whitespace-pre-line text-sm text-slate-700">
-                  {founderCertifications}
-                </p>
-              )}
-            </div>
-          </div>
-        </GlassCard>
-      </section>
 
       {/* FAQ */}
       {faqItems && faqItems.length > 0 && (
