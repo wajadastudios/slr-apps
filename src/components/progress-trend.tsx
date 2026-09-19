@@ -4,6 +4,8 @@ import { useId, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { isAbsent } from "@/lib/progress";
 import { LockIcon, LOCKED_HINT } from "@/components/ui/lock-icon";
+import { AccordionItem } from "@/components/ui/accordion";
+import { formatSkillName } from "@/lib/skill-names";
 
 type Report = {
   session_date: string;
@@ -29,9 +31,9 @@ type SessionEvent = {
 // Faint wave + grid texture for the card background. Pure decoration, so it
 // lives in its own pointer-events-none layer clipped to the card's radius
 // (the card itself can't overflow-hidden or tooltips would get cut off).
-const WAVE_BG = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='28' viewBox='0 0 160 28'><path d='M0 14 Q20 4 40 14 T80 14 T120 14 T160 14' fill='none' stroke='%2335C5D0' stroke-opacity='0.10' stroke-width='1'/></svg>")`;
+const WAVE_BG = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='28' viewBox='0 0 160 28'><path d='M0 14 Q20 4 40 14 T80 14 T120 14 T160 14' fill='none' stroke='%2335C5D0' stroke-opacity='0.045' stroke-width='1'/></svg>")`;
 const GRID_BG =
-  "linear-gradient(to bottom, rgba(53,197,208,0.05) 1px, transparent 1px)";
+  "linear-gradient(to bottom, rgba(53,197,208,0.025) 1px, transparent 1px)";
 
 const X_MIN = 3;
 const X_MAX = 92;
@@ -143,17 +145,11 @@ function SkillRibbon({ skill, events }: { skill: string; events: SessionEvent[] 
 
   const activeEvent = active !== null ? events[active] : null;
   const tooltipAlign =
-    activeEvent === null
-      ? ""
-      : activeEvent.x > 60
-        ? "right-0"
-        : activeEvent.x < 40
-          ? "left-0"
-          : "left-1/2 -translate-x-1/2";
+    activeEvent !== null && activeEvent.x > 50 ? "left-1" : "right-1";
 
   return (
     <div>
-      <p className="mb-1 text-sm text-slate-700">{skill}</p>
+      <p className="mb-1 text-sm text-slate-700">{formatSkillName(skill)}</p>
       <div
         className="relative h-24"
         onClick={() => setActive(null)}
@@ -232,8 +228,8 @@ function SkillRibbon({ skill, events }: { skill: string; events: SessionEvent[] 
               className="pointer-events-none absolute flex -translate-x-1/2 flex-col items-center"
               style={{ left: `${e.x}%`, top: `${e.y}%`, marginTop: -4 }}
             >
-              <span className="h-2 w-2 rounded-full border border-[#FFC800] bg-[#FFF8E1]" />
-              <span className="mt-0.5 whitespace-nowrap text-[9px] font-medium leading-none text-[#a67c00]">
+              <span className="h-1.5 w-1.5 rounded-full border border-[#FFC800] bg-[#FFF8E1]" />
+              <span className="mt-0.5 whitespace-nowrap text-[8px] font-medium leading-none text-[#a67c00]/80">
                 {e.marker}
               </span>
             </div>
@@ -262,22 +258,22 @@ function SkillRibbon({ skill, events }: { skill: string; events: SessionEvent[] 
           style={{ left: `${latest.x}%`, top: `${latest.y}%` }}
         >
           <span
-            className="block h-3.5 w-3.5 rounded-full border border-white/80"
+            className="block h-4 w-4 rounded-full border border-white/90"
             style={{
               background:
                 "radial-gradient(circle at 30% 30%, #ffffff 0%, #b8f1f5 35%, #35C5D0 100%)",
               boxShadow:
-                "0 0 10px rgba(53,197,208,0.75), 0 0 0 4px rgba(53,197,208,0.15)",
+                "0 0 12px rgba(53,197,208,0.8), 0 0 0 5px rgba(53,197,208,0.18)",
             }}
           />
-          <span className="absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-[#17263D]">
+          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap text-sm font-bold text-[#17263D]">
             {latest.score}/5
           </span>
         </div>
 
         {activeEvent && (
           <div
-            className={`absolute top-full z-30 mt-1 w-48 rounded-xl border border-white/60 bg-white/90 p-2.5 text-xs shadow-[0_8px_24px_rgba(23,38,61,0.18)] backdrop-blur-md ${tooltipAlign}`}
+            className={`pointer-events-none absolute top-1 z-30 w-44 rounded-xl border border-white/70 bg-white/95 p-2 text-[11px] shadow-[0_8px_24px_rgba(23,38,61,0.18)] ${tooltipAlign}`}
           >
             <p className="font-semibold text-[#17263D]">
               {formatDate(activeEvent.date)}
@@ -287,14 +283,14 @@ function SkillRibbon({ skill, events }: { skill: string; events: SessionEvent[] 
               <p className="mt-0.5 text-[#0f8a94]">Skor {activeEvent.score}/5</p>
             ) : (
               <p className="mt-0.5 text-slate-500">
-                Tidak berlatih &mdash; skor tetap di level sebelumnya
+                Tidak berlatih, skor tetap
               </p>
             )}
             {activeEvent.marker && (
               <p className="mt-0.5 font-medium text-[#a67c00]">{activeEvent.marker}</p>
             )}
             {activeEvent.notes && (
-              <p className="mt-1 line-clamp-3 text-slate-600">{activeEvent.notes}</p>
+              <p className="mt-0.5 line-clamp-2 text-slate-600">{activeEvent.notes}</p>
             )}
           </div>
         )}
@@ -303,38 +299,91 @@ function SkillRibbon({ skill, events }: { skill: string; events: SessionEvent[] 
   );
 }
 
+const CHIP_STEP = 6;
+
 function LockedSkills({ skills }: { skills: string[] }) {
   const [open, setOpen] = useState(false);
+  const [shown, setShown] = useState(CHIP_STEP);
   if (skills.length === 0) return null;
 
+  const visible = skills.slice(0, shown);
+  const remaining = skills.length - visible.length;
+
   return (
-    <div className="mt-5 border-t border-white/40 pt-3">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-slate-500 transition-colors hover:bg-white/60 active:bg-white/70"
-      >
-        <LockIcon className="h-4 w-4" />
-        {skills.length} indikator belum dibuka
-        <span className={`text-xs transition-transform ${open ? "rotate-180" : ""}`}>
-          &#9660;
+    <AccordionItem
+      variant="ortu"
+      chevronSize="sm"
+      open={open}
+      onToggle={() => setOpen((v) => !v)}
+      className="mt-4 rounded-2xl border border-white/60 bg-white/45"
+      headerClassName="min-h-12 rounded-2xl px-3 py-1.5"
+      header={
+        <span className="flex items-center gap-1.5 text-sm font-medium text-slate-600">
+          <LockIcon className="h-4 w-4" />
+          {skills.length} indikator belum dibuka
         </span>
-      </button>
-      {open && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {skills.map((skill) => (
+      }
+    >
+      <div className="px-3 pb-3 pt-1">
+        <div className="flex flex-wrap gap-2">
+          {visible.map((skill) => (
             <span
               key={skill}
               title={LOCKED_HINT}
-              className="flex items-center gap-1 rounded-full border border-slate-200/70 bg-white/50 px-2.5 py-1 text-xs text-slate-500"
+              className="flex items-center gap-1 rounded-full border border-slate-200/70 bg-white/60 px-2.5 py-1 text-xs text-slate-500"
             >
               <LockIcon className="h-3 w-3" />
-              {skill}
+              {formatSkillName(skill)}
             </span>
           ))}
         </div>
-      )}
-    </div>
+        {remaining > 0 && (
+          <button
+            type="button"
+            onClick={() => setShown((n) => n + CHIP_STEP * 2)}
+            className="mt-3 min-h-10 rounded-xl border border-[#35C5D0]/40 px-3 text-xs font-medium text-[#1597A3] transition-colors duration-200 hover:border-[#35C5D0]/70 hover:bg-[#35C5D0]/15 active:bg-[#35C5D0]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C5D0]"
+          >
+            Lihat {remaining} lainnya
+          </button>
+        )}
+      </div>
+    </AccordionItem>
+  );
+}
+
+const MAIN_RIBBONS = 6;
+
+function MoreRibbons({
+  items,
+}: {
+  items: { skill: string; events: SessionEvent[] }[];
+}) {
+  const [open, setOpen] = useState(false);
+  if (items.length === 0) return null;
+
+  return (
+    <AccordionItem
+      variant="ortu"
+      chevronSize="sm"
+      open={open}
+      onToggle={() => setOpen((v) => !v)}
+      className="mt-4 rounded-2xl border border-white/60 bg-white/45"
+      headerClassName="min-h-12 rounded-2xl px-3 py-1.5"
+      header={
+        <span className="text-sm font-medium text-[#17263D]">
+          Lihat semua indikator
+          <span className="ml-1.5 text-xs font-normal text-slate-500">
+            &middot; {items.length} lainnya
+          </span>
+        </span>
+      }
+    >
+      <div className="grid gap-x-6 gap-y-5 px-3 pb-4 pt-2 sm:grid-cols-2">
+        {items.map(({ skill, events }) => (
+          <SkillRibbon key={skill} skill={skill} events={events} />
+        ))}
+      </div>
+    </AccordionItem>
   );
 }
 
@@ -400,10 +449,11 @@ export function ProgressTrend({
           menurunkan skor.
         </p>
         <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-          {skills.map(({ skill, events }) => (
+          {skills.slice(0, MAIN_RIBBONS).map(({ skill, events }) => (
             <SkillRibbon key={skill} skill={skill} events={events} />
           ))}
         </div>
+        <MoreRibbons items={skills.slice(MAIN_RIBBONS)} />
         <LockedSkills skills={lockedSkills} />
       </div>
     </GlassCard>

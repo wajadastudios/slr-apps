@@ -3,13 +3,37 @@
 import { useId, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-export function AccordionChevron({ open }: { open: boolean }) {
+// "landing" keeps the original timing used by the public site; "ortu" is the
+// parent-area motion: softer ease-out and a slightly larger lift.
+type Variant = "landing" | "ortu";
+
+const EASE: Record<Variant, string> = {
+  landing: "ease-[cubic-bezier(0.32,0.72,0,1)]",
+  ortu: "ease-[cubic-bezier(0.22,1,0.36,1)]",
+};
+
+const LIFT_CLOSED: Record<Variant, string> = {
+  landing: "-translate-y-1",
+  ortu: "-translate-y-2",
+};
+
+export function AccordionChevron({
+  open,
+  size = "md",
+  variant = "landing",
+}: {
+  open: boolean;
+  size?: "sm" | "md";
+  variant?: Variant;
+}) {
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/60 text-[#35C5D0] shadow-[0_2px_8px_rgba(23,38,61,0.10)] backdrop-blur-md",
-        "transition-[transform,box-shadow,background-color] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+        "flex shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/60 text-[#35C5D0] shadow-[0_2px_8px_rgba(23,38,61,0.10)] backdrop-blur-md",
+        size === "sm" ? "h-8 w-8" : "h-9 w-9",
+        "transition-[transform,box-shadow,background-color] duration-300 motion-reduce:transition-none",
+        EASE[variant],
         open &&
           "rotate-180 bg-white/85 shadow-[0_0_0_4px_rgba(53,197,208,0.14),0_0_16px_rgba(53,197,208,0.45)]"
       )}
@@ -39,6 +63,8 @@ export function AccordionItem({
   children,
   className,
   headerClassName,
+  variant = "landing",
+  chevronSize = "md",
 }: {
   open: boolean;
   onToggle: () => void;
@@ -46,6 +72,8 @@ export function AccordionItem({
   children: ReactNode;
   className?: string;
   headerClassName?: string;
+  variant?: Variant;
+  chevronSize?: "sm" | "md";
 }) {
   const id = useId();
   const buttonId = `${id}-button`;
@@ -60,13 +88,16 @@ export function AccordionItem({
         aria-controls={panelId}
         onClick={onToggle}
         className={cn(
-          "flex min-h-14 w-full items-center justify-between gap-3 text-left transition-colors hover:bg-white/30 active:bg-white/40",
+          "flex min-h-14 w-full items-center justify-between gap-3 text-left transition-colors",
+          variant === "ortu"
+            ? "duration-200 hover:bg-[#35C5D0]/10 active:bg-[#35C5D0]/20"
+            : "hover:bg-white/30 active:bg-white/40",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#35C5D0]/70",
           headerClassName
         )}
       >
         {header}
-        <AccordionChevron open={open} />
+        <AccordionChevron open={open} size={chevronSize} variant={variant} />
       </button>
       <div
         id={panelId}
@@ -74,10 +105,11 @@ export function AccordionItem({
         aria-labelledby={buttonId}
         inert={!open}
         className={cn(
-          "grid transition-[grid-template-rows,opacity,transform] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
+          "grid transition-[grid-template-rows,opacity,transform] duration-300 motion-reduce:transition-none",
+          EASE[variant],
           open
             ? "translate-y-0 grid-rows-[1fr] opacity-100"
-            : "-translate-y-1 grid-rows-[0fr] opacity-0"
+            : `${LIFT_CLOSED[variant]} grid-rows-[0fr] opacity-0`
         )}
       >
         <div className="min-h-0 overflow-hidden">{children}</div>

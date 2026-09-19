@@ -9,9 +9,13 @@ import { ChildSummaryWidget } from "@/components/child-summary-widget";
 import {
   computeProgressPercent,
   computeNextSession,
+  computeSessionQuota,
+  formatSessionQuota,
   getGreeting,
-  isAbsent,
+  latestHadirReport,
 } from "@/lib/progress";
+import { formatShortDate } from "@/lib/format-date";
+import { PRIMARY_BUTTON } from "@/lib/ui-classes";
 import { DAYS } from "@/lib/days";
 import { selfRegisterAction, addChildAndRegisterAction } from "./actions";
 
@@ -51,7 +55,7 @@ export default async function OrtuDashboardPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("progress_reports")
-      .select("student_id, session_date, attendance, scores")
+      .select("student_id, session_date, session_number, attendance, scores")
       .order("session_date", { ascending: false }),
     supabase
       .from("schedules")
@@ -87,31 +91,21 @@ export default async function OrtuDashboardPage({
     .filter((s) => s.remaining > 0);
 
   const latestInvoiceStatus = new Map<string, string>();
-  const confirmedSessions = new Map<string, number>();
+  const invoicesByStudent = new Map<string, NonNullable<typeof invoices>>();
   for (const inv of invoices ?? []) {
     if (!latestInvoiceStatus.has(inv.student_id)) {
       latestInvoiceStatus.set(inv.student_id, inv.status);
     }
-    if (["sent", "paid"].includes(inv.status)) {
-      confirmedSessions.set(
-        inv.student_id,
-        (confirmedSessions.get(inv.student_id) ?? 0) + inv.sessions_count
-      );
-    }
+    const list = invoicesByStudent.get(inv.student_id) ?? [];
+    list.push(inv);
+    invoicesByStudent.set(inv.student_id, list);
   }
 
-  const hadirCount = new Map<string, number>();
-  const reportCount = new Map<string, number>();
-  const latestScores = new Map<string, Record<string, number> | null>();
+  const reportsByStudent = new Map<string, NonNullable<typeof reports>>();
   for (const r of reports ?? []) {
-    reportCount.set(r.student_id, (reportCount.get(r.student_id) ?? 0) + 1);
-    if (r.attendance === "hadir") {
-      hadirCount.set(r.student_id, (hadirCount.get(r.student_id) ?? 0) + 1);
-    }
-    // reports arrive newest-first, so the first attended one per student wins
-    if (!isAbsent(r.attendance) && !latestScores.has(r.student_id)) {
-      latestScores.set(r.student_id, r.scores as Record<string, number> | null);
-    }
+    const list = reportsByStudent.get(r.student_id) ?? [];
+    list.push(r);
+    reportsByStudent.set(r.student_id, list);
   }
 
   const pelatihNameById = new Map<string, string>();
@@ -161,8 +155,12 @@ export default async function OrtuDashboardPage({
             skill_template: string[];
           } | null;
           const status = latestInvoiceStatus.get(child.id);
-          const purchased = confirmedSessions.get(child.id) ?? 0;
-          const attended = hadirCount.get(child.id) ?? 0;
+          const childReports = reportsByStudent.get(child.id) ?? [];
+          const quota = formatSessionQuota(
+            computeSessionQuota(invoicesByStudent.get(child.id) ?? [], childReports)
+          );
+          // reports are newest-first; only a session actually attended counts
+          const assessed = latestHadirReport(childReports);
 
           const nextSession = computeNextSession(slotsByStudent.get(child.id) ?? []);
           const nextSessionLabel = nextSession
@@ -174,18 +172,29 @@ export default async function OrtuDashboardPage({
           return (
             <Link key={child.id} href={`/ortu/anak/${child.id}`}>
               <ChildSummaryWidget
-                className="h-full transition-transform hover:scale-[1.01] hover:border-[#35C5D0]/50"
+                className="h-full transition-transform duration-200 hover:scale-[1.01] hover:border-[#35C5D0]/50"
                 childLabel={`${child.nickname || child.full_name} · ${program?.name ?? "Belum ada program"}`}
-                kehadiranLabel={`${attended} / ${purchased} sesi`}
+                kehadiran={quota}
                 tagihanLabel={
-                  !status ? "Belum Ada Tagihan" : status === "paid" ? "Lunas" : "Belum Bayar"
+                  !status
+                    ? "Belum Ada Tagihan"
+                    : status === "paid"
+                      ? "Lunas"
+                      : status === "processing"
+                        ? "Menunggu Verifikasi"
+                        : "Belum Bayar"
                 }
                 tagihanOk={status === "paid"}
                 progressPercent={computeProgressPercent(
                   program?.skill_template ?? [],
-                  latestScores.get(child.id)
+                  assessed?.scores as Record<string, number> | null | undefined
                 )}
-                laporanTersedia={(reportCount.get(child.id) ?? 0) > 0}
+                progressNote={
+                  assessed
+                    ? `Sesi ${assessed.session_number ?? "-"} · ${formatShortDate(assessed.session_date)}`
+                    : null
+                }
+                laporanTersedia={childReports.length > 0}
                 nextSessionLabel={nextSessionLabel}
               />
             </Link>
@@ -215,7 +224,7 @@ export default async function OrtuDashboardPage({
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Jadwal Kelas</label>
-            <GlassSelect name="slot_id" required defaultValue="">
+            <GlassSelect name="slot_id" required defaultValue="" glassChevron>
               <option value="" disabled>
                 Pilih jadwal
               </option>
@@ -229,7 +238,7 @@ export default async function OrtuDashboardPage({
           <GlassButton
             type="submit"
             disabled={availableSlots.length === 0}
-            className="!bg-[#35C5D0] px-4 py-2 text-sm !text-white hover:!bg-[#2bb0ba] active:!bg-[#2bb0ba] sm:col-span-3 sm:w-fit"
+            className={`${PRIMARY_BUTTON} px-4 py-2 text-sm sm:col-span-3 sm:w-fit`}
           >
             Daftar
           </GlassButton>
@@ -263,7 +272,7 @@ export default async function OrtuDashboardPage({
         >
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Program</label>
-            <GlassSelect name="program_id" required defaultValue="" className="min-w-[220px]">
+            <GlassSelect name="program_id" required defaultValue="" className="min-w-[220px]" glassChevron>
               <option value="" disabled>
                 Pilih program
               </option>
@@ -277,7 +286,7 @@ export default async function OrtuDashboardPage({
           <GlassButton
             type="submit"
             disabled={!programs || programs.length === 0}
-            className="!bg-[#35C5D0] px-4 py-2 text-sm !text-white hover:!bg-[#2bb0ba]"
+            className={`${PRIMARY_BUTTON} px-4 py-2 text-sm`}
           >
             Daftarkan
           </GlassButton>

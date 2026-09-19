@@ -94,3 +94,42 @@ export function computeNextSession(
 
   return best;
 }
+
+export type SessionQuota = {
+  hadir: number;
+  total: number;
+  remaining: number;
+};
+
+// Quota only comes from packages that are actually paid: an invoice that is
+// still draft/approved/sent/processing has not been settled, so its sessions
+// must not count until it flips to "paid".
+export function computeSessionQuota(
+  invoices: { status: string; sessions_count: number }[],
+  reports: { attendance: string | null }[]
+): SessionQuota {
+  const hadir = reports.filter((r) => r.attendance === "hadir").length;
+  const total = invoices
+    .filter((i) => i.status === "paid")
+    .reduce((sum, i) => sum + i.sessions_count, 0);
+  return { hadir, total, remaining: Math.max(0, total - hadir) };
+}
+
+export function formatSessionQuota(q: SessionQuota): { value: string; note: string } {
+  if (q.total === 0) {
+    return { value: `${q.hadir} sesi hadir`, note: "Belum ada paket lunas" };
+  }
+  return {
+    value: `${q.hadir} / ${q.total} sesi`,
+    note: `Sisa ${q.remaining} sesi`,
+  };
+}
+
+// Progress reads from the newest session the child actually attended
+// (attendance === "hadir"); izin/sakit sessions never affect it.
+// Expects reports newest-first.
+export function latestHadirReport<T extends { attendance?: string | null }>(
+  reports: T[]
+): T | undefined {
+  return reports.find((r) => r.attendance === "hadir");
+}

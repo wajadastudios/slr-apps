@@ -1,3 +1,4 @@
+import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-classes";
 import { createClient } from "@/lib/supabase/server";
 import { getUserWithRole } from "@/lib/auth";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -89,7 +90,7 @@ export default async function OrtuPengaturanPage() {
           </div>
           <GlassButton
             type="submit"
-            className="!bg-[#35C5D0] w-fit !text-white hover:!bg-[#2bb0ba]"
+            className={`${PRIMARY_BUTTON} w-fit`}
           >
             Simpan Profil
           </GlassButton>
@@ -156,7 +157,7 @@ export default async function OrtuPengaturanPage() {
                   />
                 </div>
               </div>
-              <GlassButton type="submit" className="w-fit px-4 py-2 text-sm">
+              <GlassButton type="submit" className={`${SECONDARY_BUTTON} w-fit px-4 py-2 text-sm`}>
                 Simpan
               </GlassButton>
             </form>

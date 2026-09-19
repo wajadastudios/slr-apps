@@ -14,9 +14,13 @@ import { ChildSummaryWidget } from "@/components/child-summary-widget";
 import {
   computeProgressPercent,
   computeNextSession,
+  computeSessionQuota,
+  formatSessionQuota,
   getGreeting,
-  latestAttendedReport,
+  latestHadirReport,
 } from "@/lib/progress";
+import { formatShortDate } from "@/lib/format-date";
+import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-classes";
 import { AttendanceConsistencyCard } from "@/components/attendance-consistency-card";
 import { formatAge } from "@/lib/performance";
 import { DAYS } from "@/lib/days";
@@ -89,25 +93,20 @@ export default async function AnakDetailPage({
     supabase.rpc("get_public_pelatih_names"),
   ]);
 
-  const hadirCount = (reports ?? []).filter((r) => r.attendance === "hadir").length;
-  const confirmedInvoices = (invoices ?? []).filter((i) =>
-    ["sent", "paid"].includes(i.status)
-  );
-  const totalConfirmedSessions = confirmedInvoices.reduce(
-    (sum, i) => sum + i.sessions_count,
-    0
-  );
+  const quota = computeSessionQuota(invoices ?? [], reports ?? []);
+  const currentPackageSessions =
+    (invoices ?? []).find((i) => i.status === "paid")?.sessions_count ?? 0;
   const totalAllSessions = (invoices ?? []).reduce(
     (sum, i) => sum + i.sessions_count,
     0
   );
-  const currentPackageSessions = confirmedInvoices[0]?.sessions_count ?? 0;
-  const remaining = totalConfirmedSessions - hadirCount;
 
+  // Nudge to pick the next package only when the current paid one is down to
+  // its last session and no further invoice (sent/processing) already exists.
   const showRenewalBanner =
     currentPackageSessions > 4 &&
-    remaining === 1 &&
-    totalAllSessions === totalConfirmedSessions;
+    quota.remaining === 1 &&
+    totalAllSessions === quota.total;
 
   const pelatihNameById = new Map<string, string>();
   for (const p of pelatihNames ?? []) {
@@ -142,14 +141,15 @@ export default async function AnakDetailPage({
     ? "Belum Ada Tagihan"
     : latestInvoice.status === "paid"
       ? "Lunas"
-      : "Belum Bayar";
+      : latestInvoice.status === "processing"
+        ? "Menunggu Verifikasi"
+        : "Belum Bayar";
 
+  // reports are newest-first; only a session actually attended counts
+  const assessed = latestHadirReport(reports ?? []);
   const progressPercent = computeProgressPercent(
     skillTemplate,
-    latestAttendedReport(reports ?? [])?.scores as
-      | Record<string, number>
-      | null
-      | undefined
+    assessed?.scores as Record<string, number> | null | undefined
   );
 
   return (
@@ -157,10 +157,15 @@ export default async function AnakDetailPage({
       <ChildSummaryWidget
         greeting={`${getGreeting()}, ${session?.fullName ?? "Orang Tua"}`}
         childLabel={`${student.nickname || student.full_name} · ${program?.name ?? "Belum ada program"}${age ? ` · ${age}` : ""}`}
-        kehadiranLabel={`${hadirCount} / ${totalConfirmedSessions} sesi`}
+        kehadiran={formatSessionQuota(quota)}
         tagihanLabel={tagihanLabel}
         tagihanOk={tagihanOk}
         progressPercent={progressPercent}
+        progressNote={
+          assessed
+            ? `Sesi ${assessed.session_number ?? "-"} · ${formatShortDate(assessed.session_date)}`
+            : null
+        }
         laporanTersedia={(reports?.length ?? 0) > 0}
         nextSessionLabel={nextSessionLabel}
       />
@@ -203,11 +208,9 @@ export default async function AnakDetailPage({
                     action={
                       <GlassButton
                         type="submit"
-                        className={
-                          selected
-                            ? "!bg-[#35C5D0] px-4 py-2 text-sm !text-white"
-                            : "px-4 py-2 text-sm"
-                        }
+                        className={`px-4 py-2 text-sm ${
+                          selected ? PRIMARY_BUTTON : SECONDARY_BUTTON
+                        }`}
                       >
                         {selected ? "Dipilih" : "Pilih Paket Ini"}
                       </GlassButton>

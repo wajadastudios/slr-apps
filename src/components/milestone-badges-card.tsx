@@ -1,4 +1,5 @@
 import { GlassCard } from "@/components/ui/glass-card";
+import { LockIcon } from "@/components/ui/lock-icon";
 import {
   computeMilestoneStatuses,
   formatMilestoneValue,
@@ -34,12 +35,18 @@ export function MilestoneBadgesCard({
 }) {
   const statuses = computeMilestoneStatuses(records);
   const grouped = groupStatusesByLevel(statuses);
+  const unlocked = statuses.filter((s) => s.tier).length;
 
   return (
     <GlassCard>
-      <h2 className="mb-1 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
-        Record Unlock
-      </h2>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
+          Record Unlock
+        </h2>
+        <span className="rounded-full bg-[#EEF9FB] px-2.5 py-0.5 text-xs font-medium text-[#1597A3]">
+          {unlocked} dari {statuses.length} terbuka
+        </span>
+      </div>
       <p className="mb-4 text-sm text-slate-600">
         Satu rekor andalan per jenjang latihan &mdash; tercapai atau lebih baik
         membuka lencana perunggu, perak, atau emas.
@@ -54,26 +61,32 @@ export function MilestoneBadgesCard({
             <div className="grid gap-2.5 sm:grid-cols-2">
               {levelStatuses.map(({ milestone, bestValue, tier, achievedAt }) => {
                 const style = tier ? TIER_STYLE[tier] : null;
+                const target = formatMilestoneValue(
+                  milestone.metric_type,
+                  milestone.tiers.bronze
+                );
                 return (
                   <div
                     key={milestone.id}
-                    className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 ${
+                    className={`flex min-h-[76px] items-center gap-3 rounded-2xl border p-3.5 shadow-[0_2px_10px_rgba(23,38,61,0.05)] ${
                       style
                         ? `${style.border} ${style.bg}`
-                        : "border-dashed border-slate-300/60 bg-white/30"
+                        : "border-[#35C5D0]/25 bg-white/60"
                     }`}
                   >
                     <span
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl ${
-                        tier ? "bg-white/50" : "bg-slate-200/50 grayscale opacity-60"
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
+                        tier
+                          ? "bg-white/70 text-2xl shadow-[0_0_14px_rgba(255,255,255,0.9)]"
+                          : "bg-[#EEF9FB] text-[#35C5D0]"
                       }`}
                     >
-                      {tier ? TIER_ICONS[tier] : "🔒"}
+                      {tier ? TIER_ICONS[tier] : <LockIcon className="h-5 w-5" />}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p
-                        className={`text-sm font-semibold ${
-                          style ? style.text : "text-slate-600"
+                        className={`text-sm font-semibold leading-snug ${
+                          style ? style.text : "text-[#17263D]"
                         }`}
                       >
                         {milestone.label}
@@ -85,16 +98,16 @@ export function MilestoneBadgesCard({
                           {achievedAt ? ` · ${achievedAt}` : ""}
                         </p>
                       ) : bestValue !== null ? (
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-600">
                           Percobaan terbaik:{" "}
-                          {formatMilestoneValue(milestone.metric_type, bestValue)} &middot; target
-                          perunggu:{" "}
-                          {formatMilestoneValue(milestone.metric_type, milestone.tiers.bronze)}
+                          {formatMilestoneValue(milestone.metric_type, bestValue)}
                         </p>
                       ) : (
-                        <p className="text-xs text-slate-500">
-                          Belum ada percobaan &middot; target perunggu:{" "}
-                          {formatMilestoneValue(milestone.metric_type, milestone.tiers.bronze)}
+                        <p className="text-xs text-slate-500">Belum ada percobaan</p>
+                      )}
+                      {!tier && (
+                        <p className="text-[11px] text-slate-500">
+                          Target perunggu: {target}
                         </p>
                       )}
                     </div>

@@ -10,6 +10,10 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import { StarRating } from "@/components/ui/star-rating";
 import { SkillScoresField } from "@/components/skill-scores-field";
 import { LockIcon, LOCKED_HINT } from "@/components/ui/lock-icon";
+import { AccordionItem } from "@/components/ui/accordion";
+import { formatShortDate } from "@/lib/format-date";
+import { formatSkillName } from "@/lib/skill-names";
+import { GHOST_BUTTON } from "@/lib/ui-classes";
 
 const ATTENDANCE_LABEL: Record<string, string> = {
   hadir: "Hadir",
@@ -66,8 +70,10 @@ function ReportEntry({
 }) {
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-
   const [lockedOpen, setLockedOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  // Parent view also gets cleaned-up indicator names (display only).
+  const label = (skill: string) => (lockZeroScores ? formatSkillName(skill) : skill);
 
   const scores = (report.scores as Record<string, number>) ?? {};
   const skillNames = orderedSkillNames(scores, skillTemplate);
@@ -164,12 +170,17 @@ function ReportEntry({
     );
   }
 
+  const longNotes = (report.notes?.length ?? 0) > 140;
+
   return (
-    <div className="rounded-xl border border-white/30 bg-white/40 px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-medium text-[#17263D]">
-          Sesi {report.session_number ?? "-"} &mdash; {report.session_date}
-        </span>
+    <div className="rounded-2xl border border-white/60 bg-white/55 p-4 shadow-[0_2px_10px_rgba(23,38,61,0.05)]">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="font-[family-name:var(--font-quicksand)] text-base font-bold text-[#17263D]">
+            Sesi {report.session_number ?? "-"}
+          </p>
+          <p className="text-xs text-slate-500">{formatShortDate(report.session_date)}</p>
+        </div>
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
             ATTENDANCE_COLOR[report.attendance ?? ""] ??
@@ -181,91 +192,118 @@ function ReportEntry({
       </div>
 
       {report.substitute_for && (
-        <div className="mt-1">
+        <div className="mt-2">
           <span className="rounded-full bg-[#FFC800]/20 px-2.5 py-0.5 text-xs font-medium text-[#8a6900]">
             Diajar pengajar pengganti (menggantikan {report.substitute_for})
           </span>
         </div>
       )}
 
-      {report.notes && <p className="mt-2 text-sm text-slate-700">{report.notes}</p>}
-      {report.next_focus && (
-        <p className="mt-1 text-sm italic text-slate-600">
-          Fokus berikutnya: {report.next_focus}
-        </p>
-      )}
-
-      {skillNames.length > 0 && (
+      {report.notes && (
         <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => setIndicatorsOpen((v) => !v)}
-            className="flex items-center gap-1.5 text-xs font-medium text-[#35C5D0] hover:underline"
+          <p
+            className={`whitespace-pre-line text-sm leading-relaxed text-slate-700 ${
+              longNotes && !notesOpen ? "line-clamp-3" : ""
+            }`}
           >
-            {indicatorsOpen ? "Sembunyikan" : "Lihat"} Skor Indikator (
-            {skillNames.length})
-            <span
-              className={`transition-transform ${indicatorsOpen ? "rotate-180" : ""}`}
+            {report.notes}
+          </p>
+          {longNotes && (
+            <button
+              type="button"
+              onClick={() => setNotesOpen((v) => !v)}
+              aria-expanded={notesOpen}
+              className={`mt-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-[#1597A3] ${GHOST_BUTTON}`}
             >
-              &#9660;
-            </span>
-          </button>
-          {indicatorsOpen && (
-            <div className="mt-2 flex flex-col gap-1.5">
-              {unlockedNames.map((skill) => (
-                <div key={skill} className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-slate-700">{skill}</span>
-                  <StarRating value={scores[skill]} size={14} />
-                </div>
-              ))}
-              {lockedNames.length > 0 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setLockedOpen((v) => !v)}
-                    className="mt-1 flex w-fit items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-white/60 active:bg-white/70"
-                  >
-                    <LockIcon />
-                    {lockedNames.length} indikator belum dibuka
-                    <span className={`transition-transform ${lockedOpen ? "rotate-180" : ""}`}>
-                      &#9660;
-                    </span>
-                  </button>
-                  {lockedOpen &&
-                    lockedNames.map((skill) => (
-                      <div
-                        key={skill}
-                        title={LOCKED_HINT}
-                        className="flex items-center justify-between gap-3 text-slate-400"
-                      >
-                        <span className="text-sm">{skill}</span>
-                        <span className="flex items-center gap-1 text-xs">
-                          <LockIcon className="h-3 w-3" />
-                          Belum dibuka
-                        </span>
-                      </div>
-                    ))}
-                </>
-              )}
-            </div>
+              {notesOpen ? "Ringkas catatan" : "Baca selengkapnya"}
+            </button>
           )}
         </div>
       )}
 
+      {report.next_focus && (
+        <div className="mt-3 rounded-xl bg-[#EEF9FB] px-3 py-2">
+          <p className="text-[11px] font-medium text-slate-500">
+            Fokus sesi berikutnya
+          </p>
+          <p className="text-sm text-[#17263D]">{report.next_focus}</p>
+        </div>
+      )}
+
       {report.media_urls && report.media_urls.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {report.media_urls.map((url: string) => (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {report.media_urls.map((url: string, i) => (
             <a
               key={url}
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-[#35C5D0] underline"
+              className={`rounded-full border border-[#35C5D0]/40 px-3 py-1 text-xs font-medium text-[#1597A3] ${GHOST_BUTTON}`}
             >
-              Lampiran
+              Lampiran {i + 1}
             </a>
           ))}
         </div>
+      )}
+
+      {skillNames.length > 0 && (
+        <AccordionItem
+          variant="ortu"
+          chevronSize="sm"
+          open={indicatorsOpen}
+          onToggle={() => setIndicatorsOpen((v) => !v)}
+          className="mt-3 rounded-xl border border-[#35C5D0]/25 bg-[#EEF9FB]/60"
+          headerClassName="min-h-12 rounded-xl px-3 py-1.5"
+          header={
+            <span className="text-sm font-medium text-[#17263D]">
+              Lihat Detail Penilaian
+              <span className="ml-1.5 whitespace-nowrap text-xs font-normal text-slate-500">
+                &middot; {skillNames.length} indikator
+              </span>
+            </span>
+          }
+        >
+          <div className="flex flex-col gap-2 px-3 pb-3 pt-1">
+            {unlockedNames.map((skill) => (
+              <div key={skill} className="flex items-center justify-between gap-3">
+                <span className="text-sm text-slate-700">{label(skill)}</span>
+                <StarRating value={scores[skill]} size={14} />
+              </div>
+            ))}
+            {lockedNames.length > 0 && (
+              <AccordionItem
+                variant="ortu"
+                chevronSize="sm"
+                open={lockedOpen}
+                onToggle={() => setLockedOpen((v) => !v)}
+                className="rounded-xl bg-white/50"
+                headerClassName="min-h-11 rounded-xl px-2.5 py-1"
+                header={
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                    <LockIcon />
+                    {lockedNames.length} indikator belum dibuka
+                  </span>
+                }
+              >
+                <div className="flex flex-col gap-1.5 px-2.5 pb-2.5 pt-1">
+                  {lockedNames.map((skill) => (
+                    <div
+                      key={skill}
+                      title={LOCKED_HINT}
+                      className="flex items-center justify-between gap-3 text-slate-400"
+                    >
+                      <span className="text-sm">{label(skill)}</span>
+                      <span className="flex items-center gap-1 text-xs">
+                        <LockIcon className="h-3 w-3" />
+                        Belum dibuka
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </AccordionItem>
+            )}
+          </div>
+        </AccordionItem>
       )}
 
       {editable && (
@@ -383,8 +421,7 @@ function Pagination({
   totalPages: number;
   onChange: (page: number) => void;
 }) {
-  const base =
-    "rounded-lg px-2.5 py-1 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+  const base = `min-h-10 rounded-xl px-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 ${GHOST_BUTTON}`;
 
   return (
     <nav
@@ -395,7 +432,7 @@ function Pagination({
         type="button"
         disabled={currentPage === 1}
         onClick={() => onChange(currentPage - 1)}
-        className={`${base} text-[#17263D] hover:bg-white/60 active:bg-white/70`}
+        className={`${base} text-[#17263D]`}
       >
         Sebelumnya
       </button>
@@ -407,8 +444,8 @@ function Pagination({
           onClick={() => onChange(p)}
           className={`${base} min-w-8 ${
             p === currentPage
-              ? "bg-[#35C5D0] text-white"
-              : "text-[#17263D] hover:bg-white/60 active:bg-white/70"
+              ? "!bg-[#35C5D0] text-white shadow-[0_2px_8px_rgba(53,197,208,0.4)]"
+              : "text-[#17263D]"
           }`}
         >
           {p}
@@ -418,7 +455,7 @@ function Pagination({
         type="button"
         disabled={currentPage === totalPages}
         onClick={() => onChange(currentPage + 1)}
-        className={`${base} text-[#17263D] hover:bg-white/60 active:bg-white/70`}
+        className={`${base} text-[#17263D]`}
       >
         Selanjutnya
       </button>

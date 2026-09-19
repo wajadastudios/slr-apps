@@ -1,4 +1,9 @@
+"use client";
+
+import { useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
+import { AccordionItem } from "@/components/ui/accordion";
+import { formatSkillName } from "@/lib/skill-names";
 
 // Groups a flat skill_template into categories using its "Kategori - Nama"
 // naming convention (e.g. "Gaya Bebas - Posisi Tubuh" -> category "Gaya
@@ -7,7 +12,8 @@ import { GlassCard } from "@/components/ui/glass-card";
 function groupSkills(skillTemplate: string[]): { category: string; skills: string[] }[] {
   const groups = new Map<string, string[]>();
 
-  for (const skill of skillTemplate) {
+  for (const rawSkill of skillTemplate) {
+    const skill = formatSkillName(rawSkill);
     const separatorIndex = skill.indexOf(" - ");
     const category = separatorIndex === -1 ? "Indikator Penilaian" : skill.slice(0, separatorIndex);
     const name = separatorIndex === -1 ? skill : skill.slice(separatorIndex + 3);
@@ -25,14 +31,23 @@ export function AssessmentGuideCard({
   skillTemplate?: string[];
 }) {
   const groups = groupSkills(skillTemplate);
+  const [open, setOpen] = useState(false);
 
   return (
-    <GlassCard>
-      <details>
-        <summary className="cursor-pointer font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
-          Panduan Penilaian Perkembangan
-        </summary>
-        <div className="mt-4 flex flex-col gap-4 text-sm text-slate-700">
+    <GlassCard className="!p-0">
+      <AccordionItem
+        variant="ortu"
+        open={open}
+        onToggle={() => setOpen((v) => !v)}
+        className="rounded-3xl"
+        headerClassName="min-h-16 rounded-3xl px-6 py-3"
+        header={
+          <span className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
+            Panduan Penilaian Perkembangan
+          </span>
+        }
+      >
+        <div className="flex flex-col gap-4 px-6 pb-6 pt-1 text-sm text-slate-700">
           <div>
             <p className="mb-1 font-semibold text-[#17263D]">
               Dua jenis bukti perkembangan
@@ -78,7 +93,7 @@ export function AssessmentGuideCard({
             </div>
           )}
         </div>
-      </details>
+      </AccordionItem>
     </GlassCard>
   );
 }

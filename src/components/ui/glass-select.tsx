@@ -68,8 +68,12 @@ export function GlassSelect({
   name,
   required,
   disabled,
+  glassChevron = false,
   ...rest
-}: SelectHTMLAttributes<HTMLSelectElement>) {
+}: SelectHTMLAttributes<HTMLSelectElement> & {
+  // Opt-in circular glass chevron + softer open motion (parent area).
+  glassChevron?: boolean;
+}) {
   const options = useMemo(() => extractOptions(children), [children]);
   const isControlled = value !== undefined;
   const [internalValue, setInternalValue] = useState(() =>
@@ -236,6 +240,29 @@ export function GlassSelect({
         >
           {selectedOption ? selectedOption.label : options[0]?.label ?? ""}
         </span>
+        {glassChevron ? (
+          <span
+            aria-hidden="true"
+            className={cn(
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/60 text-[#35C5D0] shadow-[0_2px_8px_rgba(23,38,61,0.10)]",
+              "transition-[transform,box-shadow,background-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+              open &&
+                "rotate-180 bg-white/85 shadow-[0_0_0_4px_rgba(53,197,208,0.14),0_0_14px_rgba(53,197,208,0.45)]"
+            )}
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              className="h-4 w-4"
+            >
+              <path d="M5.5 8L10 12.5" />
+              <path d="M14.5 8L10 12.5" />
+            </svg>
+          </span>
+        ) : (
         <svg
           viewBox="0 0 20 20"
           fill="none"
@@ -252,6 +279,7 @@ export function GlassSelect({
             strokeLinejoin="round"
           />
         </svg>
+        )}
       </button>
 
       {open &&
@@ -272,7 +300,12 @@ export function GlassSelect({
               left: menuStyle.left,
               width: menuStyle.width,
             }}
-            className="z-[100] max-h-64 overflow-auto rounded-2xl border border-white/40 bg-white/80 p-1.5 shadow-[0_12px_32px_rgba(23,38,61,0.22)] backdrop-blur-2xl outline-none [animation:glass-dropdown_0.16s_ease-out]"
+            className={cn(
+              "z-[100] max-h-64 overflow-auto rounded-2xl border border-white/40 bg-white/80 p-1.5 shadow-[0_12px_32px_rgba(23,38,61,0.22)] backdrop-blur-2xl outline-none",
+              glassChevron
+                ? "[animation:glass-dropdown_0.3s_cubic-bezier(0.22,1,0.36,1)] motion-reduce:[animation:none]"
+                : "[animation:glass-dropdown_0.16s_ease-out]"
+            )}
           >
             {options.map((o, i) => (
               <li
