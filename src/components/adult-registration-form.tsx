@@ -9,8 +9,14 @@ import { submitAdultRegistrationAction } from "@/app/daftar/dewasa/actions";
 
 type Program = { id: string; name: string; description: string | null; requires_acknowledgement: boolean };
 
-export function AdultRegistrationForm({ programs }: { programs: Program[] }) {
-  const [programId, setProgramId] = useState("");
+export function AdultRegistrationForm({
+  programs,
+  initialProgramId,
+}: {
+  programs: Program[];
+  initialProgramId?: string;
+}) {
+  const [programId, setProgramId] = useState(initialProgramId ?? "");
   const selected = programs.find((p) => p.id === programId);
 
   return (

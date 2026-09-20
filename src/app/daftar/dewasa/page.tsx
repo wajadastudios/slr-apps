@@ -8,9 +8,9 @@ import { AdultRegistrationForm } from "@/components/adult-registration-form";
 export default async function DaftarDewasaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; program?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, program } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: programs }, { data: settings }] = await Promise.all([
@@ -47,7 +47,7 @@ export default async function DaftarDewasaPage({
               menghubungi Anda melalui WhatsApp — jadwal baru berlaku setelah Anda setujui.
             </p>
             {error && <p className="mb-4 text-sm text-red-700">{decodeURIComponent(error)}</p>}
-            <AdultRegistrationForm programs={programs} />
+            <AdultRegistrationForm programs={programs} initialProgramId={programs.some((p) => p.id === program) ? program : undefined} />
             <p className="mt-4 text-center text-xs text-slate-600">
               Sudah punya akun?{" "}
               <Link href="/login" className="font-medium text-[#1597A3] underline-offset-4 hover:underline">

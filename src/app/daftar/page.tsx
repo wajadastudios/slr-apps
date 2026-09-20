@@ -17,7 +17,7 @@ export default async function DaftarPage({
     await Promise.all([
       supabase
         .from("programs")
-        .select("id, name")
+        .select("id, name, self_registration")
         .eq("active", true)
         .order("name"),
       supabase
@@ -71,7 +71,8 @@ export default async function DaftarPage({
         )}
 
         <RegistrationForm
-          programs={programs ?? []}
+          programs={(programs ?? []).map((p) => ({ id: p.id, name: p.name }))}
+          selfPrograms={(programs ?? []).filter((p) => p.self_registration).map((p) => ({ id: p.id, name: p.name }))}
           adultModeEnabled={adultModeEnabled}
           trialFeeAmount={trialFeeAmount}
         />

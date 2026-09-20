@@ -11,10 +11,13 @@ type Mode = "anak" | "diri";
 
 export function RegistrationForm({
   programs,
+  selfPrograms,
   adultModeEnabled,
   trialFeeAmount,
 }: {
   programs: { id: string; name: string }[];
+  // programs adults can join on their own (Teen & Adult Swim, Aquanatal, ...)
+  selfPrograms: { id: string; name: string }[];
   adultModeEnabled: boolean;
   trialFeeAmount: number;
 }) {
@@ -73,12 +76,26 @@ export function RegistrationForm({
             Pendaftaran untuk diri sendiri (remaja/dewasa, termasuk Aquanatal) memakai akun pribadi
             Anda. Buat akun dan pilih program, lalu admin akan mencarikan jadwal.
           </p>
-          <Link
-            href="/daftar/dewasa"
-            className="inline-flex min-h-11 w-fit items-center rounded-2xl bg-[#35C5D0] px-5 text-sm font-semibold text-white hover:bg-[#2bb0ba]"
-          >
-            Lanjut ke Pendaftaran Dewasa
-          </Link>
+          <p className="text-sm font-medium text-[#17263D]">Pilih program:</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            {selfPrograms.map((p) => (
+              <Link
+                key={p.id}
+                href={`/daftar/dewasa?program=${p.id}`}
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#35C5D0] px-5 text-sm font-semibold text-white hover:bg-[#2bb0ba]"
+              >
+                {p.name}
+              </Link>
+            ))}
+            {selfPrograms.length === 0 && (
+              <Link
+                href="/daftar/dewasa"
+                className="inline-flex min-h-11 items-center rounded-2xl bg-[#35C5D0] px-5 text-sm font-semibold text-white hover:bg-[#2bb0ba]"
+              >
+                Lanjut ke Pendaftaran Dewasa
+              </Link>
+            )}
+          </div>
         </div>
       ) : (
         <>
