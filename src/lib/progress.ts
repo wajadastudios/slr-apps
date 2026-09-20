@@ -1,4 +1,4 @@
-import { formatSkillName } from "@/lib/skill-names";
+import { allKeys, displayName, type IndicatorConfig } from "@/lib/indicators";
 
 export function isAbsent(attendance: string | null | undefined): boolean {
   return attendance === "izin" || attendance === "sakit";
@@ -163,8 +163,9 @@ function joinNames(names: string[]): string {
 // Expects reports newest-first.
 export function computeLatestAchievement(
   reports: { attendance?: string | null; scores: unknown }[],
-  skillTemplate: string[]
+  config: IndicatorConfig
 ): string | null {
+  const skillTemplate = allKeys(config).filter((k) => config.byKey[k]?.active);
   const attended = reports.filter(
     (r) => r.attendance === "hadir" && r.scores && typeof r.scores === "object"
   );
@@ -183,12 +184,12 @@ export function computeLatestAchievement(
       }))
       .filter((x) => x.delta > 0)
       .sort((a, b) => b.delta - a.delta || a.order - b.order)
-      .map((x) => formatSkillName(x.skill));
+      .map((x) => displayName(config, x.skill));
     return improved.length > 0 ? `Meningkat pada ${joinNames(improved)}` : null;
   }
 
   const strong = skillTemplate
     .filter((skill) => typeof latest[skill] === "number" && latest[skill] >= 3)
-    .map(formatSkillName);
+    .map((k) => displayName(config, k));
   return strong.length > 0 ? `Sudah baik pada ${joinNames(strong)}` : null;
 }

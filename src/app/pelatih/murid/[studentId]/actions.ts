@@ -6,6 +6,12 @@ import { revalidatePath } from "next/cache";
 import { requirePelatih } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadIndicatorConfig } from "@/lib/indicator-loader";
+import { activeKeys, buildSnapshot, type IndicatorConfig, type IndicatorSnapshot } from "@/lib/indicators";
+import { loadMilestones } from "@/lib/milestone-loader";
+import { computeAwards } from "@/lib/milestones";
+import { insertRecords } from "@/lib/record-db";
+import { parseRecordInput, type RecordInput } from "@/lib/record-input";
 
 // Whether this report is being written by a substitute, and for whom.
 //
@@ -59,20 +65,22 @@ async function resolveSubstituteFor(
   return replaced?.full_name ?? null;
 }
 
-async function getAllowedSkills(
+async function getStudentIndicatorConfig(
   supabase: Awaited<ReturnType<typeof createClient>>,
   student_id: string
-): Promise<Set<string>> {
-  const { data: studentProgram } = await supabase
+): Promise<IndicatorConfig> {
+  const { data: student } = await supabase
     .from("students")
-    .select("program:program_id(skill_template)")
+    .select("program_id")
     .eq("id", student_id)
     .single();
+  return loadIndicatorConfig(supabase, student?.program_id);
+}
 
-  return new Set(
-    (studentProgram?.program as unknown as { skill_template: string[] } | null)
-      ?.skill_template ?? []
-  );
+// progress_reports.indicator_snapshot arrives with migration 0030; until it
+// is applied the insert/update is retried without it.
+function isMissingSnapshotColumn(message: string) {
+  return message.includes("indicator_snapshot") && /column|schema cache/i.test(message);
 }
 
 function parseScoresFromForm(
@@ -101,39 +109,22 @@ function parseScoresFromForm(
   return scores;
 }
 
-const METRIC_TYPES = ["waktu_tempuh", "jarak_tempuh", "tahan_nafas", "treading_water"];
-const STROKES = ["Bebas", "Dada", "Punggung", "Kupu-kupu"];
-
-function parsePerformanceRecords(raw: unknown): {
-  metric_type: string;
-  stroke: string | null;
-  distance_m: number | null;
-  duration_seconds: number | null;
-}[] {
-  if (!Array.isArray(raw)) return [];
-  const out: ReturnType<typeof parsePerformanceRecords> = [];
-
-  for (const item of raw.slice(0, 20)) {
-    if (!item || typeof item !== "object") continue;
-    const metric_type = String((item as { metric_type?: unknown }).metric_type ?? "");
-    if (!METRIC_TYPES.includes(metric_type)) continue;
-
-    const strokeRaw = String((item as { stroke?: unknown }).stroke ?? "");
-    const stroke = STROKES.includes(strokeRaw) ? strokeRaw : null;
-
-    const distanceRaw = Number((item as { distance_m?: unknown }).distance_m);
-    const distance_m = Number.isFinite(distanceRaw) && distanceRaw > 0 ? distanceRaw : null;
-
-    const durationRaw = Number((item as { duration_seconds?: unknown }).duration_seconds);
-    const duration_seconds =
-      Number.isFinite(durationRaw) && durationRaw > 0 ? durationRaw : null;
-
-    if (distance_m === null && duration_seconds === null) continue;
-
-    out.push({ metric_type, stroke, distance_m, duration_seconds });
+// Rows from the "Rekor Performa" field of the report form. Validated with
+// the same rules as the edit/admin forms; a bad row stops the save so the
+// pengajar can fix it instead of losing it silently.
+function parseReportRecords(
+  raw: unknown,
+  session_date: string
+): { rows: RecordInput[]; error: string | null } {
+  if (!Array.isArray(raw)) return { rows: [], error: null };
+  const rows: RecordInput[] = [];
+  for (const [index, item] of raw.slice(0, 20).entries()) {
+    const obj = (item ?? {}) as Record<string, unknown>;
+    const parsed = parseRecordInput({ ...obj, recorded_at: session_date });
+    if (!parsed.ok) return { rows: [], error: `Rekor performa ke-${index + 1}: ${parsed.error}` };
+    rows.push(parsed.value);
   }
-
-  return out;
+  return { rows, error: null };
 }
 
 async function createReportActionImpl(formData: FormData) {
@@ -174,12 +165,23 @@ async function createReportActionImpl(formData: FormData) {
     );
   }
 
-  // Indicator names are locked to the program's admin-defined skill_template
-  // (set under Admin > Program) so every pelatih scores the same things —
-  // the client only lets a pelatih pick names from that list, but a direct
-  // POST could still forge others, so re-check against the template here.
-  const allowedSkills = await getAllowedSkills(supabase, student_id);
-  const scores = parseScoresFromForm(formData, allowedSkills);
+  // Indicators are locked to the structure admin defined under Admin >
+  // Program: only ACTIVE indicators of active groups are accepted. The form
+  // only offers those, but a direct POST could forge others, so re-check.
+  const indicatorConfig = await getStudentIndicatorConfig(supabase, student_id);
+  const scores = parseScoresFromForm(formData, new Set(activeKeys(indicatorConfig)));
+  const indicator_snapshot = buildSnapshot(indicatorConfig, Object.keys(scores));
+
+  let parsedRecords: unknown;
+  try {
+    parsedRecords = JSON.parse(String(formData.get("performance_records_json") ?? "[]"));
+  } catch {
+    parsedRecords = [];
+  }
+  const recordsInput = parseReportRecords(parsedRecords, session_date);
+  if (recordsInput.error) {
+    redirect(`/pelatih/murid/${student_id}?error=${encodeURIComponent(recordsInput.error)}`);
+  }
 
   const files = formData
     .getAll("media")
@@ -202,22 +204,30 @@ async function createReportActionImpl(formData: FormData) {
 
   const substitute_for = await resolveSubstituteFor(student_id, session.user.id);
 
-  const { data: report, error } = await supabase
+  const reportRow = {
+    student_id,
+    pelatih_id: session.user.id,
+    substitute_for,
+    session_date,
+    session_number,
+    attendance,
+    scores,
+    notes,
+    media_urls,
+    next_focus,
+  };
+  let { data: report, error } = await supabase
     .from("progress_reports")
-    .insert({
-      student_id,
-      pelatih_id: session.user.id,
-      substitute_for,
-      session_date,
-      session_number,
-      attendance,
-      scores,
-      notes,
-      media_urls,
-      next_focus,
-    })
+    .insert({ ...reportRow, indicator_snapshot })
     .select("id")
     .single();
+  if (error && isMissingSnapshotColumn(error.message)) {
+    ({ data: report, error } = await supabase
+      .from("progress_reports")
+      .insert(reportRow)
+      .select("id")
+      .single());
+  }
 
   if (error) {
     redirect(
@@ -225,22 +235,17 @@ async function createReportActionImpl(formData: FormData) {
     );
   }
 
-  let parsedRecords: unknown;
-  try {
-    parsedRecords = JSON.parse(String(formData.get("performance_records_json") ?? "[]"));
-  } catch {
-    parsedRecords = [];
-  }
-  const performanceRecords = parsePerformanceRecords(parsedRecords);
-
-  if (performanceRecords.length > 0) {
-    const { error: recordsError } = await supabase.from("performance_records").insert(
-      performanceRecords.map((r) => ({
+  if (recordsInput.rows.length > 0) {
+    const milestones = await loadMilestones(supabase);
+    const recordsError = await insertRecords(
+      supabase,
+      recordsInput.rows.map((r) => ({
         student_id,
         progress_report_id: report?.id ?? null,
         pelatih_id: session.user.id,
-        recorded_at: session_date,
         ...r,
+        // Badges are decided now, against today's targets, and kept.
+        awards: computeAwards(r, milestones),
       }))
     );
     if (recordsError) {
@@ -278,18 +283,29 @@ async function updateReportActionImpl(formData: FormData) {
 
   const supabase = await createClient();
 
-  const allowedSkills = await getAllowedSkills(supabase, student_id);
-  const scores = parseScoresFromForm(formData, allowedSkills);
+  const { data: existing } = await supabase
+    .from("progress_reports")
+    .select("*")
+    .eq("id", report_id)
+    .single();
+
+  // Editing an old report may keep indicators that have since been
+  // deactivated (it already scored them) but never adds inactive ones.
+  const indicatorConfig = await getStudentIndicatorConfig(supabase, student_id);
+  const existingScores = (existing?.scores ?? {}) as Record<string, number>;
+  const allowed = new Set([...activeKeys(indicatorConfig), ...Object.keys(existingScores)]);
+  const scores = parseScoresFromForm(formData, allowed);
+  // Keep what the report was written with; only newly scored keys are added.
+  const previousSnapshot = (existing?.indicator_snapshot ?? {}) as IndicatorSnapshot;
+  const freshSnapshot = buildSnapshot(
+    indicatorConfig,
+    Object.keys(scores).filter((k) => !(k in previousSnapshot))
+  );
+  const indicator_snapshot = { ...freshSnapshot, ...previousSnapshot };
 
   // New uploads are appended to whatever was already attached rather than
   // replacing it -- this form has no way to pick which existing file to
   // remove, so overwriting media_urls outright would silently drop them.
-  const { data: existing } = await supabase
-    .from("progress_reports")
-    .select("media_urls")
-    .eq("id", report_id)
-    .single();
-
   const files = formData
     .getAll("media")
     .filter((f): f is File => f instanceof File && f.size > 0);
@@ -312,19 +328,27 @@ async function updateReportActionImpl(formData: FormData) {
   // RLS ("pelatih can update own reports") already scopes this to the
   // caller's own reports; the explicit pelatih_id match here is
   // defense-in-depth, not the actual boundary.
-  const { error } = await supabase
+  const reportPatch = {
+    session_date,
+    session_number,
+    attendance,
+    scores,
+    notes,
+    media_urls,
+    next_focus,
+  };
+  let { error } = await supabase
     .from("progress_reports")
-    .update({
-      session_date,
-      session_number,
-      attendance,
-      scores,
-      notes,
-      media_urls,
-      next_focus,
-    })
+    .update({ ...reportPatch, indicator_snapshot })
     .eq("id", report_id)
     .eq("pelatih_id", session.user.id);
+  if (error && isMissingSnapshotColumn(error.message)) {
+    ({ error } = await supabase
+      .from("progress_reports")
+      .update(reportPatch)
+      .eq("id", report_id)
+      .eq("pelatih_id", session.user.id));
+  }
 
   if (error) {
     redirect(

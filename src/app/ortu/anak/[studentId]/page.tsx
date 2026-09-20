@@ -22,6 +22,8 @@ import {
 import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-classes";
 import { AttendanceConsistencyCard } from "@/components/attendance-consistency-card";
 import { formatAge } from "@/lib/performance";
+import { loadIndicatorConfig } from "@/lib/indicator-loader";
+import { loadMilestones } from "@/lib/milestone-loader";
 import { DAYS } from "@/lib/days";
 import { setPackagePreferenceAction } from "./actions";
 import { ToastForm } from "@/components/ui/toast-form";
@@ -40,7 +42,7 @@ export default async function AnakDetailPage({
   const { data: student } = await supabase
     .from("students")
     .select(
-      "id, full_name, nickname, birth_date, program_id, next_package_preference_id, program:program_id(name, skill_template)"
+      "id, full_name, nickname, birth_date, program_id, next_package_preference_id, program:program_id(name)"
     )
     .eq("id", studentId)
     .single();
@@ -49,11 +51,11 @@ export default async function AnakDetailPage({
     redirect("/ortu");
   }
 
-  const program = student.program as unknown as {
-    name: string;
-    skill_template: string[];
-  } | null;
-  const skillTemplate = program?.skill_template ?? [];
+  const program = student.program as unknown as { name: string } | null;
+  const [indicatorConfig, milestones] = await Promise.all([
+    loadIndicatorConfig(supabase, student.program_id),
+    loadMilestones(supabase),
+  ]);
   const age = formatAge(student.birth_date);
 
   const [
@@ -66,14 +68,12 @@ export default async function AnakDetailPage({
   ] = await Promise.all([
     supabase
       .from("progress_reports")
-      .select(
-        "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls, substitute_for"
-      )
+      .select("*")
       .eq("student_id", studentId)
       .order("session_date", { ascending: false }),
     supabase
       .from("performance_records")
-      .select("id, metric_type, stroke, distance_m, duration_seconds, recorded_at")
+      .select("*")
       .eq("student_id", studentId),
     supabase
       .from("invoices")
@@ -154,7 +154,7 @@ export default async function AnakDetailPage({
         tagihanLabel={tagihanLabel}
         tagihanOk={tagihanOk}
         nextFocus={latestNextFocus(reports ?? [])}
-        achievement={computeLatestAchievement(reports ?? [], skillTemplate)}
+        achievement={computeLatestAchievement(reports ?? [], indicatorConfig)}
         laporanTersedia={(reports?.length ?? 0) > 0}
         nextSessionLabel={nextSessionLabel}
       />
@@ -214,19 +214,19 @@ export default async function AnakDetailPage({
 
       <AttendanceConsistencyCard reports={reports ?? []} />
 
-      <ProgressTrend skillTemplate={skillTemplate} reports={reports ?? []} />
+      <ProgressTrend indicatorConfig={indicatorConfig} reports={reports ?? []} />
 
-      <MilestoneBadgesCard records={performanceRecords ?? []} />
+      <MilestoneBadgesCard records={performanceRecords ?? []} milestones={milestones} />
 
       <PerformanceRecordsCard records={performanceRecords ?? []} />
 
-      <AssessmentGuideCard skillTemplate={skillTemplate} />
+      <AssessmentGuideCard indicatorConfig={indicatorConfig} />
 
       <StarScoreLegend />
 
       <ReportHistoryCard
         reports={reports ?? []}
-        skillTemplate={skillTemplate}
+        indicatorConfig={indicatorConfig}
         lockZeroScores
       />
     </div>

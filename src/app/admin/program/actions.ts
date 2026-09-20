@@ -19,11 +19,14 @@ async function createProgramActionImpl(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("programs")
     .insert({ name, description: description || null })
     .select("id")
     .single();
+  if (error) {
+    redirect(`/admin/program?error=${encodeURIComponent(error.message)}`);
+  }
 
   revalidatePath("/admin/program");
   redirect(`/admin/program${data ? `?id=${data.id}` : ""}`);
@@ -43,24 +46,30 @@ async function updateSkillTemplateActionImpl(formData: FormData) {
     );
   }
 
-  let skills: string[] = [];
-  try {
-    const parsed = JSON.parse(String(formData.get("skill_template") ?? "[]"));
-    if (Array.isArray(parsed)) skills = parsed.filter((s) => typeof s === "string");
-  } catch {
-    skills = [];
+  const patch: Record<string, unknown> = {
+    name,
+    description: description || null,
+    badge: badge || null,
+  };
+
+  // Indicators are managed as groups (see indicator-actions.ts). The legacy
+  // flat list is only still submitted while that migration is not applied.
+  if (formData.has("skill_template")) {
+    let skills: string[] = [];
+    try {
+      const parsed = JSON.parse(String(formData.get("skill_template") ?? "[]"));
+      if (Array.isArray(parsed)) skills = parsed.filter((s) => typeof s === "string");
+    } catch {
+      skills = [];
+    }
+    patch.skill_template = skills;
   }
 
   const supabase = await createClient();
-  await supabase
-    .from("programs")
-    .update({
-      name,
-      description: description || null,
-      skill_template: skills,
-      badge: badge || null,
-    })
-    .eq("id", id);
+  const { error } = await supabase.from("programs").update(patch).eq("id", id);
+  if (error) {
+    redirect(`/admin/program?id=${id}&error=${encodeURIComponent(error.message)}`);
+  }
 
   revalidatePath("/admin/program");
   redirect(`/admin/program?id=${id}`);

@@ -6,6 +6,7 @@ import {
   groupStatusesByLevel,
   TIER_ICONS,
   TIER_LABELS,
+  type Milestone,
   type Tier,
 } from "@/lib/milestones";
 import type { PerformanceRecordRow } from "@/lib/performance";
@@ -30,10 +31,12 @@ const TIER_STYLE: Record<Tier, { border: string; bg: string; text: string }> = {
 
 export function MilestoneBadgesCard({
   records,
+  milestones,
 }: {
   records: PerformanceRecordRow[];
+  milestones: Milestone[];
 }) {
-  const statuses = computeMilestoneStatuses(records);
+  const statuses = computeMilestoneStatuses(records, milestones);
   const grouped = groupStatusesByLevel(statuses);
   const unlocked = statuses.filter((s) => s.tier).length;
 
@@ -59,11 +62,11 @@ export function MilestoneBadgesCard({
               {level}
             </p>
             <div className="grid gap-2.5 sm:grid-cols-2">
-              {levelStatuses.map(({ milestone, bestValue, tier, achievedAt }) => {
+              {levelStatuses.map(({ milestone, bestValue, tier, achievedAt, archived }) => {
                 const style = tier ? TIER_STYLE[tier] : null;
                 const target = formatMilestoneValue(
                   milestone.metric_type,
-                  milestone.tiers.bronze
+                  milestone.bronze
                 );
                 return (
                   <div
@@ -90,6 +93,11 @@ export function MilestoneBadgesCard({
                         }`}
                       >
                         {milestone.label}
+                        {archived && (
+                          <span className="ml-1.5 rounded-full bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                            Arsip
+                          </span>
+                        )}
                       </p>
                       {tier && bestValue !== null ? (
                         <p className={`text-xs ${style!.text}`}>

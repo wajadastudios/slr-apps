@@ -5,6 +5,8 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { DAYS } from "@/lib/days";
 import { computeProgressPercent, isAbsent } from "@/lib/progress";
+import { loadIndicatorConfigs } from "@/lib/indicator-loader";
+import { activeKeys } from "@/lib/indicators";
 
 export default async function PelatihDashboardPage() {
   const supabase = await createClient();
@@ -13,7 +15,7 @@ export default async function PelatihDashboardPage() {
     supabase
       .from("schedules")
       .select(
-        "id, student:student_id(id, full_name, program:program_id(skill_template)), slot:slot_id(label, day_of_week, start_time, programs:program_id(name))"
+        "id, student:student_id(id, full_name, program_id), slot:slot_id(label, day_of_week, start_time, programs:program_id(name))"
       ),
     supabase
       .from("progress_reports")
@@ -35,7 +37,7 @@ export default async function PelatihDashboardPage() {
     student: {
       id: string;
       full_name: string;
-      program: { skill_template: string[] } | null;
+      program_id: string | null;
     } | null;
     slot: {
       label: string | null;
@@ -46,6 +48,10 @@ export default async function PelatihDashboardPage() {
   };
 
   const rows = (enrollments ?? []) as unknown as Row[];
+  const indicatorConfigs = await loadIndicatorConfigs(
+    supabase,
+    [...new Set(rows.map((r) => r.student?.program_id).filter(Boolean))] as string[]
+  );
   const sorted = [...rows].sort((a, b) => {
     const dayDiff = (a.slot?.day_of_week ?? 0) - (b.slot?.day_of_week ?? 0);
     if (dayDiff !== 0) return dayDiff;
@@ -68,7 +74,9 @@ export default async function PelatihDashboardPage() {
           {sorted.map((row) => {
             const progressPercent = row.student
               ? computeProgressPercent(
-                  row.student.program?.skill_template ?? [],
+                  row.student.program_id && indicatorConfigs[row.student.program_id]
+                    ? activeKeys(indicatorConfigs[row.student.program_id])
+                    : [],
                   latestScores.get(row.student.id)
                 )
               : null;

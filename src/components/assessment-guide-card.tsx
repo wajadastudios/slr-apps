@@ -3,34 +3,13 @@
 import { useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { AccordionItem } from "@/components/ui/accordion";
-import { formatSkillName } from "@/lib/skill-names";
+import { activeGroups, type IndicatorConfig } from "@/lib/indicators";
 
-// Groups a flat skill_template into categories using its "Kategori - Nama"
-// naming convention (e.g. "Gaya Bebas - Posisi Tubuh" -> category "Gaya
-// Bebas"). Templates without that convention (older/simpler programs) fall
-// back to a single group so they still render something sensible.
-function groupSkills(skillTemplate: string[]): { category: string; skills: string[] }[] {
-  const groups = new Map<string, string[]>();
-
-  for (const rawSkill of skillTemplate) {
-    const skill = formatSkillName(rawSkill);
-    const separatorIndex = skill.indexOf(" - ");
-    const category = separatorIndex === -1 ? "Indikator Penilaian" : skill.slice(0, separatorIndex);
-    const name = separatorIndex === -1 ? skill : skill.slice(separatorIndex + 3);
-    const list = groups.get(category) ?? [];
-    list.push(name);
-    groups.set(category, list);
-  }
-
-  return Array.from(groups.entries()).map(([category, skills]) => ({ category, skills }));
-}
-
-export function AssessmentGuideCard({
-  skillTemplate = [],
-}: {
-  skillTemplate?: string[];
-}) {
-  const groups = groupSkills(skillTemplate);
+export function AssessmentGuideCard({ indicatorConfig }: { indicatorConfig: IndicatorConfig }) {
+  const groups = activeGroups(indicatorConfig).map((g) => ({
+    category: g.name,
+    skills: g.indicators.map((i) => i.label),
+  }));
   const [open, setOpen] = useState(false);
 
   return (

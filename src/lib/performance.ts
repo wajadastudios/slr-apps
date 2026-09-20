@@ -23,6 +23,9 @@ export function isBetter(metricType: MetricType, a: number, b: number): boolean 
   return metricType === "waktu_tempuh" ? a < b : a > b;
 }
 
+// milestone id -> tier, frozen when the record was saved (null = legacy).
+export type RecordAwards = Record<string, "bronze" | "silver" | "gold">;
+
 export type PerformanceRecordRow = {
   id: string;
   metric_type: MetricType;
@@ -30,6 +33,9 @@ export type PerformanceRecordRow = {
   distance_m: number | null;
   duration_seconds: number | null;
   recorded_at: string;
+  // Who owns the record for edit/delete purposes (null = admin-only).
+  pelatih_id?: string | null;
+  awards?: RecordAwards | null;
 };
 
 export type AnnotatedRecord = PerformanceRecordRow & { isPersonalBest: boolean };

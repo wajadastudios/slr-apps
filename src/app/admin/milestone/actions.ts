@@ -1,0 +1,186 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { safeAction } from "@/lib/safe-action";
+import { requireAdmin } from "@/lib/create-account";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { loadMilestones } from "@/lib/milestone-loader";
+import { freezeLegacyAwards, awardMilestoneToExisting } from "@/lib/milestone-awards";
+import { parseMilestoneInput } from "@/lib/record-input";
+import { computeReorder, nextSortOrder } from "@/lib/reorder";
+
+const BACK = "/admin/milestone";
+
+function fail(message: string): never {
+  redirect(`${BACK}?error=${encodeURIComponent(message)}`);
+}
+
+function rawInput(formData: FormData) {
+  return {
+    label: formData.get("label"),
+    level: formData.get("level"),
+    metric_type: formData.get("metric_type"),
+    stroke: formData.get("stroke"),
+    distance_m: formData.get("distance_m"),
+    bronze: formData.get("bronze"),
+    silver: formData.get("silver"),
+    gold: formData.get("gold"),
+  };
+}
+
+async function milestoneUsed(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("performance_records")
+    .select("awards")
+    .not("awards", "is", null);
+  return (data ?? []).some((r) => {
+    const awards = r.awards as Record<string, string> | null;
+    return awards ? id in awards : false;
+  });
+}
+
+async function createMilestoneActionImpl(formData: FormData) {
+  await requireAdmin();
+  const parsed = parseMilestoneInput(rawInput(formData));
+  if (!parsed.ok) fail(parsed.error);
+
+  const supabase = await createClient();
+  const admin = createAdminClient();
+
+  // Freeze what existing records already earned before anything changes.
+  await freezeLegacyAwards(admin, await loadMilestones(supabase));
+
+  const existing = await loadMilestones(supabase);
+  const { data: created, error } = await supabase
+    .from("milestones")
+    .insert({ ...parsed.value, sort_order: nextSortOrder(existing) })
+    .select("id, label, level, metric_type, stroke, distance_m, bronze, silver, gold, sort_order, active")
+    .single();
+  if (error || !created) {
+    fail(error?.message ?? "Milestone gagal dibuat.");
+  }
+
+  await awardMilestoneToExisting(admin, {
+    ...created,
+    distance_m: created.distance_m === null ? null : Number(created.distance_m),
+    bronze: Number(created.bronze),
+    silver: Number(created.silver),
+    gold: Number(created.gold),
+  });
+
+  revalidatePath(BACK);
+  revalidatePath("/admin/laporan");
+  redirect(BACK);
+}
+
+async function updateMilestoneActionImpl(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) fail("Milestone tidak ditemukan.");
+
+  const parsed = parseMilestoneInput(rawInput(formData));
+  if (!parsed.ok) fail(parsed.error);
+
+  const supabase = await createClient();
+  const admin = createAdminClient();
+
+  const { data: current } = await supabase
+    .from("milestones")
+    .select("metric_type, stroke, distance_m")
+    .eq("id", id)
+    .single();
+  if (!current) fail("Milestone tidak ditemukan.");
+
+  const currentDistance = current.distance_m === null ? null : Number(current.distance_m);
+  const definitionChanged =
+    current.metric_type !== parsed.value.metric_type ||
+    (current.stroke ?? null) !== parsed.value.stroke ||
+    currentDistance !== parsed.value.distance_m;
+
+  if (definitionChanged && (await milestoneUsed(supabase, id))) {
+    fail(
+      "Jenis metrik, gaya, dan jarak tidak bisa diubah karena milestone ini sudah menghasilkan lencana. Nonaktifkan lalu buat milestone baru."
+    );
+  }
+
+  // Lock in earned badges against the OLD targets before changing them.
+  await freezeLegacyAwards(admin, await loadMilestones(supabase));
+
+  const { error } = await supabase.from("milestones").update(parsed.value).eq("id", id);
+  if (error) fail(error.message);
+
+  revalidatePath(BACK);
+  revalidatePath("/admin/laporan");
+  redirect(BACK);
+}
+
+async function toggleMilestoneActiveActionImpl(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const nextActive = String(formData.get("next_active") ?? "") === "true";
+  if (!id) return;
+
+  const supabase = await createClient();
+  await freezeLegacyAwards(createAdminClient(), await loadMilestones(supabase));
+
+  const { error } = await supabase.from("milestones").update({ active: nextActive }).eq("id", id);
+  if (error) fail(error.message);
+
+  revalidatePath(BACK);
+  revalidatePath("/admin/laporan");
+  redirect(BACK);
+}
+
+async function moveMilestoneActionImpl(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const direction = String(formData.get("direction") ?? "") === "up" ? "up" : "down";
+
+  const supabase = await createClient();
+  const { data } = await supabase.from("milestones").select("id, sort_order").order("sort_order");
+  const changes = computeReorder(data ?? [], id, direction);
+
+  for (const change of changes ?? []) {
+    const { error } = await supabase
+      .from("milestones")
+      .update({ sort_order: change.sort_order })
+      .eq("id", change.id);
+    if (error) fail(error.message);
+  }
+
+  revalidatePath(BACK);
+  redirect(BACK);
+}
+
+async function deleteMilestoneActionImpl(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+
+  const supabase = await createClient();
+  await freezeLegacyAwards(createAdminClient(), await loadMilestones(supabase));
+
+  const { error } = await supabase.rpc("admin_delete_milestone", { p_id: id });
+  if (error) {
+    fail(
+      error.message.includes("milestone in use")
+        ? "Milestone ini sudah menghasilkan lencana siswa, jadi tidak bisa dihapus. Nonaktifkan saja agar riwayat lencana tetap aman."
+        : error.message
+    );
+  }
+
+  revalidatePath(BACK);
+  revalidatePath("/admin/laporan");
+  redirect(BACK);
+}
+
+export const createMilestoneAction = safeAction(createMilestoneActionImpl, "Milestone berhasil ditambahkan");
+export const updateMilestoneAction = safeAction(updateMilestoneActionImpl, "Milestone berhasil diperbarui");
+export const toggleMilestoneActiveAction = safeAction(toggleMilestoneActiveActionImpl, "Status milestone berhasil diperbarui");
+export const moveMilestoneAction = safeAction(moveMilestoneActionImpl, "Urutan milestone berhasil diperbarui");
+export const deleteMilestoneAction = safeAction(deleteMilestoneActionImpl, "Milestone berhasil dihapus");

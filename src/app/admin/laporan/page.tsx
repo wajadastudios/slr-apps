@@ -3,12 +3,20 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { ReportHistoryCard } from "@/components/report-history-card";
-import { PerformanceRecordsCard } from "@/components/performance-records-card";
+import { PerformanceRecordsManager } from "@/components/performance-records-manager";
 import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { StarScoreLegend } from "@/components/star-score-legend";
 import { computeProgressPercent, latestAttendedReport } from "@/lib/progress";
 import { formatAge } from "@/lib/performance";
+import { activeKeys } from "@/lib/indicators";
+import { loadIndicatorConfig } from "@/lib/indicator-loader";
+import { loadMilestones } from "@/lib/milestone-loader";
+import {
+  addPerformanceRecordAction,
+  updatePerformanceRecordAction,
+  deletePerformanceRecordAction,
+} from "./record-actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -23,7 +31,7 @@ export default async function AdminLaporanPage({
   const { data: students } = await supabase
     .from("students")
     .select(
-      "id, full_name, birth_date, program:program_id!inner(name, skill_template), schedules!inner(class_slots!inner(label))"
+      "id, full_name, birth_date, program_id, program:program_id!inner(name), schedules!inner(class_slots!inner(label))"
     )
     .eq("program.name", "Kids Swim")
     .eq("schedules.class_slots.label", "Private")
@@ -35,24 +43,24 @@ export default async function AdminLaporanPage({
     ? await Promise.all([
         supabase
           .from("progress_reports")
-          .select(
-            "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls, substitute_for"
-          )
+          .select("*")
           .eq("student_id", selectedId)
           .order("session_date", { ascending: false }),
         supabase
           .from("performance_records")
-          .select("id, metric_type, stroke, distance_m, duration_seconds, recorded_at")
+          .select("*")
           .eq("student_id", selectedId),
       ])
     : [{ data: null }, { data: null }];
 
   const selectedStudent = students?.find((s) => s.id === selectedId);
-  const selectedSkillTemplate =
-    (selectedStudent?.program as unknown as { skill_template: string[] } | null)
-      ?.skill_template ?? [];
+  const [indicatorConfig, milestones] = await Promise.all([
+    loadIndicatorConfig(supabase, selectedStudent?.program_id),
+    loadMilestones(supabase),
+  ]);
+  const today = new Date().toISOString().slice(0, 10);
   const progressPercent = computeProgressPercent(
-    selectedSkillTemplate,
+    activeKeys(indicatorConfig),
     latestAttendedReport(reports ?? [])?.scores as
       | Record<string, number>
       | null
@@ -107,13 +115,22 @@ export default async function AdminLaporanPage({
               </span>
             )}
           </GlassCard>
-          <MilestoneBadgesCard records={performanceRecords ?? []} />
-          <PerformanceRecordsCard records={performanceRecords ?? []} />
-          <AssessmentGuideCard skillTemplate={selectedSkillTemplate} />
+          <MilestoneBadgesCard records={performanceRecords ?? []} milestones={milestones} />
+          <PerformanceRecordsManager
+            records={performanceRecords ?? []}
+            studentId={selectedStudent.id}
+            role="admin"
+            viewerId={null}
+            addAction={addPerformanceRecordAction}
+            updateAction={updatePerformanceRecordAction}
+            deleteAction={deletePerformanceRecordAction}
+            today={today}
+          />
+          <AssessmentGuideCard indicatorConfig={indicatorConfig} />
           <StarScoreLegend />
           <ReportHistoryCard
             reports={reports ?? []}
-            skillTemplate={selectedSkillTemplate}
+            indicatorConfig={indicatorConfig}
           />
         </>
       )}

@@ -16,6 +16,8 @@ import {
 } from "@/lib/progress";
 import { PRIMARY_BUTTON } from "@/lib/ui-classes";
 import { DAYS } from "@/lib/days";
+import { loadIndicatorConfigs } from "@/lib/indicator-loader";
+import { EMPTY_INDICATOR_CONFIG } from "@/lib/indicators";
 import { selfRegisterAction, addChildAndRegisterAction } from "./actions";
 import { ToastForm } from "@/components/ui/toast-form";
 
@@ -41,7 +43,7 @@ export default async function OrtuDashboardPage({
     supabase
       .from("students")
       .select(
-        "id, full_name, nickname, birth_date, program:program_id(name, skill_template)"
+        "id, full_name, nickname, birth_date, program_id, program:program_id(name)"
       )
       .order("full_name"),
     supabase
@@ -134,6 +136,11 @@ export default async function OrtuDashboardPage({
     slotsByStudent.set(row.student_id, list);
   }
 
+  const indicatorConfigs = await loadIndicatorConfigs(
+    supabase,
+    [...new Set((children ?? []).map((c) => c.program_id).filter(Boolean))] as string[]
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">
@@ -150,10 +157,7 @@ export default async function OrtuDashboardPage({
 
       <div className="grid gap-4 lg:grid-cols-2">
         {children?.map((child) => {
-          const program = child.program as unknown as {
-            name: string;
-            skill_template: string[];
-          } | null;
+          const program = child.program as unknown as { name: string } | null;
           const status = latestInvoiceStatus.get(child.id);
           const childReports = reportsByStudent.get(child.id) ?? [];
           const quota = formatSessionQuota(
@@ -186,7 +190,7 @@ export default async function OrtuDashboardPage({
                 nextFocus={latestNextFocus(childReports)}
                 achievement={computeLatestAchievement(
                   childReports,
-                  program?.skill_template ?? []
+                  indicatorConfigs[child.program_id] ?? EMPTY_INDICATOR_CONFIG
                 )}
                 laporanTersedia={childReports.length > 0}
                 nextSessionLabel={nextSessionLabel}

@@ -5,7 +5,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { isAbsent } from "@/lib/progress";
 import { LockIcon, LOCKED_HINT } from "@/components/ui/lock-icon";
 import { AccordionItem } from "@/components/ui/accordion";
-import { formatSkillName } from "@/lib/skill-names";
+import { allKeys, displayName, type IndicatorConfig } from "@/lib/indicators";
 
 type Report = {
   session_date: string;
@@ -134,7 +134,7 @@ function stepPath(points: SessionEvent[]) {
   return d;
 }
 
-function SkillRibbon({ skill, events }: { skill: string; events: SessionEvent[] }) {
+function SkillRibbon({ name, events }: { name: string; events: SessionEvent[] }) {
   const gradientId = useId().replace(/:/g, "");
   const [active, setActive] = useState<number | null>(null);
 
@@ -149,7 +149,7 @@ function SkillRibbon({ skill, events }: { skill: string; events: SessionEvent[] 
 
   return (
     <div>
-      <p className="mb-1 text-sm text-slate-700">{formatSkillName(skill)}</p>
+      <p className="mb-1 text-sm text-slate-700">{name}</p>
       <div
         className="relative h-24"
         onClick={() => setActive(null)}
@@ -301,7 +301,7 @@ function SkillRibbon({ skill, events }: { skill: string; events: SessionEvent[] 
 
 const CHIP_STEP = 6;
 
-function LockedSkills({ skills }: { skills: string[] }) {
+function LockedSkills({ skills }: { skills: { key: string; name: string }[] }) {
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(CHIP_STEP);
   if (skills.length === 0) return null;
@@ -328,12 +328,12 @@ function LockedSkills({ skills }: { skills: string[] }) {
         <div className="flex flex-wrap gap-2">
           {visible.map((skill) => (
             <span
-              key={skill}
+              key={skill.key}
               title={LOCKED_HINT}
               className="flex items-center gap-1 rounded-full border border-slate-200/70 bg-white/60 px-2.5 py-1 text-xs text-slate-500"
             >
               <LockIcon className="h-3 w-3" />
-              {formatSkillName(skill)}
+              {skill.name}
             </span>
           ))}
         </div>
@@ -356,7 +356,7 @@ const MAIN_RIBBONS = 6;
 function MoreRibbons({
   items,
 }: {
-  items: { skill: string; events: SessionEvent[] }[];
+  items: { skill: string; name: string; events: SessionEvent[] }[];
 }) {
   const [open, setOpen] = useState(false);
   if (items.length === 0) return null;
@@ -379,8 +379,8 @@ function MoreRibbons({
       }
     >
       <div className="grid gap-x-6 gap-y-5 px-3 pb-4 pt-2 sm:grid-cols-2">
-        {items.map(({ skill, events }) => (
-          <SkillRibbon key={skill} skill={skill} events={events} />
+        {items.map(({ skill, name, events }) => (
+          <SkillRibbon key={skill} name={name} events={events} />
         ))}
       </div>
     </AccordionItem>
@@ -388,10 +388,10 @@ function MoreRibbons({
 }
 
 export function ProgressTrend({
-  skillTemplate,
+  indicatorConfig,
   reports,
 }: {
-  skillTemplate: string[];
+  indicatorConfig: IndicatorConfig;
   reports: Report[];
 }) {
   const chronological = [...reports].sort(
@@ -405,8 +405,9 @@ export function ProgressTrend({
   const minT = Math.min(...times);
   const maxT = Math.max(...times);
 
-  const all = skillTemplate.map((skill) => ({
+  const all = allKeys(indicatorConfig).map((skill) => ({
     skill,
+    name: displayName(indicatorConfig, skill),
     events: buildEvents(skill, chronological, minT, maxT),
   }));
 
@@ -418,7 +419,11 @@ export function ProgressTrend({
     return scored.length > 0 && scored[scored.length - 1].score! > 0;
   };
   const skills = all.filter((s) => isOpened(s.events));
-  const lockedSkills = all.filter((s) => !isOpened(s.events)).map((s) => s.skill);
+  // Only still-active indicators count as "not opened yet"; a deactivated one
+  // with no scores is simply gone from the parent's view.
+  const lockedSkills = all
+    .filter((s) => !isOpened(s.events) && indicatorConfig.byKey[s.skill]?.active)
+    .map((s) => ({ key: s.skill, name: s.name }));
 
   if (reports.length === 0) {
     return (
@@ -449,8 +454,8 @@ export function ProgressTrend({
           menurunkan skor.
         </p>
         <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-          {skills.slice(0, MAIN_RIBBONS).map(({ skill, events }) => (
-            <SkillRibbon key={skill} skill={skill} events={events} />
+          {skills.slice(0, MAIN_RIBBONS).map(({ skill, name, events }) => (
+            <SkillRibbon key={skill} name={name} events={events} />
           ))}
         </div>
         <MoreRibbons items={skills.slice(MAIN_RIBBONS)} />

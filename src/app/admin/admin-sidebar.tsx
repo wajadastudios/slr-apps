@@ -18,6 +18,7 @@ const NAV_GROUPS = [
     label: "Program",
     items: [
       { href: "/admin/program", label: "Program" },
+      { href: "/admin/milestone", label: "Milestone" },
       { href: "/admin/slot-jadwal", label: "Slot Jadwal" },
       { href: "/admin/jadwal", label: "Jadwal Siswa" },
       { href: "/admin/paket-harga", label: "Paket Harga" },

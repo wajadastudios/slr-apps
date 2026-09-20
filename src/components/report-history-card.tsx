@@ -12,7 +12,12 @@ import { SkillScoresField } from "@/components/skill-scores-field";
 import { LockIcon, LOCKED_HINT } from "@/components/ui/lock-icon";
 import { AccordionItem } from "@/components/ui/accordion";
 import { formatShortDate } from "@/lib/format-date";
-import { formatSkillName } from "@/lib/skill-names";
+import {
+  formGroups,
+  resolveReportIndicators,
+  type IndicatorConfig,
+  type IndicatorSnapshot,
+} from "@/lib/indicators";
 import { GHOST_BUTTON } from "@/lib/ui-classes";
 import { ToastForm } from "@/components/ui/toast-form";
 import type { ActionState } from "@/lib/action-result";
@@ -39,24 +44,16 @@ export type ReportRow = {
   next_focus: string | null;
   media_urls: string[] | null;
   substitute_for?: string | null;
+  // label/group of every scored indicator as they were when the report was written
+  indicator_snapshot?: IndicatorSnapshot | null;
 };
 
 type ReportAction = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
-// progress_reports.scores is jsonb, which does not preserve key insertion
-// order -- so the only reliable order is the program's current
-// skill_template, with any leftover names (from a since-edited template)
-// tacked on at the end rather than dropped.
-function orderedSkillNames(scores: Record<string, number>, skillTemplate: string[]) {
-  const inTemplate = skillTemplate.filter((name) => name in scores);
-  const extra = Object.keys(scores).filter((name) => !skillTemplate.includes(name));
-  return [...inTemplate, ...extra];
-}
-
 function ReportEntry({
   report,
   studentId,
-  skillTemplate,
+  indicatorConfig,
   lockZeroScores,
   editable,
   updateAction,
@@ -64,7 +61,7 @@ function ReportEntry({
 }: {
   report: ReportRow;
   studentId: string;
-  skillTemplate: string[];
+  indicatorConfig: IndicatorConfig;
   lockZeroScores: boolean;
   editable: boolean;
   updateAction?: ReportAction;
@@ -74,14 +71,20 @@ function ReportEntry({
   const [editing, setEditing] = useState(false);
   const [lockedOpen, setLockedOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
-  // Parent view also gets cleaned-up indicator names (display only).
-  const label = (skill: string) => (lockZeroScores ? formatSkillName(skill) : skill);
 
   const scores = (report.scores as Record<string, number>) ?? {};
-  const skillNames = orderedSkillNames(scores, skillTemplate);
-  const isLocked = (skill: string) => lockZeroScores && scores[skill] === 0;
-  const unlockedNames = skillNames.filter((s) => !isLocked(s));
-  const lockedNames = skillNames.filter(isLocked);
+  // Snapshot first (how the report looked when written), then the current
+  // structure, so a later rename/regroup never rewrites history.
+  const resolved = resolveReportIndicators(scores, report.indicator_snapshot, indicatorConfig);
+  const isLocked = (score: number) => lockZeroScores && score === 0;
+  const unlocked = resolved.filter((r) => !isLocked(r.score));
+  const locked = resolved.filter((r) => isLocked(r.score));
+  const unlockedGroups = unlocked.reduce<{ name: string; items: typeof unlocked }[]>((acc, r) => {
+    const last = acc[acc.length - 1];
+    if (last && last.name === r.group) last.items.push(r);
+    else acc.push({ name: r.group, items: [r] });
+    return acc;
+  }, []);
 
   if (editing && editable && updateAction) {
     return (
@@ -125,7 +128,13 @@ function ReportEntry({
             </div>
           </div>
 
-          <SkillScoresField initialSkills={skillTemplate} initialScores={scores} />
+          <SkillScoresField
+            groups={formGroups(indicatorConfig, Object.keys(scores))}
+            initialScores={scores}
+            initiallyOpen={formGroups(indicatorConfig, Object.keys(scores))
+              .filter((g) => g.indicators.some((i) => (scores[i.key] ?? 0) > 0))
+              .map((g) => g.id)}
+          />
 
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-600">Catatan</label>
@@ -248,7 +257,7 @@ function ReportEntry({
         </div>
       )}
 
-      {skillNames.length > 0 && (
+      {resolved.length > 0 && (
         <AccordionItem
           variant="ortu"
           chevronSize="sm"
@@ -260,19 +269,26 @@ function ReportEntry({
             <span className="text-sm font-medium text-[#17263D]">
               Lihat Detail Penilaian
               <span className="ml-1.5 whitespace-nowrap text-xs font-normal text-slate-500">
-                &middot; {skillNames.length} indikator
+                &middot; {resolved.length} indikator
               </span>
             </span>
           }
         >
           <div className="flex flex-col gap-2 px-3 pb-3 pt-1">
-            {unlockedNames.map((skill) => (
-              <div key={skill} className="flex items-center justify-between gap-3">
-                <span className="text-sm text-slate-700">{label(skill)}</span>
-                <StarRating value={scores[skill]} size={14} />
+            {unlockedGroups.map((group) => (
+              <div key={group.name} className="flex flex-col gap-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  {group.name}
+                </p>
+                {group.items.map((r) => (
+                  <div key={r.key} className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-slate-700">{r.label}</span>
+                    <StarRating value={r.score} size={14} />
+                  </div>
+                ))}
               </div>
             ))}
-            {lockedNames.length > 0 && (
+            {locked.length > 0 && (
               <AccordionItem
                 variant="ortu"
                 chevronSize="sm"
@@ -283,18 +299,18 @@ function ReportEntry({
                 header={
                   <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
                     <LockIcon />
-                    {lockedNames.length} indikator belum dibuka
+                    {locked.length} indikator belum dibuka
                   </span>
                 }
               >
                 <div className="flex flex-col gap-1.5 px-2.5 pb-2.5 pt-1">
-                  {lockedNames.map((skill) => (
+                  {locked.map((r) => (
                     <div
-                      key={skill}
+                      key={r.key}
                       title={LOCKED_HINT}
                       className="flex items-center justify-between gap-3 text-slate-400"
                     >
-                      <span className="text-sm">{label(skill)}</span>
+                      <span className="text-sm">{r.group} &middot; {r.label}</span>
                       <span className="flex items-center gap-1 text-xs">
                         <LockIcon className="h-3 w-3" />
                         Belum dibuka
@@ -337,7 +353,7 @@ function ReportEntry({
 
 export function ReportHistoryCard({
   reports,
-  skillTemplate = [],
+  indicatorConfig,
   lockZeroScores = false,
   editable = false,
   studentId = "",
@@ -345,7 +361,7 @@ export function ReportHistoryCard({
   deleteAction,
 }: {
   reports: ReportRow[];
-  skillTemplate?: string[];
+  indicatorConfig: IndicatorConfig;
   // Orang tua sees a skill scored 0 as "not unlocked yet" rather than a
   // bare 0-star rating -- pelatih/admin still see the real score.
   lockZeroScores?: boolean;
@@ -387,7 +403,7 @@ export function ReportHistoryCard({
             key={r.id}
             report={r}
             studentId={studentId}
-            skillTemplate={skillTemplate}
+            indicatorConfig={indicatorConfig}
             lockZeroScores={lockZeroScores}
             editable={editable}
             updateAction={updateAction}

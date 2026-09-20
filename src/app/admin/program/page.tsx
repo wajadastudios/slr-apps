@@ -12,6 +12,7 @@ import {
   deleteProgramAction,
 } from "./actions";
 import { ToastForm } from "@/components/ui/toast-form";
+import { IndicatorManager } from "./indicator-manager";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -27,6 +28,11 @@ export default async function ProgramPage({
     .from("programs")
     .select("id, name, description, badge, skill_template, active")
     .order("name");
+
+  // Structured indicators (migration 0030). Until it is applied the legacy
+  // flat checklist stays editable so nothing is lost during rollout.
+  const { error: structureError } = await supabase.from("indicator_groups").select("id").limit(1);
+  const structured = !structureError;
 
   const selectedId = id || programs?.[0]?.id;
   const selected = programs?.find((p) => p.id === selectedId);
@@ -152,19 +158,24 @@ export default async function ProgramPage({
                 defaultValue={selected.badge ?? ""}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-slate-800">
-                Checklist Skill Penilaian
-              </label>
-              <EditableListField
-                initialItems={
-                  (selected.skill_template as unknown as string[]) ?? []
-                }
-                fieldName="skill_template"
-                itemLabel="Skill"
-                placeholder="Nama skill"
-              />
-            </div>
+            {!structured && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm text-slate-800">
+                  Checklist Skill Penilaian
+                </label>
+                <EditableListField
+                  initialItems={
+                    (selected.skill_template as unknown as string[]) ?? []
+                  }
+                  fieldName="skill_template"
+                  itemLabel="Skill"
+                  placeholder="Nama skill"
+                />
+                <p className="text-xs text-slate-500">
+                  Kelompok indikator akan aktif setelah migrasi 0030 dijalankan.
+                </p>
+              </div>
+            )}
             {error && <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>}
             <GlassButton
               type="submit"
@@ -173,6 +184,12 @@ export default async function ProgramPage({
               Simpan
             </GlassButton>
           </ToastForm>
+        </GlassCard>
+      )}
+
+      {selected && structured && (
+        <GlassCard>
+          <IndicatorManager programId={selected.id} />
         </GlassCard>
       )}
     </div>

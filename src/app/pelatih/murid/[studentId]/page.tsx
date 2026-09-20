@@ -7,16 +7,21 @@ import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
 import { SkillScoresField } from "@/components/skill-scores-field";
 import { PerformanceRecordField } from "@/components/performance-record-field";
-import { PerformanceRecordsCard } from "@/components/performance-records-card";
+import { PerformanceRecordsManager } from "@/components/performance-records-manager";
 import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
 import { ReportHistoryCard } from "@/components/report-history-card";
 import { computeProgressPercent, latestAttendedReport } from "@/lib/progress";
+import { activeKeys, formGroups, relevantGroupIds } from "@/lib/indicators";
+import { loadIndicatorConfig } from "@/lib/indicator-loader";
+import { loadMilestones } from "@/lib/milestone-loader";
+import { requirePelatih } from "@/lib/create-account";
 import { formatAge } from "@/lib/performance";
 import {
   createReportAction,
   updateReportAction,
   deleteReportAction,
 } from "./actions";
+import { updatePerformanceRecordAction, deletePerformanceRecordAction } from "./record-actions";
 import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
@@ -36,7 +41,7 @@ export default async function MuridReportPage({
   // pelatih actually teaches — an empty result means access denied.
   const { data: student } = await supabase
     .from("students")
-    .select("id, full_name, birth_date, program:program_id(name, skill_template)")
+    .select("id, full_name, birth_date, program_id, program:program_id(name)")
     .eq("id", studentId)
     .single();
 
@@ -44,36 +49,35 @@ export default async function MuridReportPage({
     redirect("/pelatih");
   }
 
-  const program = student.program as unknown as {
-    name: string;
-    skill_template: string[];
-  } | null;
-  const skillTemplate = program?.skill_template ?? [];
+  const program = student.program as unknown as { name: string } | null;
+  const session = await requirePelatih();
+  const [indicatorConfig, milestones] = await Promise.all([
+    loadIndicatorConfig(supabase, student.program_id),
+    loadMilestones(supabase),
+  ]);
   const age = formatAge(student.birth_date);
 
   const [{ data: reports }, { data: performanceRecords }] = await Promise.all([
     supabase
       .from("progress_reports")
-      .select(
-        "id, session_date, session_number, attendance, scores, notes, next_focus, media_urls, substitute_for"
-      )
+      .select("*")
       .eq("student_id", studentId)
       .order("session_date", { ascending: false }),
     supabase
       .from("performance_records")
-      .select("id, metric_type, stroke, distance_m, duration_seconds, recorded_at")
+      .select("*")
       .eq("student_id", studentId),
   ]);
 
   const nextSessionNumber = (reports?.length ?? 0) + 1;
   const today = new Date().toISOString().slice(0, 10);
-  const progressPercent = computeProgressPercent(
-    skillTemplate,
-    latestAttendedReport(reports ?? [])?.scores as
-      | Record<string, number>
-      | null
-      | undefined
-  );
+  const latestScores = latestAttendedReport(reports ?? [])?.scores as
+    | Record<string, number>
+    | null
+    | undefined;
+  const progressPercent = computeProgressPercent(activeKeys(indicatorConfig), latestScores);
+  const formGroupList = formGroups(indicatorConfig);
+  const openGroups = relevantGroupIds(formGroupList, latestScores);
 
   return (
     <div className="flex flex-col gap-6">
@@ -126,7 +130,7 @@ export default async function MuridReportPage({
             </div>
           </div>
 
-          <SkillScoresField initialSkills={skillTemplate} />
+          <SkillScoresField groups={formGroupList} initiallyOpen={openGroups} />
 
           <PerformanceRecordField />
 
@@ -170,13 +174,21 @@ export default async function MuridReportPage({
         </ToastForm>
       </GlassCard>
 
-      <MilestoneBadgesCard records={performanceRecords ?? []} />
+      <MilestoneBadgesCard records={performanceRecords ?? []} milestones={milestones} />
 
-      <PerformanceRecordsCard records={performanceRecords ?? []} />
+      <PerformanceRecordsManager
+        records={performanceRecords ?? []}
+        studentId={studentId}
+        role="pelatih"
+        viewerId={session.user.id}
+        updateAction={updatePerformanceRecordAction}
+        deleteAction={deletePerformanceRecordAction}
+        today={today}
+      />
 
       <ReportHistoryCard
         reports={reports ?? []}
-        skillTemplate={skillTemplate}
+        indicatorConfig={indicatorConfig}
         editable
         studentId={studentId}
         updateAction={updateReportAction}
