@@ -14,7 +14,8 @@ import {
   usesStroke,
   type MetricType,
 } from "@/lib/performance";
-import { isSupervisedOnly, type Milestone } from "@/lib/milestones";
+import { isSupervisedOnly, TIER_LABELS, type Milestone } from "@/lib/milestones";
+import { TierMedal } from "@/components/ui/tier-medal";
 import type { ActionState } from "@/lib/action-result";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -222,15 +223,12 @@ export function MilestoneForm({
       <div>
         <p className="mb-1 text-xs text-slate-600">Target per lencana &mdash; satuan: {UNIT[metric]}</p>
         <div className="grid grid-cols-3 gap-2">
-          {(
-            [
-              ["bronze", "🥉 Perunggu"],
-              ["silver", "🥈 Perak"],
-              ["gold", "🥇 Emas"],
-            ] as const
-          ).map(([field, label]) => (
+          {(["bronze", "silver", "gold"] as const).map((field) => (
             <div key={field} className="flex flex-col gap-1">
-              <label className="text-[11px] text-slate-500">{label}</label>
+              <label className="flex items-center gap-1 text-[11px] text-slate-500">
+                <TierMedal tier={field} size={16} decorative />
+                {TIER_LABELS[field]}
+              </label>
               <GlassInput
                 name={field}
                 type="number"

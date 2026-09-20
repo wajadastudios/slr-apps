@@ -4,7 +4,8 @@ import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { ReportHistoryCard } from "@/components/report-history-card";
 import { PerformanceRecordsManager } from "@/components/performance-records-manager";
-import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
+import { RecordUnlockCard } from "@/components/record-unlock-card";
+import { computeMilestoneStatuses } from "@/lib/milestones";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { StarScoreLegend } from "@/components/star-score-legend";
 import { computeProgressPercent, latestAttendedReport } from "@/lib/progress";
@@ -115,7 +116,7 @@ export default async function AdminLaporanPage({
               </span>
             )}
           </GlassCard>
-          <MilestoneBadgesCard records={performanceRecords ?? []} milestones={milestones} />
+          <RecordUnlockCard statuses={computeMilestoneStatuses(performanceRecords ?? [], milestones)} />
           <PerformanceRecordsManager
             records={performanceRecords ?? []}
             studentId={selectedStudent.id}

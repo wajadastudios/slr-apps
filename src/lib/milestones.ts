@@ -9,13 +9,8 @@ export const TIER_LABELS: Record<Tier, string> = {
   gold: "Emas",
 };
 
-export const TIER_ICONS: Record<Tier, string> = {
-  bronze: "🥉",
-  silver: "🥈",
-  gold: "🥇",
-};
 
-const TIER_RANK: Record<Tier, number> = { bronze: 1, silver: 2, gold: 3 };
+export const TIER_RANK: Record<Tier, number> = { bronze: 1, silver: 2, gold: 3 };
 
 // Milestones live in the database (admin-managed). Badge rule: a badge is
 // decided when a record is saved, against the targets in force at that time
@@ -202,6 +197,28 @@ export function pickNextTarget(statuses: MilestoneStatus[]): NextTarget | null {
   if (!pick) return null;
   const tier = pick.tier ? NEXT_TIER[pick.tier]! : "bronze";
   return { status: pick, tier, value: Number(pick.milestone[tier]) };
+}
+
+// A target counts as passed once the tier earned on the milestone is that
+// tier or a higher one.
+export function tierReached(earned: Tier | null, target: Tier): boolean {
+  return earned !== null && TIER_RANK[earned] >= TIER_RANK[target];
+}
+
+// The highest medal the child holds; among equals the most recently earned.
+export function latestTopMedal(statuses: MilestoneStatus[]): MilestoneStatus | null {
+  let best: MilestoneStatus | null = null;
+  for (const s of statuses) {
+    if (!s.tier) continue;
+    if (
+      !best ||
+      TIER_RANK[s.tier] > TIER_RANK[best.tier!] ||
+      (TIER_RANK[s.tier] === TIER_RANK[best.tier!] && (s.achievedAt ?? "") > (best.achievedAt ?? ""))
+    ) {
+      best = s;
+    }
+  }
+  return best;
 }
 
 // Levels are free-text categories; shown in the order of their first

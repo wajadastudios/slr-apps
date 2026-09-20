@@ -8,7 +8,8 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { SkillScoresField } from "@/components/skill-scores-field";
 import { PerformanceRecordField } from "@/components/performance-record-field";
 import { PerformanceRecordsManager } from "@/components/performance-records-manager";
-import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
+import { RecordUnlockCard } from "@/components/record-unlock-card";
+import { computeMilestoneStatuses } from "@/lib/milestones";
 import { ReportHistoryCard } from "@/components/report-history-card";
 import { computeProgressPercent, latestAttendedReport } from "@/lib/progress";
 import { activeKeys, formGroups, relevantGroupIds } from "@/lib/indicators";
@@ -16,6 +17,7 @@ import { loadIndicatorConfig } from "@/lib/indicator-loader";
 import { loadMilestones } from "@/lib/milestone-loader";
 import { requirePelatih } from "@/lib/create-account";
 import { formatAge } from "@/lib/performance";
+import { jakartaToday, toISODate } from "@/lib/week";
 import {
   createReportAction,
   updateReportAction,
@@ -31,10 +33,10 @@ export default async function MuridReportPage({
   searchParams,
 }: {
   params: Promise<{ studentId: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; tanggal?: string }>;
 }) {
   const { studentId } = await params;
-  const { error } = await searchParams;
+  const { error, tanggal } = await searchParams;
   const supabase = await createClient();
 
   // RLS (pelatih_teaches_student) already scopes this to students this
@@ -70,7 +72,10 @@ export default async function MuridReportPage({
   ]);
 
   const nextSessionNumber = (reports?.length ?? 0) + 1;
-  const today = new Date().toISOString().slice(0, 10);
+  // Jakarta calendar date (not UTC), or the session date the dashboard sent us
+  // from when filling in a report for a specific day.
+  const todayIso = toISODate(jakartaToday());
+  const today = tanggal && /^\d{4}-\d{2}-\d{2}$/.test(tanggal) ? tanggal : todayIso;
   const latestScores = latestAttendedReport(reports ?? [])?.scores as
     | Record<string, number>
     | null
@@ -174,7 +179,7 @@ export default async function MuridReportPage({
         </ToastForm>
       </GlassCard>
 
-      <MilestoneBadgesCard records={performanceRecords ?? []} milestones={milestones} />
+      <RecordUnlockCard statuses={computeMilestoneStatuses(performanceRecords ?? [], milestones)} />
 
       <PerformanceRecordsManager
         records={performanceRecords ?? []}
