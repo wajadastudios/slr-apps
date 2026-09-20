@@ -1,11 +1,12 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createSlotAction(formData: FormData) {
+async function createSlotActionImpl(formData: FormData) {
   await requireAdmin();
 
   const program_id = String(formData.get("program_id") ?? "");
@@ -51,7 +52,7 @@ export async function createSlotAction(formData: FormData) {
   redirect("/admin/slot-jadwal");
 }
 
-export async function updateSlotAction(formData: FormData) {
+async function updateSlotActionImpl(formData: FormData) {
   await requireAdmin();
 
   const slot_id = String(formData.get("slot_id") ?? "");
@@ -103,7 +104,7 @@ export async function updateSlotAction(formData: FormData) {
   redirect("/admin/slot-jadwal");
 }
 
-export async function deleteSlotAction(formData: FormData) {
+async function deleteSlotActionImpl(formData: FormData) {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
@@ -118,3 +119,7 @@ export async function deleteSlotAction(formData: FormData) {
   revalidatePath("/admin/jadwal");
   redirect("/admin/slot-jadwal");
 }
+
+export const createSlotAction = safeAction(createSlotActionImpl, "Slot jadwal berhasil ditambahkan");
+export const updateSlotAction = safeAction(updateSlotActionImpl, "Slot jadwal berhasil diperbarui");
+export const deleteSlotAction = safeAction(deleteSlotActionImpl, "Slot jadwal berhasil dihapus");

@@ -7,6 +7,7 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { InvoiceShareLinks } from "@/components/invoice-share-links";
 import { createInvoiceForStudentAction, sendInvoiceAction, markPaidAction } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -108,7 +109,7 @@ export default async function TagihanPage({
           {dueStudents.map((s) => {
             const options = packagesByProgram.get(s.program_id) ?? [];
             return (
-              <form key={s.id} action={createInvoiceForStudentAction}>
+              <ToastForm key={s.id} action={createInvoiceForStudentAction}>
                 <input type="hidden" name="student_id" value={s.id} />
                 <DataRow
                   primary={s.full_name}
@@ -146,7 +147,7 @@ export default async function TagihanPage({
                     </>
                   }
                 />
-              </form>
+              </ToastForm>
             );
           })}
         </div>
@@ -219,8 +220,8 @@ export default async function TagihanPage({
                 action={
                   <>
                     {inv.status === "draft" && (
-                      <form
-                        action={sendInvoiceAction}
+                      <ToastForm
+                        action={sendInvoiceAction} pendingLabel="Memproses..."
                         className="flex items-center gap-2"
                       >
                         <input type="hidden" name="invoice_id" value={inv.id} />
@@ -239,7 +240,7 @@ export default async function TagihanPage({
                         >
                           Setujui &amp; Kirim
                         </GlassButton>
-                      </form>
+                      </ToastForm>
                     )}
 
                     {(inv.status === "sent" || inv.status === "processing") && (
@@ -247,7 +248,7 @@ export default async function TagihanPage({
                         <span className="text-sm font-medium text-[#17263D]">
                           Rp{Number(inv.amount).toLocaleString("id-ID")}
                         </span>
-                        <form action={markPaidAction}>
+                        <ToastForm action={markPaidAction} pendingLabel="Memproses...">
                           <input type="hidden" name="invoice_id" value={inv.id} />
                           <GlassButton
                             type="submit"
@@ -257,7 +258,7 @@ export default async function TagihanPage({
                               ? "Konfirmasi Lunas"
                               : "Tandai Sudah Bayar"}
                           </GlassButton>
-                        </form>
+                        </ToastForm>
                       </div>
                     )}
 

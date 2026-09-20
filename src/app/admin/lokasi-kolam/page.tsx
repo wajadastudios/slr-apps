@@ -3,6 +3,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassButton } from "@/components/ui/glass-button";
 import { createPoolLocationAction, deletePoolLocationAction } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -23,8 +24,8 @@ export default async function LokasiKolamPage({
     <div className="flex flex-col gap-6">
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Tambah Lokasi Kolam</h2>
-        <form
-          action={createPoolLocationAction}
+        <ToastForm
+          action={createPoolLocationAction} resetOnSuccess
           className="flex flex-wrap items-end gap-4"
         >
           <div className="flex flex-col gap-1.5">
@@ -48,7 +49,7 @@ export default async function LokasiKolamPage({
           >
             Tambah
           </GlassButton>
-        </form>
+        </ToastForm>
         <p className="mt-3 text-xs text-slate-500">
           Buka Google Maps &rarr; cari lokasi &rarr; Bagikan &rarr; Sematkan
           peta (Embed a map) &rarr; salin link dari atribut src iframe.
@@ -77,12 +78,12 @@ export default async function LokasiKolamPage({
                   {loc.maps_link}
                 </p>
               </div>
-              <form action={deletePoolLocationAction}>
+              <ToastForm action={deletePoolLocationAction} pendingLabel="Menghapus...">
                 <input type="hidden" name="location_id" value={loc.id} />
                 <GlassButton type="submit" className="px-3 py-1.5 text-xs">
                   Hapus
                 </GlassButton>
-              </form>
+              </ToastForm>
             </div>
           ))}
         </div>

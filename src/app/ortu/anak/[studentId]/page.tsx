@@ -12,19 +12,19 @@ import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { StarScoreLegend } from "@/components/star-score-legend";
 import { ChildSummaryWidget } from "@/components/child-summary-widget";
 import {
-  computeProgressPercent,
+  computeLatestAchievement,
   computeNextSession,
   computeSessionQuota,
   formatSessionQuota,
   getGreeting,
-  latestHadirReport,
+  latestNextFocus,
 } from "@/lib/progress";
-import { formatShortDate } from "@/lib/format-date";
 import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-classes";
 import { AttendanceConsistencyCard } from "@/components/attendance-consistency-card";
 import { formatAge } from "@/lib/performance";
 import { DAYS } from "@/lib/days";
 import { setPackagePreferenceAction } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 export default async function AnakDetailPage({
   params,
@@ -145,13 +145,6 @@ export default async function AnakDetailPage({
         ? "Menunggu Verifikasi"
         : "Belum Bayar";
 
-  // reports are newest-first; only a session actually attended counts
-  const assessed = latestHadirReport(reports ?? []);
-  const progressPercent = computeProgressPercent(
-    skillTemplate,
-    assessed?.scores as Record<string, number> | null | undefined
-  );
-
   return (
     <div className="flex flex-col gap-6">
       <ChildSummaryWidget
@@ -160,12 +153,8 @@ export default async function AnakDetailPage({
         kehadiran={formatSessionQuota(quota)}
         tagihanLabel={tagihanLabel}
         tagihanOk={tagihanOk}
-        progressPercent={progressPercent}
-        progressNote={
-          assessed
-            ? `Sesi ${assessed.session_number ?? "-"} · ${formatShortDate(assessed.session_date)}`
-            : null
-        }
+        nextFocus={latestNextFocus(reports ?? [])}
+        achievement={computeLatestAchievement(reports ?? [], skillTemplate)}
         laporanTersedia={(reports?.length ?? 0) > 0}
         nextSessionLabel={nextSessionLabel}
       />
@@ -185,7 +174,7 @@ export default async function AnakDetailPage({
             {availablePackages.map((pkg) => {
               const selected = pkg.id === student.next_package_preference_id;
               return (
-                <form key={pkg.id} action={setPackagePreferenceAction}>
+                <ToastForm key={pkg.id} action={setPackagePreferenceAction}>
                   <input type="hidden" name="student_id" value={studentId} />
                   <input
                     type="hidden"
@@ -216,7 +205,7 @@ export default async function AnakDetailPage({
                       </GlassButton>
                     }
                   />
-                </form>
+                </ToastForm>
               );
             })}
           </div>

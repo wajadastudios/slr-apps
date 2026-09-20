@@ -4,6 +4,7 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
 import { saveSiteSettingsAction, uploadQrisAction } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -25,7 +26,7 @@ export default async function PengaturanPage({
   return (
     <GlassCard>
       <h2 className={HEADING}>Info Kontak &amp; Lokasi (tampil di landing page)</h2>
-      <form action={saveSiteSettingsAction} className="mt-4 flex flex-col gap-4">
+      <ToastForm action={saveSiteSettingsAction} className="mt-4 flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
           <label className="text-sm text-slate-800">Alamat</label>
           <GlassTextarea name="address" rows={2} defaultValue={get("address")} />
@@ -166,7 +167,7 @@ export default async function PengaturanPage({
         >
           Simpan
         </GlassButton>
-      </form>
+      </ToastForm>
 
       <div className="mt-6 border-t border-white/30 pt-6">
         <label className="text-sm text-slate-800">Gambar QRIS</label>
@@ -180,7 +181,7 @@ export default async function PengaturanPage({
             />
           </div>
         )}
-        <form
+        <ToastForm
           action={uploadQrisAction}
           className="mt-3 flex flex-wrap items-end gap-4"
         >
@@ -202,7 +203,7 @@ export default async function PengaturanPage({
           >
             Unggah &amp; Ganti QRIS
           </GlassButton>
-        </form>
+        </ToastForm>
       </div>
     </GlassCard>
   );

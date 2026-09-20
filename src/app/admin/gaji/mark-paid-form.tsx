@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { GlassButton } from "@/components/ui/glass-button";
+import { useToast } from "@/components/ui/toast";
+import { toUserMessage } from "@/lib/action-result";
 import { markPayrollPaidAction } from "./actions";
 
 async function uploadProof(
@@ -58,14 +60,13 @@ export function MarkPaidForm({
   amount: number;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     setBusy(true);
     try {
       const file = inputRef.current?.files?.[0];
@@ -83,10 +84,11 @@ export function MarkPaidForm({
         proof_url,
       });
 
+      toast.success("Pembayaran gaji berhasil dicatat");
       setOpen(false);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal menandai dibayar.");
+      toast.error("Data belum tersimpan", toUserMessage(err));
     } finally {
       setBusy(false);
     }
@@ -131,7 +133,6 @@ export function MarkPaidForm({
       >
         Batal
       </GlassButton>
-      {error && <p className="w-full text-xs text-red-700">{error}</p>}
     </form>
   );
 }

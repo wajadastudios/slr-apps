@@ -1,3 +1,5 @@
+import { formatSkillName } from "@/lib/skill-names";
+
 export function isAbsent(attendance: string | null | undefined): boolean {
   return attendance === "izin" || attendance === "sakit";
 }
@@ -117,10 +119,10 @@ export function computeSessionQuota(
 
 export function formatSessionQuota(q: SessionQuota): { value: string; note: string } {
   if (q.total === 0) {
-    return { value: `${q.hadir} sesi hadir`, note: "Belum ada paket lunas" };
+    return { value: `${q.hadir} sesi diikuti`, note: "Belum ada paket lunas" };
   }
   return {
-    value: `${q.hadir} / ${q.total} sesi`,
+    value: `${q.hadir} / ${q.total} sesi diikuti`,
     note: `Sisa ${q.remaining} sesi`,
   };
 }
@@ -132,4 +134,61 @@ export function latestHadirReport<T extends { attendance?: string | null }>(
   reports: T[]
 ): T | undefined {
   return reports.find((r) => r.attendance === "hadir");
+}
+
+// The trainer's own "Rekomendasi Fokus Sesi Berikutnya" from the newest
+// attended session that actually has one -- never generated, never dated.
+// Expects reports newest-first.
+export function latestNextFocus(
+  reports: { attendance?: string | null; next_focus?: string | null }[]
+): string | null {
+  for (const r of reports) {
+    if (r.attendance !== "hadir") continue;
+    const focus = r.next_focus?.trim();
+    if (focus) return focus;
+  }
+  return null;
+}
+
+function joinNames(names: string[]): string {
+  if (names.length <= 2) return names.join(" dan ");
+  return `${names[0]}, ${names[1]}, dan ${names.length - 2} indikator lainnya`;
+}
+
+// A short positive note that the assessment data itself supports:
+//  - with a previous attended session: indicators whose score went up
+//  - first assessed session: indicators already scored 3 ("Baik") or higher
+// Anything else (flat, lower, or too little data) returns null so the card
+// simply hides the block instead of inventing praise.
+// Expects reports newest-first.
+export function computeLatestAchievement(
+  reports: { attendance?: string | null; scores: unknown }[],
+  skillTemplate: string[]
+): string | null {
+  const attended = reports.filter(
+    (r) => r.attendance === "hadir" && r.scores && typeof r.scores === "object"
+  );
+  if (attended.length === 0) return null;
+
+  const latest = attended[0].scores as Record<string, number>;
+  const previous = attended[1]?.scores as Record<string, number> | undefined;
+
+  if (previous) {
+    const improved = skillTemplate
+      .map((skill, order) => ({
+        skill,
+        order,
+        delta:
+          typeof latest[skill] === "number" ? latest[skill] - (previous[skill] ?? 0) : 0,
+      }))
+      .filter((x) => x.delta > 0)
+      .sort((a, b) => b.delta - a.delta || a.order - b.order)
+      .map((x) => formatSkillName(x.skill));
+    return improved.length > 0 ? `Meningkat pada ${joinNames(improved)}` : null;
+  }
+
+  const strong = skillTemplate
+    .filter((skill) => typeof latest[skill] === "number" && latest[skill] >= 3)
+    .map(formatSkillName);
+  return strong.length > 0 ? `Sudah baik pada ${joinNames(strong)}` : null;
 }

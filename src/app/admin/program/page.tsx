@@ -11,6 +11,7 @@ import {
   toggleProgramActiveAction,
   deleteProgramAction,
 } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -34,7 +35,7 @@ export default async function ProgramPage({
     <div className="flex flex-col gap-6">
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Tambah Kategori/Program</h2>
-        <form action={createProgramAction} className="grid gap-4 sm:grid-cols-2">
+        <ToastForm action={createProgramAction} resetOnSuccess className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Nama Kategori</label>
             <GlassInput name="name" placeholder="Contoh: Toddler Swim" required />
@@ -56,7 +57,7 @@ export default async function ProgramPage({
           >
             Tambah Kategori
           </GlassButton>
-        </form>
+        </ToastForm>
       </GlassCard>
 
       <GlassCard>
@@ -102,7 +103,7 @@ export default async function ProgramPage({
               )}
             </h2>
             <div className="flex flex-wrap items-center gap-2">
-              <form action={toggleProgramActiveAction}>
+              <ToastForm action={toggleProgramActiveAction} pendingLabel="Memproses...">
                 <input type="hidden" name="id" value={selected.id} />
                 <input
                   type="hidden"
@@ -112,8 +113,8 @@ export default async function ProgramPage({
                 <GlassButton type="submit" className="px-4 py-2 text-sm">
                   {selected.active ? "Nonaktifkan" : "Aktifkan"}
                 </GlassButton>
-              </form>
-              <form action={deleteProgramAction}>
+              </ToastForm>
+              <ToastForm action={deleteProgramAction} pendingLabel="Menghapus...">
                 <input type="hidden" name="id" value={selected.id} />
                 <ConfirmSubmitButton
                   message="Menghapus program ini juga akan menghapus semua paket harga di bawahnya. Lanjutkan?"
@@ -121,11 +122,11 @@ export default async function ProgramPage({
                 >
                   Hapus
                 </ConfirmSubmitButton>
-              </form>
+              </ToastForm>
             </div>
           </div>
 
-          <form
+          <ToastForm
             action={updateSkillTemplateAction}
             className="flex flex-col gap-4"
           >
@@ -171,7 +172,7 @@ export default async function ProgramPage({
             >
               Simpan
             </GlassButton>
-          </form>
+          </ToastForm>
         </GlassCard>
       )}
     </div>

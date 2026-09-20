@@ -1,5 +1,7 @@
 "use server";
 
+import { redirect } from "next/navigation";
+import { safeAction } from "@/lib/safe-action";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { deleteStorageFileFromUrl } from "@/lib/storage";
@@ -17,7 +19,7 @@ async function uploadAvatar(
   return data.publicUrl;
 }
 
-export async function updateOwnProfileAction(formData: FormData) {
+async function updateOwnProfileActionImpl(formData: FormData) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -48,17 +50,21 @@ export async function updateOwnProfileAction(formData: FormData) {
     }
   }
 
-  await supabase.rpc("update_own_profile", {
+  const { error } = await supabase.rpc("update_own_profile", {
     p_full_name: full_name,
     p_phone: phone,
     p_address: address,
     p_avatar_url: avatar_url,
   });
 
+  if (error) {
+    redirect(`/ortu/pengaturan?error=${encodeURIComponent(error.message)}`);
+  }
+
   revalidatePath("/ortu/pengaturan");
 }
 
-export async function updateChildProfileAction(formData: FormData) {
+async function updateChildProfileActionImpl(formData: FormData) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -94,13 +100,20 @@ export async function updateChildProfileAction(formData: FormData) {
     }
   }
 
-  await supabase.rpc("update_own_child_profile", {
+  const { error } = await supabase.rpc("update_own_child_profile", {
     p_student_id: student_id,
     p_full_name: full_name,
     p_nickname: nickname,
     p_avatar_url: avatar_url,
   });
 
+  if (error) {
+    redirect(`/ortu/pengaturan?error=${encodeURIComponent(error.message)}`);
+  }
+
   revalidatePath("/ortu/pengaturan");
   revalidatePath("/ortu");
 }
+
+export const updateOwnProfileAction = safeAction(updateOwnProfileActionImpl, "Profil berhasil disimpan");
+export const updateChildProfileAction = safeAction(updateChildProfileActionImpl, "Profil anak berhasil disimpan");

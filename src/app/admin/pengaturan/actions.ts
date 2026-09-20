@@ -1,5 +1,6 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
@@ -20,7 +21,7 @@ const KEYS = [
   "trial_fee_amount",
 ] as const;
 
-export async function saveSiteSettingsAction(formData: FormData) {
+async function saveSiteSettingsActionImpl(formData: FormData) {
   await requireAdmin();
 
   const supabase = await createClient();
@@ -50,7 +51,7 @@ export async function saveSiteSettingsAction(formData: FormData) {
   redirect("/admin/pengaturan?saved=1");
 }
 
-export async function uploadQrisAction(formData: FormData) {
+async function uploadQrisActionImpl(formData: FormData) {
   await requireAdmin();
 
   const media = formData.get("qris_image");
@@ -99,3 +100,6 @@ export async function uploadQrisAction(formData: FormData) {
   revalidatePath("/daftar");
   redirect("/admin/pengaturan?saved=1");
 }
+
+export const saveSiteSettingsAction = safeAction(saveSiteSettingsActionImpl, "Pengaturan berhasil disimpan");
+export const uploadQrisAction = safeAction(uploadQrisActionImpl, "QRIS berhasil disimpan");

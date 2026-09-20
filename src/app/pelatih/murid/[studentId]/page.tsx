@@ -17,6 +17,7 @@ import {
   updateReportAction,
   deleteReportAction,
 } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -93,7 +94,7 @@ export default async function MuridReportPage({
 
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Isi Laporan Sesi Baru</h2>
-        <form action={createReportAction} className="flex flex-col gap-4">
+        <ToastForm action={createReportAction} resetOnSuccess className="flex flex-col gap-4">
           <input type="hidden" name="student_id" value={studentId} />
 
           <div className="grid gap-4 sm:grid-cols-3">
@@ -166,7 +167,7 @@ export default async function MuridReportPage({
           >
             Simpan Laporan
           </GlassButton>
-        </form>
+        </ToastForm>
       </GlassCard>
 
       <MilestoneBadgesCard records={performanceRecords ?? []} />

@@ -1,11 +1,12 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-export async function enrollStudentAction(formData: FormData) {
+async function enrollStudentActionImpl(formData: FormData) {
   await requireAdmin();
 
   const student_id = String(formData.get("student_id") ?? "");
@@ -57,7 +58,7 @@ export async function enrollStudentAction(formData: FormData) {
   redirect("/admin/jadwal");
 }
 
-export async function updateEnrollmentAction(formData: FormData) {
+async function updateEnrollmentActionImpl(formData: FormData) {
   await requireAdmin();
 
   const enrollment_id = String(formData.get("enrollment_id") ?? "");
@@ -110,7 +111,7 @@ export async function updateEnrollmentAction(formData: FormData) {
   redirect("/admin/jadwal");
 }
 
-export async function deleteEnrollmentAction(formData: FormData) {
+async function deleteEnrollmentActionImpl(formData: FormData) {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
@@ -125,3 +126,7 @@ export async function deleteEnrollmentAction(formData: FormData) {
   revalidatePath("/admin/slot-jadwal");
   redirect("/admin/jadwal");
 }
+
+export const enrollStudentAction = safeAction(enrollStudentActionImpl, "Siswa berhasil didaftarkan ke jadwal");
+export const updateEnrollmentAction = safeAction(updateEnrollmentActionImpl, "Jadwal berhasil diperbarui");
+export const deleteEnrollmentAction = safeAction(deleteEnrollmentActionImpl, "Jadwal siswa berhasil dihapus");

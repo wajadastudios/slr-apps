@@ -1,5 +1,6 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
@@ -10,7 +11,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function createPelatihAction(formData: FormData) {
+async function createPelatihActionImpl(formData: FormData) {
   await requireAdmin();
 
   const email = String(formData.get("email") ?? "").trim();
@@ -23,14 +24,17 @@ export async function createPelatihAction(formData: FormData) {
 
   if (title) {
     const supabase = await createClient();
-    await supabase.from("users").update({ title }).eq("email", email);
+    const { error: mutationError } = await supabase.from("users").update({ title }).eq("email", email);
+  if (mutationError) {
+    redirect(`/admin/pelatih?error=${encodeURIComponent(mutationError.message)}`);
+  }
   }
 
   revalidatePath("/admin/pelatih");
   redirect("/admin/pelatih");
 }
 
-export async function updatePelatihAccountAction(formData: FormData) {
+async function updatePelatihAccountActionImpl(formData: FormData) {
   await requireAdmin();
 
   const { error } = await updateAccountCredentials("pelatih", formData);
@@ -42,7 +46,7 @@ export async function updatePelatihAccountAction(formData: FormData) {
   redirect("/admin/pelatih?account_updated=1");
 }
 
-export async function updatePelatihTitleAction(formData: FormData) {
+async function updatePelatihTitleActionImpl(formData: FormData) {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
@@ -51,12 +55,15 @@ export async function updatePelatihTitleAction(formData: FormData) {
   if (!id) return;
 
   const supabase = await createClient();
-  await supabase.from("users").update({ title }).eq("id", id);
+  const { error: mutationError } = await supabase.from("users").update({ title }).eq("id", id);
+  if (mutationError) {
+    redirect(`/admin/pelatih?error=${encodeURIComponent(mutationError.message)}`);
+  }
 
   revalidatePath("/admin/pelatih");
 }
 
-export async function togglePelatihActiveAction(formData: FormData) {
+async function togglePelatihActiveActionImpl(formData: FormData) {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
@@ -64,13 +71,16 @@ export async function togglePelatihActiveAction(formData: FormData) {
   if (!id) return;
 
   const supabase = await createClient();
-  await supabase.from("users").update({ active: nextActive }).eq("id", id);
+  const { error: mutationError } = await supabase.from("users").update({ active: nextActive }).eq("id", id);
+  if (mutationError) {
+    redirect(`/admin/pelatih?error=${encodeURIComponent(mutationError.message)}`);
+  }
 
   revalidatePath("/admin/pelatih");
   revalidatePath("/admin/slot-jadwal");
 }
 
-export async function deletePelatihAction(formData: FormData) {
+async function deletePelatihActionImpl(formData: FormData) {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
@@ -118,7 +128,7 @@ export async function deletePelatihAction(formData: FormData) {
   redirect("/admin/pelatih");
 }
 
-export async function setPelatihRateAction(formData: FormData) {
+async function setPelatihRateActionImpl(formData: FormData) {
   const session = await requireAdmin();
 
   const pelatih_id = String(formData.get("pelatih_id") ?? "");
@@ -157,3 +167,10 @@ export async function setPelatihRateAction(formData: FormData) {
   revalidatePath("/admin/gaji");
   redirect("/admin/pelatih?rate_saved=1");
 }
+
+export const createPelatihAction = safeAction(createPelatihActionImpl, "Akun pengajar berhasil ditambahkan");
+export const updatePelatihAccountAction = safeAction(updatePelatihAccountActionImpl, "Akun pengajar berhasil diperbarui");
+export const updatePelatihTitleAction = safeAction(updatePelatihTitleActionImpl, "Sapaan pengajar berhasil disimpan");
+export const togglePelatihActiveAction = safeAction(togglePelatihActiveActionImpl, "Status pengajar berhasil diperbarui");
+export const deletePelatihAction = safeAction(deletePelatihActionImpl, "Akun pengajar berhasil dihapus");
+export const setPelatihRateAction = safeAction(setPelatihRateActionImpl, "Rate pengajar berhasil disimpan");

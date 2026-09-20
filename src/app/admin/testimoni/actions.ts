@@ -1,11 +1,12 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createTestimonialAction(formData: FormData) {
+async function createTestimonialActionImpl(formData: FormData) {
   await requireAdmin();
 
   const author_name = String(formData.get("author_name") ?? "").trim();
@@ -54,7 +55,7 @@ export async function createTestimonialAction(formData: FormData) {
   redirect("/admin/testimoni");
 }
 
-export async function toggleTestimonialPublishedAction(formData: FormData) {
+async function toggleTestimonialPublishedActionImpl(formData: FormData) {
   await requireAdmin();
 
   const testimonial_id = String(formData.get("testimonial_id") ?? "");
@@ -69,3 +70,6 @@ export async function toggleTestimonialPublishedAction(formData: FormData) {
   revalidatePath("/admin/testimoni");
   revalidatePath("/");
 }
+
+export const createTestimonialAction = safeAction(createTestimonialActionImpl, "Testimoni berhasil ditambahkan");
+export const toggleTestimonialPublishedAction = safeAction(toggleTestimonialPublishedActionImpl, "Status testimoni berhasil diperbarui");

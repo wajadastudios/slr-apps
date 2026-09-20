@@ -1,5 +1,6 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { randomBytes } from "crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -8,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { getSiteOrigin } from "@/lib/site-url";
 
-export async function approveRegistrationAction(formData: FormData) {
+async function approveRegistrationActionImpl(formData: FormData) {
   await requireAdmin();
 
   const registration_id = String(formData.get("registration_id") ?? "");
@@ -54,7 +55,7 @@ export async function approveRegistrationAction(formData: FormData) {
     );
   }
 
-  await supabase.from("students").insert({
+  const { error: studentError } = await supabase.from("students").insert({
     full_name: registration!.child_name,
     parent_id: newUser.id,
     program_id: registration!.program_id,
@@ -66,6 +67,13 @@ export async function approveRegistrationAction(formData: FormData) {
     referral_discount_value: registration!.referral_discount_value,
     referral_komisi_per_sesi: registration!.referral_komisi_per_sesi,
   });
+  if (studentError) {
+    redirect(
+      `/admin/pendaftar?error=${encodeURIComponent(
+        "Akun dibuat, tapi data siswa gagal disimpan. Tambahkan manual di halaman Siswa."
+      )}`
+    );
+  }
 
   await supabase
     .from("registrations")
@@ -84,7 +92,7 @@ export async function approveRegistrationAction(formData: FormData) {
   redirect("/admin/pendaftar");
 }
 
-export async function rejectRegistrationAction(formData: FormData) {
+async function rejectRegistrationActionImpl(formData: FormData) {
   await requireAdmin();
 
   const registration_id = String(formData.get("registration_id") ?? "");
@@ -98,7 +106,7 @@ export async function rejectRegistrationAction(formData: FormData) {
   revalidatePath("/admin/pendaftar");
 }
 
-export async function scheduleTrialAction(formData: FormData) {
+async function scheduleTrialActionImpl(formData: FormData) {
   await requireAdmin();
 
   const registration_id = String(formData.get("registration_id") ?? "");
@@ -174,7 +182,7 @@ export async function scheduleTrialAction(formData: FormData) {
   redirect("/admin/pendaftar");
 }
 
-export async function markTrialPaidAction(formData: FormData) {
+async function markTrialPaidActionImpl(formData: FormData) {
   await requireAdmin();
 
   const registration_id = String(formData.get("registration_id") ?? "");
@@ -191,3 +199,8 @@ export async function markTrialPaidAction(formData: FormData) {
 
   revalidatePath("/admin/pendaftar");
 }
+
+export const approveRegistrationAction = safeAction(approveRegistrationActionImpl, "Pendaftar berhasil disetujui");
+export const rejectRegistrationAction = safeAction(rejectRegistrationActionImpl, "Pendaftar berhasil ditolak");
+export const scheduleTrialAction = safeAction(scheduleTrialActionImpl, "Jadwal trial berhasil disimpan");
+export const markTrialPaidAction = safeAction(markTrialPaidActionImpl, "Pembayaran trial berhasil dikonfirmasi");

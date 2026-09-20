@@ -1,11 +1,12 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createReferralCodeAction(formData: FormData) {
+async function createReferralCodeActionImpl(formData: FormData) {
   const session = await requireAdmin();
 
   const pelatih_id = String(formData.get("pelatih_id") ?? "");
@@ -51,7 +52,7 @@ export async function createReferralCodeAction(formData: FormData) {
   redirect(`/admin/referral?pelatih_id=${pelatih_id}`);
 }
 
-export async function deleteReferralCodeAction(formData: FormData) {
+async function deleteReferralCodeActionImpl(formData: FormData) {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
@@ -62,13 +63,16 @@ export async function deleteReferralCodeAction(formData: FormData) {
   // own snapshot of the discount/commission terms, never a live read of
   // this row, so deleting it doesn't touch anything they already earned.
   const supabase = await createClient();
-  await supabase.from("referral_codes").delete().eq("id", id);
+  const { error: mutationError } = await supabase.from("referral_codes").delete().eq("id", id);
+  if (mutationError) {
+    redirect(`/admin/referral?error=${encodeURIComponent(mutationError.message)}`);
+  }
 
   revalidatePath("/admin/referral");
   redirect(`/admin/referral?pelatih_id=${pelatih_id}`);
 }
 
-export async function toggleReferralCodeActiveAction(formData: FormData) {
+async function toggleReferralCodeActiveActionImpl(formData: FormData) {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
@@ -77,8 +81,15 @@ export async function toggleReferralCodeActiveAction(formData: FormData) {
   if (!id) return;
 
   const supabase = await createClient();
-  await supabase.from("referral_codes").update({ active: nextActive }).eq("id", id);
+  const { error: mutationError } = await supabase.from("referral_codes").update({ active: nextActive }).eq("id", id);
+  if (mutationError) {
+    redirect(`/admin/referral?error=${encodeURIComponent(mutationError.message)}`);
+  }
 
   revalidatePath("/admin/referral");
   redirect(`/admin/referral?pelatih_id=${pelatih_id}`);
 }
+
+export const createReferralCodeAction = safeAction(createReferralCodeActionImpl, "Kode referral berhasil dibuat");
+export const deleteReferralCodeAction = safeAction(deleteReferralCodeActionImpl, "Kode referral berhasil dihapus");
+export const toggleReferralCodeActiveAction = safeAction(toggleReferralCodeActiveActionImpl, "Status kode referral berhasil diperbarui");

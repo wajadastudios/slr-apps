@@ -1,12 +1,13 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 import { deleteStorageFileFromUrl } from "@/lib/storage";
 
-export async function addGalleryItemAction(formData: FormData) {
+async function addGalleryItemActionImpl(formData: FormData) {
   await requireAdmin();
 
   const caption = String(formData.get("caption") ?? "").trim();
@@ -49,7 +50,7 @@ export async function addGalleryItemAction(formData: FormData) {
   redirect("/admin/galeri");
 }
 
-export async function deleteGalleryItemAction(formData: FormData) {
+async function deleteGalleryItemActionImpl(formData: FormData) {
   await requireAdmin();
 
   const item_id = String(formData.get("item_id") ?? "");
@@ -62,9 +63,15 @@ export async function deleteGalleryItemAction(formData: FormData) {
     .eq("id", item_id)
     .single();
 
-  await supabase.from("gallery_items").delete().eq("id", item_id);
+  const { error: mutationError } = await supabase.from("gallery_items").delete().eq("id", item_id);
+  if (mutationError) {
+    redirect(`/admin/galeri?error=${encodeURIComponent(mutationError.message)}`);
+  }
   await deleteStorageFileFromUrl(supabase, item?.media_url);
 
   revalidatePath("/admin/galeri");
   revalidatePath("/");
 }
+
+export const addGalleryItemAction = safeAction(addGalleryItemActionImpl, "Foto/video galeri berhasil ditambahkan");
+export const deleteGalleryItemAction = safeAction(deleteGalleryItemActionImpl, "Item galeri berhasil dihapus");

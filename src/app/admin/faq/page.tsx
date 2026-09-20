@@ -11,6 +11,7 @@ import {
   deleteFaqAction,
   moveFaqAction,
 } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -37,8 +38,9 @@ export default async function FaqPage({
         <h2 className={`mb-4 ${HEADING}`}>
           {isEditing ? "Edit FAQ" : "Tambah FAQ"}
         </h2>
-        <form
+        <ToastForm
           action={isEditing ? updateFaqAction : createFaqAction}
+          resetOnSuccess={!isEditing}
           className="flex flex-col gap-4"
         >
           {isEditing && (
@@ -77,7 +79,7 @@ export default async function FaqPage({
               </a>
             )}
           </div>
-        </form>
+        </ToastForm>
       </GlassCard>
 
       <GlassCard>
@@ -93,7 +95,7 @@ export default async function FaqPage({
               secondary={item.answer}
               action={
                 <>
-                  <form action={moveFaqAction}>
+                  <ToastForm action={moveFaqAction} pendingLabel="Memproses...">
                     <input type="hidden" name="faq_id" value={item.id} />
                     <input type="hidden" name="direction" value="up" />
                     <GlassButton
@@ -104,8 +106,8 @@ export default async function FaqPage({
                     >
                       ↑
                     </GlassButton>
-                  </form>
-                  <form action={moveFaqAction}>
+                  </ToastForm>
+                  <ToastForm action={moveFaqAction} pendingLabel="Memproses...">
                     <input type="hidden" name="faq_id" value={item.id} />
                     <input type="hidden" name="direction" value="down" />
                     <GlassButton
@@ -116,14 +118,14 @@ export default async function FaqPage({
                     >
                       ↓
                     </GlassButton>
-                  </form>
+                  </ToastForm>
                   <a
                     href={`/admin/faq?edit=${item.id}`}
                     className="rounded-2xl border border-white/30 bg-white/30 px-4 py-2 text-sm font-medium text-slate-900 backdrop-blur-xl hover:bg-white/40"
                   >
                     Edit
                   </a>
-                  <form action={deleteFaqAction}>
+                  <ToastForm action={deleteFaqAction} pendingLabel="Menghapus...">
                     <input type="hidden" name="faq_id" value={item.id} />
                     <ConfirmSubmitButton
                       message="Hapus FAQ ini?"
@@ -131,7 +133,7 @@ export default async function FaqPage({
                     >
                       Hapus
                     </ConfirmSubmitButton>
-                  </form>
+                  </ToastForm>
                 </>
               }
             />

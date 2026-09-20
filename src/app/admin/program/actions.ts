@@ -1,11 +1,12 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createProgramAction(formData: FormData) {
+async function createProgramActionImpl(formData: FormData) {
   await requireAdmin();
 
   const name = String(formData.get("name") ?? "").trim();
@@ -28,7 +29,7 @@ export async function createProgramAction(formData: FormData) {
   redirect(`/admin/program${data ? `?id=${data.id}` : ""}`);
 }
 
-export async function updateSkillTemplateAction(formData: FormData) {
+async function updateSkillTemplateActionImpl(formData: FormData) {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
@@ -65,20 +66,23 @@ export async function updateSkillTemplateAction(formData: FormData) {
   redirect(`/admin/program?id=${id}`);
 }
 
-export async function toggleProgramActiveAction(formData: FormData) {
+async function toggleProgramActiveActionImpl(formData: FormData) {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
   const next_active = String(formData.get("next_active") ?? "") === "true";
 
   const supabase = await createClient();
-  await supabase.from("programs").update({ active: next_active }).eq("id", id);
+  const { error: mutationError } = await supabase.from("programs").update({ active: next_active }).eq("id", id);
+  if (mutationError) {
+    redirect(`/admin/program?error=${encodeURIComponent(mutationError.message)}`);
+  }
 
   revalidatePath("/admin/program");
   redirect(`/admin/program?id=${id}`);
 }
 
-export async function deleteProgramAction(formData: FormData) {
+async function deleteProgramActionImpl(formData: FormData) {
   await requireAdmin();
 
   const id = String(formData.get("id") ?? "");
@@ -99,3 +103,8 @@ export async function deleteProgramAction(formData: FormData) {
   revalidatePath("/admin/program");
   redirect("/admin/program");
 }
+
+export const createProgramAction = safeAction(createProgramActionImpl, "Program berhasil ditambahkan");
+export const updateSkillTemplateAction = safeAction(updateSkillTemplateActionImpl, "Program berhasil diperbarui");
+export const toggleProgramActiveAction = safeAction(toggleProgramActiveActionImpl, "Status program berhasil diperbarui");
+export const deleteProgramAction = safeAction(deleteProgramActionImpl, "Program berhasil dihapus");

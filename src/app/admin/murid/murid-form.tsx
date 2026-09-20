@@ -5,6 +5,7 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { createMuridAction } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 export function MuridForm({
   parents,
@@ -17,7 +18,7 @@ export function MuridForm({
   const canCreate = mode === "diri" || parents.length > 0;
 
   return (
-    <form action={createMuridAction} className="flex flex-col gap-4">
+    <ToastForm action={createMuridAction} resetOnSuccess className="flex flex-col gap-4">
       <input type="hidden" name="mode" value={mode} />
 
       <div className="flex flex-col gap-1.5">
@@ -117,6 +118,6 @@ export function MuridForm({
       >
         Tambah Siswa
       </GlassButton>
-    </form>
+    </ToastForm>
   );
 }

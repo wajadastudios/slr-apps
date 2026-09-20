@@ -1,11 +1,12 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createPackageAction(formData: FormData) {
+async function createPackageActionImpl(formData: FormData) {
   await requireAdmin();
 
   const program_id = String(formData.get("program_id") ?? "");
@@ -50,7 +51,7 @@ export async function createPackageAction(formData: FormData) {
   redirect(`/admin/paket-harga?id=${program_id}`);
 }
 
-export async function togglePackageActiveAction(formData: FormData) {
+async function togglePackageActiveActionImpl(formData: FormData) {
   await requireAdmin();
 
   const package_id = String(formData.get("package_id") ?? "");
@@ -66,7 +67,7 @@ export async function togglePackageActiveAction(formData: FormData) {
   revalidatePath("/admin/tagihan");
 }
 
-export async function updatePackageAction(formData: FormData) {
+async function updatePackageActionImpl(formData: FormData) {
   await requireAdmin();
 
   const package_id = String(formData.get("package_id") ?? "");
@@ -108,7 +109,7 @@ export async function updatePackageAction(formData: FormData) {
   redirect(`/admin/paket-harga?id=${program_id}`);
 }
 
-export async function deletePackageAction(formData: FormData) {
+async function deletePackageActionImpl(formData: FormData) {
   await requireAdmin();
 
   const package_id = String(formData.get("package_id") ?? "");
@@ -130,3 +131,8 @@ export async function deletePackageAction(formData: FormData) {
   revalidatePath("/admin/tagihan");
   redirect(`/admin/paket-harga?id=${program_id}`);
 }
+
+export const createPackageAction = safeAction(createPackageActionImpl, "Paket harga berhasil ditambahkan");
+export const togglePackageActiveAction = safeAction(togglePackageActiveActionImpl, "Status paket berhasil diperbarui");
+export const updatePackageAction = safeAction(updatePackageActionImpl, "Paket harga berhasil diperbarui");
+export const deletePackageAction = safeAction(deletePackageActionImpl, "Paket harga berhasil dihapus");

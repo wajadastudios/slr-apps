@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { GlassButton } from "@/components/ui/glass-button";
 import { ImageCropPicker } from "@/components/image-crop-picker";
+import { useToast } from "@/components/ui/toast";
+import { toUserMessage } from "@/lib/action-result";
 import { saveMediaAdSettingsAction, removeMediaAdSettingsAction } from "./actions";
 import { MAX_VIDEO_BYTES, type SlotName } from "./slots";
 
@@ -69,15 +71,14 @@ export function MediaAdUploadForm({
   cropAspect?: number;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [readyName, setReadyName] = useState<string | null>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setError(null);
     setReadyName(null);
     const file = e.target.files?.[0];
     if (!file) return;
@@ -112,17 +113,16 @@ export function MediaAdUploadForm({
 
   async function handleUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError(null);
 
     const file = inputRef.current?.files?.[0];
     if (!file) {
-      setError("Pilih foto atau video.");
+      toast.error("Data belum tersimpan", "Pilih foto atau video terlebih dahulu.");
       return;
     }
 
     const media_type = file.type.startsWith("video") ? "video" : "image";
     if (media_type === "video" && file.size > MAX_VIDEO_BYTES) {
-      setError("Ukuran video maksimal 15MB.");
+      toast.error("Data belum tersimpan", "Ukuran video maksimal 15MB.");
       return;
     }
 
@@ -132,9 +132,10 @@ export function MediaAdUploadForm({
       await saveMediaAdSettingsAction(slot, url, media_type);
       formRef.current?.reset();
       setReadyName(null);
+      toast.success("Media iklan berhasil disimpan");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengunggah.");
+      toast.error("Data belum tersimpan", toUserMessage(err));
     } finally {
       setBusy(false);
     }
@@ -142,13 +143,13 @@ export function MediaAdUploadForm({
 
   async function handleRemove() {
     setBusy(true);
-    setError(null);
     try {
       await removeSlotFile(slot);
       await removeMediaAdSettingsAction(slot);
+      toast.success("Media iklan berhasil dihapus");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal menghapus.");
+      toast.error("Data belum dihapus", toUserMessage(err));
     } finally {
       setBusy(false);
     }
@@ -205,7 +206,6 @@ export function MediaAdUploadForm({
         />
       )}
 
-      {error && <p className="text-sm text-red-700">{error}</p>}
     </form>
   );
 }

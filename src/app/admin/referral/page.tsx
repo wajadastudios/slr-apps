@@ -10,6 +10,7 @@ import {
   toggleReferralCodeActiveAction,
   deleteReferralCodeAction,
 } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -78,7 +79,7 @@ export default async function AdminReferralPage({
               : selectedPelatih.full_name}
           </h2>
 
-          <form action={createReferralCodeAction} className="grid gap-4 sm:grid-cols-4">
+          <ToastForm action={createReferralCodeAction} resetOnSuccess className="grid gap-4 sm:grid-cols-4">
             <input type="hidden" name="pelatih_id" value={selectedPelatih.id} />
             <div className="flex flex-col gap-1.5">
               <label className="text-sm text-slate-800">Kode</label>
@@ -110,7 +111,7 @@ export default async function AdminReferralPage({
             >
               Tambah Kode
             </GlassButton>
-          </form>
+          </ToastForm>
 
           <div className="mt-4 flex flex-col gap-2">
             {(!codes || codes.length === 0) && (
@@ -139,7 +140,7 @@ export default async function AdminReferralPage({
                 } untuk siswa · Komisi ${formatRupiah(c.komisi_per_sesi)}/sesi`}
                 action={
                   <>
-                    <form action={toggleReferralCodeActiveAction}>
+                    <ToastForm action={toggleReferralCodeActiveAction} pendingLabel="Memproses...">
                       <input type="hidden" name="id" value={c.id} />
                       <input type="hidden" name="pelatih_id" value={selectedPelatih.id} />
                       <input
@@ -150,8 +151,8 @@ export default async function AdminReferralPage({
                       <GlassButton type="submit" className="px-3 py-1.5 text-xs">
                         {c.active ? "Nonaktifkan" : "Aktifkan"}
                       </GlassButton>
-                    </form>
-                    <form action={deleteReferralCodeAction}>
+                    </ToastForm>
+                    <ToastForm action={deleteReferralCodeAction} pendingLabel="Menghapus...">
                       <input type="hidden" name="id" value={c.id} />
                       <input type="hidden" name="pelatih_id" value={selectedPelatih.id} />
                       <ConfirmSubmitButton
@@ -160,7 +161,7 @@ export default async function AdminReferralPage({
                       >
                         Hapus
                       </ConfirmSubmitButton>
-                    </form>
+                    </ToastForm>
                   </>
                 }
               />

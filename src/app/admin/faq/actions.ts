@@ -1,11 +1,12 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createFaqAction(formData: FormData) {
+async function createFaqActionImpl(formData: FormData) {
   await requireAdmin();
 
   const question = String(formData.get("question") ?? "").trim();
@@ -37,7 +38,7 @@ export async function createFaqAction(formData: FormData) {
   redirect("/admin/faq");
 }
 
-export async function updateFaqAction(formData: FormData) {
+async function updateFaqActionImpl(formData: FormData) {
   await requireAdmin();
 
   const faq_id = String(formData.get("faq_id") ?? "");
@@ -65,7 +66,7 @@ export async function updateFaqAction(formData: FormData) {
   redirect("/admin/faq");
 }
 
-export async function moveFaqAction(formData: FormData) {
+async function moveFaqActionImpl(formData: FormData) {
   await requireAdmin();
 
   const faq_id = String(formData.get("faq_id") ?? "");
@@ -98,14 +99,22 @@ export async function moveFaqAction(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function deleteFaqAction(formData: FormData) {
+async function deleteFaqActionImpl(formData: FormData) {
   await requireAdmin();
 
   const faq_id = String(formData.get("faq_id") ?? "");
 
   const supabase = await createClient();
-  await supabase.from("faq_items").delete().eq("id", faq_id);
+  const { error: mutationError } = await supabase.from("faq_items").delete().eq("id", faq_id);
+  if (mutationError) {
+    redirect(`/admin/faq?error=${encodeURIComponent(mutationError.message)}`);
+  }
 
   revalidatePath("/admin/faq");
   revalidatePath("/");
 }
+
+export const createFaqAction = safeAction(createFaqActionImpl, "FAQ berhasil ditambahkan");
+export const updateFaqAction = safeAction(updateFaqActionImpl, "FAQ berhasil diperbarui");
+export const moveFaqAction = safeAction(moveFaqActionImpl, "Urutan FAQ berhasil diperbarui");
+export const deleteFaqAction = safeAction(deleteFaqActionImpl, "FAQ berhasil dihapus");

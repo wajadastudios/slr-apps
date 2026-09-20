@@ -1,5 +1,6 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
@@ -8,7 +9,7 @@ import {
   updateAccountCredentials,
 } from "@/lib/create-account";
 
-export async function createOrangTuaAction(formData: FormData) {
+async function createOrangTuaActionImpl(formData: FormData) {
   await requireAdmin();
 
   const { error } = await createAccount("ortu", formData);
@@ -20,7 +21,7 @@ export async function createOrangTuaAction(formData: FormData) {
   redirect("/admin/orang-tua");
 }
 
-export async function updateOrtuAccountAction(formData: FormData) {
+async function updateOrtuAccountActionImpl(formData: FormData) {
   await requireAdmin();
 
   const { error } = await updateAccountCredentials("ortu", formData);
@@ -31,3 +32,6 @@ export async function updateOrtuAccountAction(formData: FormData) {
   revalidatePath("/admin/orang-tua");
   redirect("/admin/orang-tua?account_updated=1");
 }
+
+export const createOrangTuaAction = safeAction(createOrangTuaActionImpl, "Akun orang tua berhasil ditambahkan");
+export const updateOrtuAccountAction = safeAction(updateOrtuAccountActionImpl, "Akun orang tua berhasil diperbarui");

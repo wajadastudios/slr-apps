@@ -12,6 +12,7 @@ import {
   togglePackageActiveAction,
   deletePackageAction,
 } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -94,8 +95,9 @@ export default async function PaketHargaPage({
         <GlassCard>
           <h2 className={`mb-4 ${HEADING}`}>{selectedProgram.name}</h2>
 
-          <form
+          <ToastForm
             action={isEditingPkg ? updatePackageAction : createPackageAction}
+            resetOnSuccess={!isEditingPkg}
             className="flex flex-col gap-4"
           >
             <input type="hidden" name="program_id" value={selectedProgram.id} />
@@ -174,7 +176,7 @@ export default async function PaketHargaPage({
                 </a>
               )}
             </div>
-          </form>
+          </ToastForm>
 
           <div className="mt-4 flex flex-col gap-2">
             {programPackages.length === 0 && (
@@ -215,7 +217,7 @@ export default async function PaketHargaPage({
                     >
                       Edit
                     </a>
-                    <form action={togglePackageActiveAction}>
+                    <ToastForm action={togglePackageActiveAction} pendingLabel="Memproses...">
                       <input type="hidden" name="package_id" value={pkg.id} />
                       <input
                         type="hidden"
@@ -225,8 +227,8 @@ export default async function PaketHargaPage({
                       <GlassButton type="submit" className="px-4 py-2 text-sm">
                         {pkg.active ? "Nonaktifkan" : "Aktifkan"}
                       </GlassButton>
-                    </form>
-                    <form action={deletePackageAction}>
+                    </ToastForm>
+                    <ToastForm action={deletePackageAction} pendingLabel="Menghapus...">
                       <input type="hidden" name="package_id" value={pkg.id} />
                       <input
                         type="hidden"
@@ -239,7 +241,7 @@ export default async function PaketHargaPage({
                       >
                         Hapus
                       </ConfirmSubmitButton>
-                    </form>
+                    </ToastForm>
                   </>
                 }
               />

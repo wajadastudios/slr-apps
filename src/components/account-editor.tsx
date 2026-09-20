@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { GlassButton } from "@/components/ui/glass-button";
 import { GlassInput } from "@/components/ui/glass-input";
+import { ToastForm } from "@/components/ui/toast-form";
+import type { ActionState } from "@/lib/action-result";
 
 export function AccountEditor({
   id,
@@ -11,7 +13,7 @@ export function AccountEditor({
 }: {
   id: string;
   currentEmail: string;
-  action: (formData: FormData) => void | Promise<void>;
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -28,7 +30,7 @@ export function AccountEditor({
   }
 
   return (
-    <form
+    <ToastForm
       action={action}
       className="flex w-full flex-col gap-2 rounded-xl border border-[#35C5D0]/30 bg-white/50 p-3 sm:min-w-[280px]"
     >
@@ -70,6 +72,6 @@ export function AccountEditor({
           Simpan
         </GlassButton>
       </div>
-    </form>
+    </ToastForm>
   );
 }

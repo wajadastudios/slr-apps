@@ -1,8 +1,5 @@
 import { GlassCard } from "@/components/ui/glass-card";
 
-const PROGRESS_EXPLANATION =
-  "Dihitung dari rata-rata nilai indikator pada sesi latihan terakhir yang dihadiri.";
-
 function CalendarIcon() {
   return (
     <svg
@@ -21,16 +18,52 @@ function CalendarIcon() {
   );
 }
 
+function TargetIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="4.5" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SparkIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+      aria-hidden="true"
+    >
+      <path d="M12 3.5l2.2 5.3 5.3 2.2-5.3 2.2L12 18.5l-2.2-5.3L4.5 11l5.3-2.2L12 3.5z" />
+    </svg>
+  );
+}
+
 export function ChildSummaryWidget({
   greeting,
   childLabel,
   kehadiran,
   tagihanLabel,
   tagihanOk,
-  progressPercent,
-  progressNote,
   laporanTersedia,
   nextSessionLabel,
+  nextFocus,
+  achievement,
   className,
 }: {
   greeting?: string | null;
@@ -38,11 +71,12 @@ export function ChildSummaryWidget({
   kehadiran: { value: string; note: string };
   tagihanLabel: string;
   tagihanOk: boolean;
-  progressPercent: number | null;
-  // e.g. "Sesi 27 · 13 Sep 2026" -- which session the percentage comes from.
-  progressNote?: string | null;
   laporanTersedia: boolean;
   nextSessionLabel: string | null;
+  // Trainer's own focus note from the newest attended report that has one.
+  nextFocus: string | null;
+  // Data-backed positive note, or null when the data can't support one.
+  achievement: string | null;
   className?: string;
 }) {
   const [nextMain, ...nextRest] = (nextSessionLabel ?? "").split(" · ");
@@ -62,73 +96,65 @@ export function ChildSummaryWidget({
         {childLabel}
       </p>
 
-      {/* Primary: what the parent most wants to know */}
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-2xl border border-[#35C5D0]/25 bg-gradient-to-br from-[#EEF9FB] to-white p-4">
-          <p className="text-xs font-medium text-slate-600">
-            Perkembangan pada penilaian terakhir
-          </p>
-          {progressPercent === null ? (
+      {/* 1. Next session */}
+      <div className="flex items-center gap-3 rounded-2xl border border-[#FFC800]/45 bg-gradient-to-br from-[#FFF3C4] to-[#FFF8E1] p-4">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/70 text-[#a67c00] shadow-[0_2px_8px_rgba(166,124,0,0.18)]">
+          <CalendarIcon />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-[#8a6900]">Sesi Berikutnya</p>
+          {nextSessionLabel ? (
             <>
-              <p className="mt-1 font-[family-name:var(--font-quicksand)] text-xl font-bold text-slate-500">
-                Belum ada penilaian
+              <p className="font-[family-name:var(--font-quicksand)] text-xl font-bold leading-tight text-[#17263D]">
+                {nextMain}
               </p>
-              <p className="mt-1 text-[11px] leading-snug text-slate-500">
-                Muncul setelah pengajar mengisi penilaian pada sesi yang dihadiri.
-              </p>
+              {nextRest.length > 0 && (
+                <p className="text-sm text-slate-700">{nextRest.join(" · ")}</p>
+              )}
             </>
           ) : (
-            <>
-              <p className="mt-0.5 font-[family-name:var(--font-quicksand)] text-4xl font-bold leading-tight text-[#1597A3]">
-                {progressPercent}%
-              </p>
-              <div
-                className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-200/80"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={progressPercent}
-                aria-label="Perkembangan pada penilaian terakhir"
-              >
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#35C5D0] to-[#55D6A6]"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-              <p
-                className="mt-2 text-[11px] leading-snug text-slate-500"
-                title={PROGRESS_EXPLANATION}
-              >
-                {PROGRESS_EXPLANATION}
-                {progressNote ? ` (${progressNote})` : ""}
-              </p>
-            </>
+            <p className="text-sm text-slate-600">Belum ada jadwal</p>
           )}
-        </div>
-
-        <div className="flex items-center gap-3 rounded-2xl border border-[#FFC800]/45 bg-gradient-to-br from-[#FFF3C4] to-[#FFF8E1] p-4">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/70 text-[#a67c00] shadow-[0_2px_8px_rgba(166,124,0,0.18)]">
-            <CalendarIcon />
-          </span>
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-[#8a6900]">Sesi Berikutnya</p>
-            {nextSessionLabel ? (
-              <>
-                <p className="font-[family-name:var(--font-quicksand)] text-xl font-bold leading-tight text-[#17263D]">
-                  {nextMain}
-                </p>
-                {nextRest.length > 0 && (
-                  <p className="text-sm text-slate-700">{nextRest.join(" · ")}</p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-slate-600">Belum ada jadwal</p>
-            )}
-          </div>
         </div>
       </div>
 
-      {/* Supporting details */}
+      {/* 2 + 3. Focus and achievement (each only when the data exists) */}
+      {(nextFocus || achievement) && (
+        <div
+          className={`mt-3 grid gap-3 ${nextFocus && achievement ? "md:grid-cols-2" : ""}`}
+        >
+          {nextFocus && (
+            <div className="flex items-start gap-3 rounded-2xl border border-[#35C5D0]/25 bg-gradient-to-br from-[#EEF9FB] to-white p-4">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/80 text-[#1597A3]">
+                <TargetIcon />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-600">
+                  Fokus latihan berikutnya
+                </p>
+                <p className="mt-0.5 whitespace-pre-line text-sm font-medium leading-snug text-[#17263D]">
+                  {nextFocus}
+                </p>
+              </div>
+            </div>
+          )}
+          {achievement && (
+            <div className="flex items-start gap-3 rounded-2xl border border-[#55D6A6]/40 bg-gradient-to-br from-[#E9FBF3] to-white p-4">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/80 text-[#1a8f6f]">
+                <SparkIcon />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-600">Pencapaian terakhir</p>
+                <p className="mt-0.5 text-sm font-medium leading-snug text-[#17263D]">
+                  {achievement}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 4. Attendance / quota + supporting details */}
       <div className="mt-3 grid grid-cols-2 gap-2 text-left sm:grid-cols-3">
         <div className="col-span-2 rounded-xl bg-[#EEF9FB] px-3 py-2 sm:col-span-1">
           <p className="text-[11px] text-slate-500">Kehadiran</p>

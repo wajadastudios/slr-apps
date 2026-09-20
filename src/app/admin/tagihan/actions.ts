@@ -1,5 +1,6 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
@@ -7,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { getSiteOrigin } from "@/lib/site-url";
 
-export async function createInvoiceForStudentAction(formData: FormData) {
+async function createInvoiceForStudentActionImpl(formData: FormData) {
   await requireAdmin();
 
   const student_id = String(formData.get("student_id") ?? "");
@@ -103,7 +104,7 @@ async function getInvoiceNotifyInfo(
   };
 }
 
-export async function sendInvoiceAction(formData: FormData) {
+async function sendInvoiceActionImpl(formData: FormData) {
   const session = await requireAdmin();
 
   const invoice_id = String(formData.get("invoice_id") ?? "");
@@ -149,7 +150,7 @@ export async function sendInvoiceAction(formData: FormData) {
   redirect("/admin/tagihan");
 }
 
-export async function markPaidAction(formData: FormData) {
+async function markPaidActionImpl(formData: FormData) {
   await requireAdmin();
 
   const invoice_id = String(formData.get("invoice_id") ?? "");
@@ -177,3 +178,7 @@ export async function markPaidAction(formData: FormData) {
   revalidatePath("/ortu/tagihan");
   redirect("/admin/tagihan");
 }
+
+export const createInvoiceForStudentAction = safeAction(createInvoiceForStudentActionImpl, "Tagihan berhasil dibuat");
+export const sendInvoiceAction = safeAction(sendInvoiceActionImpl, "Tagihan berhasil dikirim");
+export const markPaidAction = safeAction(markPaidActionImpl, "Pembayaran berhasil dikonfirmasi");

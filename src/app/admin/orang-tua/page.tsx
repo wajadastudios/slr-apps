@@ -5,6 +5,7 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { AccountEditor } from "@/components/account-editor";
 import { createOrangTuaAction, updateOrtuAccountAction } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -28,7 +29,7 @@ export default async function OrangTuaPage({
     <div className="flex flex-col gap-6">
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Tambah Orang Tua</h2>
-        <form action={createOrangTuaAction} className="grid gap-4 sm:grid-cols-3">
+        <ToastForm action={createOrangTuaAction} resetOnSuccess className="grid gap-4 sm:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Nama</label>
             <GlassInput name="full_name" required />
@@ -52,7 +53,7 @@ export default async function OrangTuaPage({
           >
             Tambah Orang Tua
           </GlassButton>
-        </form>
+        </ToastForm>
       </GlassCard>
 
       <GlassCard>

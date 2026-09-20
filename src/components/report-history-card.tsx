@@ -14,6 +14,8 @@ import { AccordionItem } from "@/components/ui/accordion";
 import { formatShortDate } from "@/lib/format-date";
 import { formatSkillName } from "@/lib/skill-names";
 import { GHOST_BUTTON } from "@/lib/ui-classes";
+import { ToastForm } from "@/components/ui/toast-form";
+import type { ActionState } from "@/lib/action-result";
 
 const ATTENDANCE_LABEL: Record<string, string> = {
   hadir: "Hadir",
@@ -39,7 +41,7 @@ export type ReportRow = {
   substitute_for?: string | null;
 };
 
-type ReportAction = (formData: FormData) => void | Promise<void>;
+type ReportAction = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
 // progress_reports.scores is jsonb, which does not preserve key insertion
 // order -- so the only reliable order is the program's current
@@ -84,7 +86,7 @@ function ReportEntry({
   if (editing && editable && updateAction) {
     return (
       <div className="rounded-xl border border-[#35C5D0]/40 bg-white/50 px-4 py-3">
-        <form action={updateAction} className="flex flex-col gap-3">
+        <ToastForm action={updateAction} className="flex flex-col gap-3">
           <input type="hidden" name="report_id" value={report.id} />
           <input type="hidden" name="student_id" value={studentId} />
 
@@ -165,7 +167,7 @@ function ReportEntry({
               Simpan Perubahan
             </GlassButton>
           </div>
-        </form>
+        </ToastForm>
       </div>
     );
   }
@@ -315,16 +317,18 @@ function ReportEntry({
           >
             Edit
           </button>
-          <form action={deleteAction}>
-            <input type="hidden" name="report_id" value={report.id} />
-            <input type="hidden" name="student_id" value={studentId} />
-            <ConfirmSubmitButton
-              message="Hapus laporan sesi ini? Tindakan ini tidak bisa dibatalkan."
-              className="!border-red-300 !bg-red-500/10 px-3 py-1.5 text-xs !text-red-700 hover:!bg-red-500/20"
-            >
-              Hapus
-            </ConfirmSubmitButton>
-          </form>
+          {deleteAction && (
+            <ToastForm action={deleteAction} pendingLabel="Menghapus...">
+              <input type="hidden" name="report_id" value={report.id} />
+              <input type="hidden" name="student_id" value={studentId} />
+              <ConfirmSubmitButton
+                message="Hapus laporan sesi ini? Tindakan ini tidak bisa dibatalkan."
+                className="!border-red-300 !bg-red-500/10 px-3 py-1.5 text-xs !text-red-700 hover:!bg-red-500/20"
+              >
+                Hapus
+              </ConfirmSubmitButton>
+            </ToastForm>
+          )}
         </div>
       )}
     </div>

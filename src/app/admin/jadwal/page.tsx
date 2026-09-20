@@ -10,6 +10,7 @@ import {
   updateEnrollmentAction,
   deleteEnrollmentAction,
 } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -74,8 +75,8 @@ export default async function JadwalMuridPage({
     <div className="flex flex-col gap-6">
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Daftarkan Siswa ke Slot Jadwal</h2>
-        <form
-          action={enrollStudentAction}
+        <ToastForm
+          action={enrollStudentAction} resetOnSuccess
           className="grid gap-4 sm:grid-cols-2"
         >
           <div className="flex flex-col gap-1.5">
@@ -122,7 +123,7 @@ export default async function JadwalMuridPage({
           >
             Daftarkan
           </GlassButton>
-        </form>
+        </ToastForm>
       </GlassCard>
 
       <GlassCard>
@@ -165,7 +166,7 @@ export default async function JadwalMuridPage({
                 }
                 action={
                   editEnroll === e.id ? (
-                    <form
+                    <ToastForm
                       action={updateEnrollmentAction}
                       className="flex flex-wrap items-center gap-2"
                     >
@@ -199,7 +200,7 @@ export default async function JadwalMuridPage({
                       >
                         Batal
                       </a>
-                    </form>
+                    </ToastForm>
                   ) : (
                     <>
                       <a
@@ -208,7 +209,7 @@ export default async function JadwalMuridPage({
                       >
                         Edit
                       </a>
-                      <form action={deleteEnrollmentAction}>
+                      <ToastForm action={deleteEnrollmentAction} pendingLabel="Menghapus...">
                         <input type="hidden" name="id" value={e.id} />
                         <ConfirmSubmitButton
                           message="Keluarkan siswa ini dari slot jadwal?"
@@ -216,7 +217,7 @@ export default async function JadwalMuridPage({
                         >
                           Hapus
                         </ConfirmSubmitButton>
-                      </form>
+                      </ToastForm>
                     </>
                   )
                 }

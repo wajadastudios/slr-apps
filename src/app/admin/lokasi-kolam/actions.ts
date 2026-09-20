@@ -1,11 +1,12 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createPoolLocationAction(formData: FormData) {
+async function createPoolLocationActionImpl(formData: FormData) {
   await requireAdmin();
 
   const name = String(formData.get("name") ?? "").trim();
@@ -32,14 +33,20 @@ export async function createPoolLocationAction(formData: FormData) {
   redirect("/admin/lokasi-kolam");
 }
 
-export async function deletePoolLocationAction(formData: FormData) {
+async function deletePoolLocationActionImpl(formData: FormData) {
   await requireAdmin();
 
   const location_id = String(formData.get("location_id") ?? "");
 
   const supabase = await createClient();
-  await supabase.from("pool_locations").delete().eq("id", location_id);
+  const { error: mutationError } = await supabase.from("pool_locations").delete().eq("id", location_id);
+  if (mutationError) {
+    redirect(`/admin/lokasi-kolam?error=${encodeURIComponent(mutationError.message)}`);
+  }
 
   revalidatePath("/admin/lokasi-kolam");
   revalidatePath("/");
 }
+
+export const createPoolLocationAction = safeAction(createPoolLocationActionImpl, "Lokasi kolam berhasil ditambahkan");
+export const deletePoolLocationAction = safeAction(deletePoolLocationActionImpl, "Lokasi kolam berhasil dihapus");

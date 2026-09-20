@@ -1,5 +1,6 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requirePelatih } from "@/lib/create-account";
@@ -135,7 +136,7 @@ function parsePerformanceRecords(raw: unknown): {
   return out;
 }
 
-export async function createReportAction(formData: FormData) {
+async function createReportActionImpl(formData: FormData) {
   const session = await requirePelatih();
 
   const student_id = String(formData.get("student_id") ?? "");
@@ -233,7 +234,7 @@ export async function createReportAction(formData: FormData) {
   const performanceRecords = parsePerformanceRecords(parsedRecords);
 
   if (performanceRecords.length > 0) {
-    await supabase.from("performance_records").insert(
+    const { error: recordsError } = await supabase.from("performance_records").insert(
       performanceRecords.map((r) => ({
         student_id,
         progress_report_id: report?.id ?? null,
@@ -242,13 +243,21 @@ export async function createReportAction(formData: FormData) {
         ...r,
       }))
     );
+    if (recordsError) {
+      revalidatePath(`/pelatih/murid/${student_id}`);
+      redirect(
+        `/pelatih/murid/${student_id}?error=${encodeURIComponent(
+          "Laporan sesi tersimpan, tetapi rekor performa gagal disimpan."
+        )}`
+      );
+    }
   }
 
   revalidatePath(`/pelatih/murid/${student_id}`);
   redirect(`/pelatih/murid/${student_id}`);
 }
 
-export async function updateReportAction(formData: FormData) {
+async function updateReportActionImpl(formData: FormData) {
   const session = await requirePelatih();
 
   const report_id = String(formData.get("report_id") ?? "");
@@ -327,7 +336,7 @@ export async function updateReportAction(formData: FormData) {
   redirect(`/pelatih/murid/${student_id}`);
 }
 
-export async function deleteReportAction(formData: FormData) {
+async function deleteReportActionImpl(formData: FormData) {
   const session = await requirePelatih();
 
   const report_id = String(formData.get("report_id") ?? "");
@@ -354,3 +363,7 @@ export async function deleteReportAction(formData: FormData) {
   revalidatePath(`/pelatih/murid/${student_id}`);
   redirect(`/pelatih/murid/${student_id}`);
 }
+
+export const createReportAction = safeAction(createReportActionImpl, "Laporan latihan berhasil disimpan");
+export const updateReportAction = safeAction(updateReportActionImpl, "Laporan latihan berhasil diperbarui");
+export const deleteReportAction = safeAction(deleteReportActionImpl, "Laporan latihan berhasil dihapus");

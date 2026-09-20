@@ -6,6 +6,7 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
 import { updateOwnProfileAction, updateChildProfileAction } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -32,7 +33,7 @@ export default async function OrtuPengaturanPage() {
 
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Profil Saya</h2>
-        <form
+        <ToastForm
           action={updateOwnProfileAction}
           className="flex flex-col gap-4"
         >
@@ -94,7 +95,7 @@ export default async function OrtuPengaturanPage() {
           >
             Simpan Profil
           </GlassButton>
-        </form>
+        </ToastForm>
       </GlassCard>
 
       <GlassCard>
@@ -104,7 +105,7 @@ export default async function OrtuPengaturanPage() {
             <p className="text-sm text-slate-600">Belum ada data anak.</p>
           )}
           {children?.map((child) => (
-            <form
+            <ToastForm
               key={child.id}
               action={updateChildProfileAction}
               className="flex flex-col gap-3 rounded-xl border border-white/30 bg-white/40 p-4"
@@ -160,7 +161,7 @@ export default async function OrtuPengaturanPage() {
               <GlassButton type="submit" className={`${SECONDARY_BUTTON} w-fit px-4 py-2 text-sm`}>
                 Simpan
               </GlassButton>
-            </form>
+            </ToastForm>
           ))}
         </div>
       </GlassCard>

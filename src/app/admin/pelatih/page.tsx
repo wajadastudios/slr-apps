@@ -15,6 +15,7 @@ import {
   deletePelatihAction,
   setPelatihRateAction,
 } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -57,7 +58,7 @@ export default async function PelatihPage({
     <div className="flex flex-col gap-6">
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Tambah Pengajar</h2>
-        <form action={createPelatihAction} className="grid gap-4 sm:grid-cols-4">
+        <ToastForm action={createPelatihAction} resetOnSuccess className="grid gap-4 sm:grid-cols-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Nama</label>
             <GlassInput name="full_name" required />
@@ -87,7 +88,7 @@ export default async function PelatihPage({
           >
             Tambah Pengajar
           </GlassButton>
-        </form>
+        </ToastForm>
       </GlassCard>
 
       <GlassCard>
@@ -96,8 +97,8 @@ export default async function PelatihPage({
           Perubahan rate berlaku sejak tanggal &quot;Berlaku Mulai&quot; dan
           tidak mengubah perhitungan gaji sesi yang sudah lewat.
         </p>
-        <form
-          action={setPelatihRateAction}
+        <ToastForm
+          action={setPelatihRateAction} resetOnSuccess
           className="grid gap-4 sm:grid-cols-4"
         >
           <div className="flex flex-col gap-1.5">
@@ -129,7 +130,7 @@ export default async function PelatihPage({
           >
             Simpan Rate
           </GlassButton>
-        </form>
+        </ToastForm>
       </GlassCard>
 
       <GlassCard>
@@ -182,7 +183,7 @@ export default async function PelatihPage({
                     currentEmail={p.email}
                     action={updatePelatihAccountAction}
                   />
-                  <form
+                  <ToastForm
                     action={updatePelatihTitleAction}
                     className="flex items-center gap-2"
                   >
@@ -196,8 +197,8 @@ export default async function PelatihPage({
                     <GlassButton type="submit" className="px-3 py-1.5 text-xs">
                       Simpan
                     </GlassButton>
-                  </form>
-                  <form action={togglePelatihActiveAction}>
+                  </ToastForm>
+                  <ToastForm action={togglePelatihActiveAction} pendingLabel="Memproses...">
                     <input type="hidden" name="id" value={p.id} />
                     <input
                       type="hidden"
@@ -207,8 +208,8 @@ export default async function PelatihPage({
                     <GlassButton type="submit" className="px-3 py-1.5 text-xs">
                       {p.active === false ? "Aktifkan" : "Nonaktifkan"}
                     </GlassButton>
-                  </form>
-                  <form action={deletePelatihAction}>
+                  </ToastForm>
+                  <ToastForm action={deletePelatihAction} pendingLabel="Menghapus...">
                     <input type="hidden" name="id" value={p.id} />
                     <ConfirmSubmitButton
                       message="Hapus akun pengajar ini? Hanya bisa untuk pengajar yang belum pernah menulis laporan. Untuk pengajar yang mengundurkan diri, gunakan Nonaktifkan agar riwayat laporan siswa tetap utuh."
@@ -216,7 +217,7 @@ export default async function PelatihPage({
                     >
                       Hapus
                     </ConfirmSubmitButton>
-                  </form>
+                  </ToastForm>
                 </>
               }
             />

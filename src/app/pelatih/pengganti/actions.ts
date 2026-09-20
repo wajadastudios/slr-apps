@@ -1,5 +1,6 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { randomBytes } from "crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -16,7 +17,7 @@ function fail(message: string): never {
   redirect(`/pelatih/pengganti?error=${encodeURIComponent(message)}`);
 }
 
-export async function requestSubstitutionAction(formData: FormData) {
+async function requestSubstitutionActionImpl(formData: FormData) {
   const session = await requirePelatih();
 
   const slot_id = String(formData.get("slot_id") ?? "");
@@ -114,3 +115,5 @@ export async function requestSubstitutionAction(formData: FormData) {
   revalidatePath("/pelatih/pengganti");
   redirect("/pelatih/pengganti?diajukan=1");
 }
+
+export const requestSubstitutionAction = safeAction(requestSubstitutionActionImpl, "Permintaan pengganti berhasil diajukan");

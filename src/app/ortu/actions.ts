@@ -1,5 +1,6 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -7,7 +8,7 @@ import { getUserWithRole } from "@/lib/auth";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { DAYS } from "@/lib/days";
 
-export async function selfRegisterAction(formData: FormData) {
+async function selfRegisterActionImpl(formData: FormData) {
   const session = await getUserWithRole();
   if (!session || session.role !== "ortu") {
     redirect("/login");
@@ -34,7 +35,7 @@ export async function selfRegisterAction(formData: FormData) {
   redirect("/ortu");
 }
 
-export async function addChildAndRegisterAction(formData: FormData) {
+async function addChildAndRegisterActionImpl(formData: FormData) {
   const session = await getUserWithRole();
   if (!session || session.role !== "ortu") {
     redirect("/login");
@@ -94,3 +95,6 @@ export async function addChildAndRegisterAction(formData: FormData) {
   revalidatePath("/ortu");
   redirect("/ortu?child_added=1");
 }
+
+export const selfRegisterAction = safeAction(selfRegisterActionImpl, "Pendaftaran berhasil disimpan");
+export const addChildAndRegisterAction = safeAction(addChildAndRegisterActionImpl, "Pendaftaran berhasil! Admin akan segera menghubungi Anda");

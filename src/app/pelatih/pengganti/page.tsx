@@ -14,6 +14,7 @@ import {
   formatRange,
 } from "@/lib/week";
 import { requestSubstitutionAction } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 // Back 2 weeks covers writing a late report; forward 2 weeks lets a
 // pengajar prepare and read the student's notes before the session.
@@ -232,7 +233,7 @@ export default async function PenggantiPage({
                       {badge.label}
                     </span>
                   ) : (
-                    <form action={requestSubstitutionAction} className="shrink-0">
+                    <ToastForm action={requestSubstitutionAction} className="shrink-0">
                       <input type="hidden" name="slot_id" value={slot.id} />
                       <input
                         type="hidden"
@@ -245,7 +246,7 @@ export default async function PenggantiPage({
                       >
                         Ajukan Akses
                       </GlassButton>
-                    </form>
+                    </ToastForm>
                   )}
                 </div>
 

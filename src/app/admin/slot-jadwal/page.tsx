@@ -11,6 +11,7 @@ import {
   updateSlotAction,
   deleteSlotAction,
 } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -56,8 +57,9 @@ export default async function SlotJadwalPage({
         <h2 className={`mb-4 ${HEADING}`}>
           {isEditing ? "Edit Slot Jadwal" : "Tambah Slot Jadwal"}
         </h2>
-        <form
+        <ToastForm
           action={isEditing ? updateSlotAction : createSlotAction}
+          resetOnSuccess={!isEditing}
           className="grid gap-4 sm:grid-cols-3 lg:grid-cols-7"
         >
           {isEditing && (
@@ -177,7 +179,7 @@ export default async function SlotJadwalPage({
               </a>
             )}
           </div>
-        </form>
+        </ToastForm>
       </GlassCard>
 
       <GlassCard>
@@ -226,7 +228,7 @@ export default async function SlotJadwalPage({
                     >
                       Edit
                     </a>
-                    <form action={deleteSlotAction}>
+                    <ToastForm action={deleteSlotAction} pendingLabel="Menghapus...">
                       <input type="hidden" name="id" value={s.id} />
                       <ConfirmSubmitButton
                         message={
@@ -238,7 +240,7 @@ export default async function SlotJadwalPage({
                       >
                         Hapus
                       </ConfirmSubmitButton>
-                    </form>
+                    </ToastForm>
                   </>
                 }
               />

@@ -12,6 +12,7 @@ import {
   markTrialPaidAction,
   scheduleTrialAction,
 } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -102,7 +103,7 @@ export default async function PendaftarPage({
                 )}
 
                 {!hasTrial ? (
-                  <form
+                  <ToastForm
                     action={scheduleTrialAction}
                     className="mt-3 grid gap-3 rounded-xl border border-[#35C5D0]/30 bg-[#EEF9FB] p-3 sm:grid-cols-4"
                   >
@@ -139,7 +140,7 @@ export default async function PendaftarPage({
                     >
                       Atur Jadwal Trial
                     </GlassButton>
-                  </form>
+                  </ToastForm>
                 ) : (
                   <div className="mt-3 rounded-xl border border-white/30 bg-white/30 p-3">
                     <p className="text-sm text-slate-700">
@@ -168,7 +169,7 @@ export default async function PendaftarPage({
                         </a>
                       )}
                       {r.trial_fee_status !== "paid" && (
-                        <form action={markTrialPaidAction}>
+                        <ToastForm action={markTrialPaidAction} pendingLabel="Memproses...">
                           <input
                             type="hidden"
                             name="registration_id"
@@ -177,15 +178,15 @@ export default async function PendaftarPage({
                           <GlassButton type="submit" className="px-3 py-1.5 text-xs">
                             Tandai Sudah Bayar (manual)
                           </GlassButton>
-                        </form>
+                        </ToastForm>
                       )}
                     </div>
                   </div>
                 )}
 
                 <div className="mt-3 flex flex-wrap items-end gap-3">
-                  <form
-                    action={approveRegistrationAction}
+                  <ToastForm
+                    action={approveRegistrationAction} pendingLabel="Memproses..."
                     className="flex flex-wrap items-end gap-3"
                   >
                     <input type="hidden" name="registration_id" value={r.id} />
@@ -220,14 +221,14 @@ export default async function PendaftarPage({
                     >
                       Setujui &amp; Buat Akun
                     </GlassButton>
-                  </form>
+                  </ToastForm>
 
-                  <form action={rejectRegistrationAction}>
+                  <ToastForm action={rejectRegistrationAction} pendingLabel="Memproses...">
                     <input type="hidden" name="registration_id" value={r.id} />
                     <GlassButton type="submit" className="px-4 py-2 text-sm">
                       Tolak
                     </GlassButton>
-                  </form>
+                  </ToastForm>
                 </div>
               </div>
             );

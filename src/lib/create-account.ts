@@ -57,7 +57,10 @@ export async function updateAccountCredentials(
     return { error: error.message };
   }
 
-  await supabase.from("users").update({ email }).eq("id", id);
+  const { error: syncError } = await supabase.from("users").update({ email }).eq("id", id);
+  if (syncError) {
+    return { error: "Email login sudah diganti, tetapi data profil belum ikut diperbarui." };
+  }
 
   return { error: null };
 }

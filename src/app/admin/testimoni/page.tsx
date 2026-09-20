@@ -5,6 +5,7 @@ import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { createTestimonialAction, toggleTestimonialPublishedAction } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -34,7 +35,7 @@ export default async function TestimoniPage({
     <div className="flex flex-col gap-6">
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Tambah Testimoni</h2>
-        <form action={createTestimonialAction} className="flex flex-col gap-4">
+        <ToastForm action={createTestimonialAction} resetOnSuccess className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm text-slate-800">Nama</label>
@@ -74,7 +75,7 @@ export default async function TestimoniPage({
           >
             Tambah
           </GlassButton>
-        </form>
+        </ToastForm>
       </GlassCard>
 
       <GlassCard>
@@ -108,7 +109,7 @@ export default async function TestimoniPage({
                 )}
                 <p className="text-sm text-slate-600">{t.content}</p>
               </div>
-              <form action={toggleTestimonialPublishedAction}>
+              <ToastForm action={toggleTestimonialPublishedAction} pendingLabel="Memproses...">
                 <input type="hidden" name="testimonial_id" value={t.id} />
                 <input
                   type="hidden"
@@ -118,7 +119,7 @@ export default async function TestimoniPage({
                 <GlassButton type="submit" className="px-4 py-2 text-sm">
                   {t.published ? "Sembunyikan" : "Tampilkan"}
                 </GlassButton>
-              </form>
+              </ToastForm>
             </div>
           ))}
         </div>

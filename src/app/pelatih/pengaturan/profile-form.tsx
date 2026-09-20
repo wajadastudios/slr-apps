@@ -7,6 +7,8 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
 import { ImageCropPicker } from "@/components/image-crop-picker";
+import { useToast } from "@/components/ui/toast";
+import { toUserMessage } from "@/lib/action-result";
 import { updatePelatihProfileAction } from "./actions";
 
 type Profile = {
@@ -40,11 +42,11 @@ export function PengajarProfileForm({
   profile: Profile | null;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? null);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -54,12 +56,11 @@ export function PengajarProfileForm({
   async function handleCropConfirm(blob: Blob) {
     setCropFile(null);
     setBusy(true);
-    setError(null);
     try {
       const url = await uploadAvatar(userId, blob);
       setAvatarUrl(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengunggah foto.");
+      toast.error("Foto belum terunggah", toUserMessage(err));
     } finally {
       setBusy(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -73,7 +74,6 @@ export function PengajarProfileForm({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError(null);
     setBusy(true);
     const formData = new FormData(e.currentTarget);
     try {
@@ -86,9 +86,10 @@ export function PengajarProfileForm({
         address: String(formData.get("address") ?? ""),
         avatar_url: avatarUrl,
       });
+      toast.success("Profil berhasil disimpan");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal menyimpan profil.");
+      toast.error("Data belum tersimpan", toUserMessage(err));
     } finally {
       setBusy(false);
     }
@@ -166,7 +167,6 @@ export function PengajarProfileForm({
         <GlassTextarea name="address" rows={2} defaultValue={profile?.address ?? ""} />
       </div>
 
-      {error && <p className="text-sm text-red-700">{error}</p>}
 
       <GlassButton
         type="submit"

@@ -7,17 +7,17 @@ import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { ChildSummaryWidget } from "@/components/child-summary-widget";
 import {
-  computeProgressPercent,
+  computeLatestAchievement,
   computeNextSession,
   computeSessionQuota,
   formatSessionQuota,
   getGreeting,
-  latestHadirReport,
+  latestNextFocus,
 } from "@/lib/progress";
-import { formatShortDate } from "@/lib/format-date";
 import { PRIMARY_BUTTON } from "@/lib/ui-classes";
 import { DAYS } from "@/lib/days";
 import { selfRegisterAction, addChildAndRegisterAction } from "./actions";
+import { ToastForm } from "@/components/ui/toast-form";
 
 export default async function OrtuDashboardPage({
   searchParams,
@@ -55,7 +55,7 @@ export default async function OrtuDashboardPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("progress_reports")
-      .select("student_id, session_date, session_number, attendance, scores")
+      .select("student_id, session_date, attendance, scores, next_focus")
       .order("session_date", { ascending: false }),
     supabase
       .from("schedules")
@@ -159,8 +159,6 @@ export default async function OrtuDashboardPage({
           const quota = formatSessionQuota(
             computeSessionQuota(invoicesByStudent.get(child.id) ?? [], childReports)
           );
-          // reports are newest-first; only a session actually attended counts
-          const assessed = latestHadirReport(childReports);
 
           const nextSession = computeNextSession(slotsByStudent.get(child.id) ?? []);
           const nextSessionLabel = nextSession
@@ -185,15 +183,11 @@ export default async function OrtuDashboardPage({
                         : "Belum Bayar"
                 }
                 tagihanOk={status === "paid"}
-                progressPercent={computeProgressPercent(
-                  program?.skill_template ?? [],
-                  assessed?.scores as Record<string, number> | null | undefined
+                nextFocus={latestNextFocus(childReports)}
+                achievement={computeLatestAchievement(
+                  childReports,
+                  program?.skill_template ?? []
                 )}
-                progressNote={
-                  assessed
-                    ? `Sesi ${assessed.session_number ?? "-"} · ${formatShortDate(assessed.session_date)}`
-                    : null
-                }
                 laporanTersedia={childReports.length > 0}
                 nextSessionLabel={nextSessionLabel}
               />
@@ -210,8 +204,8 @@ export default async function OrtuDashboardPage({
           Daftarkan anak baru dan pilih jadwal kelas yang masih tersedia.
           Admin akan langsung dihubungi untuk follow up setelah Anda daftar.
         </p>
-        <form
-          action={addChildAndRegisterAction}
+        <ToastForm
+          action={addChildAndRegisterAction} resetOnSuccess
           className="mt-3 grid gap-3 sm:grid-cols-3"
         >
           <div className="flex flex-col gap-1.5">
@@ -242,7 +236,7 @@ export default async function OrtuDashboardPage({
           >
             Daftar
           </GlassButton>
-        </form>
+        </ToastForm>
         {availableSlots.length === 0 && (
           <p className="mt-2 text-sm text-slate-600">
             Belum ada jadwal yang tersedia saat ini.
@@ -266,8 +260,8 @@ export default async function OrtuDashboardPage({
           Untuk Anda sendiri (remaja/dewasa) yang ingin ikut kelas renang,
           bukan untuk anak.
         </p>
-        <form
-          action={selfRegisterAction}
+        <ToastForm
+          action={selfRegisterAction} resetOnSuccess
           className="mt-3 flex flex-wrap items-end gap-3"
         >
           <div className="flex flex-col gap-1.5">
@@ -290,7 +284,7 @@ export default async function OrtuDashboardPage({
           >
             Daftarkan
           </GlassButton>
-        </form>
+        </ToastForm>
       </GlassCard>
     </div>
   );

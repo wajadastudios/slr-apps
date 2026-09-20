@@ -1,11 +1,12 @@
 "use server";
 
+import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, createAccount } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 
-export async function createMuridAction(formData: FormData) {
+async function createMuridActionImpl(formData: FormData) {
   await requireAdmin();
 
   const mode = String(formData.get("mode") ?? "anak");
@@ -80,3 +81,5 @@ export async function createMuridAction(formData: FormData) {
   revalidatePath("/admin/murid");
   redirect("/admin/murid");
 }
+
+export const createMuridAction = safeAction(createMuridActionImpl, "Data siswa berhasil disimpan");
