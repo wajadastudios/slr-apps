@@ -128,37 +128,50 @@ export type CardLinks = {
   emptyTitle: string;
   emptyBody: string;
   primaryLabel: string;
+  // main button when nothing has been reported yet
+  emptyPrimaryLabel: string;
   primaryTab: ChildTab;
   primaryHash: string;
   secondary: { label: string; tab: ChildTab; hash?: string }[];
 };
 
+// Who the card is about decides the wording: a participant who attends class
+// themselves is never called "anak"; a child's card names the child, so a
+// parent with several children always knows which one a button opens.
+export type CardAudience = { isSelf: boolean; firstName: string };
+
 // Where the buttons on a participant's summary card point, per program type.
-export function cardLinks(program: Pick<ProgramMeta, "assessment_type">): CardLinks {
+export function cardLinks(
+  program: Pick<ProgramMeta, "assessment_type">,
+  audience: CardAudience = { isSelf: true, firstName: "" }
+): CardLinks {
+  const { isSelf, firstName } = audience;
+  const named = firstName || "Anak";
+
   if (program.assessment_type === "observation") {
     return {
       latestLabel: "Catatan sesi terakhir",
       emptyTitle: "Belum ada catatan sesi",
       emptyBody: "Catatan sesi akan muncul di sini setelah sesi pertama.",
-      primaryLabel: "Lihat catatan terakhir",
+      primaryLabel: isSelf ? "Lihat catatan terakhir" : `Lihat Catatan ${named}`,
+      emptyPrimaryLabel: isSelf ? "Lihat Detail Kelas" : `Lihat Detail ${named}`,
       primaryTab: "catatan",
       primaryHash: "catatan-terbaru",
-      secondary: [
-        { label: "Semua catatan", tab: "catatan", hash: "riwayat-catatan" },
-        { label: "Perjalanan kelas", tab: "perjalanan" },
-      ],
+      secondary: [{ label: isSelf ? "Perjalanan Saya" : `Perjalanan ${named}`, tab: "perjalanan" }],
     };
   }
   return {
     latestLabel: "Laporan terakhir",
     emptyTitle: "Belum ada laporan latihan",
     emptyBody: "Laporan akan muncul di sini setelah sesi latihan pertama.",
-    primaryLabel: "Lihat laporan terakhir",
+    primaryLabel: isSelf ? "Lihat laporan terakhir" : `Lihat Laporan ${named}`,
+    emptyPrimaryLabel: isSelf ? "Lihat Detail Kelas" : `Lihat Detail ${named}`,
     primaryTab: "laporan",
     primaryHash: "laporan-terbaru",
-    secondary: [
-      { label: "Semua laporan", tab: "laporan", hash: "riwayat-laporan" },
-      { label: "Perkembangan anak", tab: "perkembangan" },
-    ],
+    secondary: [{ label: isSelf ? "Perkembangan Saya" : `Perkembangan ${named}`, tab: "perkembangan" }],
   };
+}
+
+export function firstNameOf(name: string): string {
+  return name.trim().split(/\s+/)[0] ?? "";
 }

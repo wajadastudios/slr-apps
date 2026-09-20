@@ -353,3 +353,98 @@ test("independence is read as the change from the first to the latest observatio
   const respons = changes.find((c) => c.key === "k2")!;
   assert.equal(respons.moreIndependent, false);
 });
+
+// ---------- card wording + record summary ----------
+import { firstNameOf } from "../src/lib/programs";
+import { summarizeRecordUnlock } from "../src/lib/record-summary";
+import type { PerformanceRecordRow } from "../src/lib/performance";
+
+const kidsProgram = { assessment_type: "score_5" as const };
+const collectCopy = (l: ReturnType<typeof cardLinks>) =>
+  [l.primaryLabel, l.emptyPrimaryLabel, l.latestLabel, l.emptyTitle, l.emptyBody, ...l.secondary.map((s) => s.label)].join(" | ");
+
+test("an adult participant is never called 'anak' on their own card", () => {
+  const self = cardLinks(kidsProgram, { isSelf: true, firstName: "Andi" });
+  assert.equal(self.primaryLabel, "Lihat laporan terakhir");
+  assert.equal(self.emptyPrimaryLabel, "Lihat Detail Kelas");
+  assert.deepEqual(self.secondary.map((s) => s.label), ["Perkembangan Saya"]);
+  assert.equal(self.emptyTitle, "Belum ada laporan latihan");
+  assert.equal(self.emptyBody, "Laporan akan muncul di sini setelah sesi latihan pertama.");
+  assert.ok(!/anak/i.test(collectCopy(self)));
+  const aqua = cardLinks({ assessment_type: "observation" }, { isSelf: true, firstName: "Andi" });
+  assert.ok(!/anak/i.test(collectCopy(aqua)));
+});
+
+test("a child's card names the child so the parent knows which one opens", () => {
+  const rara = cardLinks(kidsProgram, { isSelf: false, firstName: firstNameOf("Rara Putri") });
+  assert.equal(rara.primaryLabel, "Lihat Laporan Rara");
+  assert.deepEqual(rara.secondary.map((s) => s.label), ["Perkembangan Rara"]);
+  assert.equal(rara.emptyPrimaryLabel, "Lihat Detail Rara");
+  assert.ok(!/anak/i.test(collectCopy(rara)));
+  assert.equal(firstNameOf("  Artanabil Syauqi Aflah "), "Artanabil");
+});
+
+const adultMilestones = DEFAULT_MILESTONES.map((m) => ({ ...m, program_id: "p-adult" }));
+const adultRecord = (over: Partial<PerformanceRecordRow>): PerformanceRecordRow => {
+  const r = {
+    id: Math.random().toString(36).slice(2),
+    metric_type: "tahan_nafas" as const,
+    stroke: null,
+    distance_m: null,
+    duration_seconds: null,
+    recorded_at: "2026-09-01",
+    ...over,
+  };
+  return { ...r, awards: computeAwards(r, adultMilestones) };
+};
+
+test("record summary: nothing unlocked shows a first target, not a negative status", () => {
+  const s = summarizeRecordUnlock([], adultMilestones)!;
+  assert.equal(s.unlocked, 0);
+  assert.equal(s.total, 14);
+  assert.equal(s.top, null);
+  assert.deepEqual(s.first, { tier: "bronze", label: "Tahan Nafas Terkontrol", valueText: "3 detik" });
+});
+
+test("record summary: shows the highest medal, in its own tier", () => {
+  const bronze = summarizeRecordUnlock([adultRecord({ duration_seconds: 3 })], adultMilestones)!;
+  assert.equal(bronze.top?.tier, "bronze");
+  assert.equal(bronze.first, null);
+  assert.equal(bronze.unlocked, 1);
+
+  const silver = summarizeRecordUnlock(
+    [
+      adultRecord({ duration_seconds: 3 }),
+      adultRecord({ metric_type: "treading_water", duration_seconds: 35 }),
+      adultRecord({ metric_type: "mengapung_telentang", duration_seconds: 5 }),
+    ],
+    adultMilestones
+  )!;
+  assert.equal(silver.top?.tier, "silver");
+  assert.equal(silver.top?.label, "Treading Water");
+  assert.equal(silver.top?.valueText, "35 detik");
+  assert.equal(silver.unlocked, 3);
+  assert.equal(silver.total, 14);
+
+  const gold = summarizeRecordUnlock(
+    [adultRecord({ duration_seconds: 9 }), adultRecord({ metric_type: "treading_water", duration_seconds: 35 })],
+    adultMilestones
+  )!;
+  assert.equal(gold.top?.tier, "gold");
+  assert.equal(gold.top?.label, "Tahan Nafas Terkontrol");
+});
+
+test("record summary is hidden when the admin has not configured milestones", () => {
+  assert.equal(summarizeRecordUnlock([], []), null);
+  assert.equal(summarizeRecordUnlock([], adultMilestones.map((m) => ({ ...m, active: false }))), null);
+});
+
+test("Aquanatal never shows records, and a pending class shows no class sections", () => {
+  // no record / progress tab exists for the observation type
+  const ids = tabsFor({ assessment_type: "observation", records_mode: "none" }).map((t) => t.id);
+  assert.ok(!ids.includes("record"));
+  // waiting_schedule has no class access, so the card renders the status card only
+  assert.equal(hasClassAccess("waiting_schedule"), false);
+  assert.equal(hasClassAccess("pending_review"), false);
+  assert.equal(hasClassAccess("schedule_offered"), false);
+});

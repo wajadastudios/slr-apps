@@ -15,7 +15,10 @@ import {
   getGreeting,
 } from "@/lib/progress";
 import { latestReportPreview } from "@/lib/report-preview";
-import { cardLinks } from "@/lib/programs";
+import { cardLinks, firstNameOf } from "@/lib/programs";
+import { loadMilestones } from "@/lib/milestone-loader";
+import { summarizeRecordUnlock } from "@/lib/record-summary";
+import type { PerformanceRecordRow } from "@/lib/performance";
 import { hasClassAccess } from "@/lib/enrollment";
 import { loadEnrollments } from "@/lib/enrollment-server";
 import { PRIMARY_BUTTON } from "@/lib/ui-classes";
@@ -152,6 +155,47 @@ export default async function OrtuDashboardPage({
     if (hasClassAccess(e.status)) accessCount.set(e.student_id, (accessCount.get(e.student_id) ?? 0) + 1);
   }
 
+  // Record Unlock on the card: only for a participant who attends class
+  // themselves (not a child), in a program that awards medals, once the class
+  // is scheduled/active. The program's own milestones are used; when the admin
+  // has configured none, summarizeRecordUnlock() returns null and the block
+  // stays hidden.
+  const recordEnrollments = enrollments.filter(
+    (e) =>
+      hasClassAccess(e.status) &&
+      e.program.records_mode === "medals" &&
+      childList.find((c) => c.id === e.student_id)?.is_self
+  );
+  const recordSummaryByEnrollment = new Map<string, ReturnType<typeof summarizeRecordUnlock>>();
+  if (recordEnrollments.length > 0) {
+    const [{ data: recordRows }, milestoneSets] = await Promise.all([
+      supabase
+        .from("performance_records")
+        .select("*")
+        .in(
+          "enrollment_id",
+          recordEnrollments.map((e) => e.id)
+        ),
+      Promise.all(
+        [...new Set(recordEnrollments.map((e) => e.program_id))].map(
+          async (programId) => [programId, await loadMilestones(supabase, programId)] as const
+        )
+      ),
+    ]);
+    const milestonesByProgram = new Map(milestoneSets);
+    for (const e of recordEnrollments) {
+      recordSummaryByEnrollment.set(
+        e.id,
+        summarizeRecordUnlock(
+          ((recordRows ?? []) as (PerformanceRecordRow & { enrollment_id?: string })[]).filter(
+            (r) => r.enrollment_id === e.id
+          ),
+          milestonesByProgram.get(e.program_id) ?? []
+        )
+      );
+    }
+  }
+
   const selfRegPrograms = (programs ?? []).filter((p) => p.self_registration);
   const mySelf = childList.find((c) => c.is_self);
   const takenProgramIds = enrollments.filter((e) => mySelf && e.student_id === mySelf.id).map((e) => e.program_id);
@@ -173,7 +217,7 @@ export default async function OrtuDashboardPage({
 
       {!hasEnrollments && (
         <GlassCard>
-          <p className="text-sm text-slate-600">Belum ada data anak atau kelas terdaftar.</p>
+          <p className="text-sm text-slate-600">Belum ada kelas terdaftar.</p>
         </GlassCard>
       )}
 
@@ -224,10 +268,14 @@ export default async function OrtuDashboardPage({
               programId={enrollment.program_id}
               name={name}
               program={enrollment.program.name}
-              links={cardLinks(enrollment.program)}
+              links={cardLinks(enrollment.program, {
+                isSelf: child.is_self === true,
+                firstName: firstNameOf(name),
+              })}
               nextSessionLabel={nextSessionLabel}
               quota={quota}
               preview={latestReportPreview(enrollmentReports)}
+              record={recordSummaryByEnrollment.get(enrollment.id) ?? null}
             />
           );
         })}
@@ -244,7 +292,7 @@ export default async function OrtuDashboardPage({
             defaultOpen={!hasEnrollments}
             header={
               <span className="flex flex-col">
-                <span className="text-sm font-semibold text-[#17263D]">Daftar program untuk diri sendiri</span>
+                <span className="text-sm font-semibold text-[#17263D]">Daftarkan Diri ke Kelas</span>
                 <span className="text-xs text-slate-500">Remaja/dewasa &amp; Aquanatal — admin akan mencarikan jadwal</span>
               </span>
             }
@@ -265,8 +313,8 @@ export default async function OrtuDashboardPage({
         <GroupAccordion
           header={
             <span className="flex flex-col">
-              <span className="text-sm font-semibold text-[#17263D]">Tambah anak &amp; daftar jadwal</span>
-              <span className="text-xs text-slate-500">Untuk anak yang belum terdaftar</span>
+              <span className="text-sm font-semibold text-[#17263D]">Daftarkan Anak ke Kelas</span>
+              <span className="text-xs text-slate-500">Tambahkan data anak dan pilih jadwal yang tersedia</span>
             </span>
           }
         >

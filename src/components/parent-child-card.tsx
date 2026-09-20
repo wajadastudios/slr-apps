@@ -3,6 +3,8 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GHOST_BUTTON } from "@/lib/ui-classes";
 import { attendanceLabel, childHref, type ReportPreview } from "@/lib/report-preview";
 import type { CardLinks } from "@/lib/programs";
+import type { RecordSummary } from "@/lib/record-summary";
+import { MEDAL_NAME, TierMedal } from "@/components/ui/tier-medal";
 
 const CTA_BASE =
   "inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C5D0] focus-visible:ring-offset-2 focus-visible:ring-offset-white/60 active:scale-[0.98]";
@@ -38,6 +40,7 @@ export function ParentChildCard({
   nextSessionLabel,
   quota,
   preview,
+  record = null,
 }: {
   studentId: string;
   // the enrollment this card is about (a person can have several)
@@ -49,6 +52,8 @@ export function ParentChildCard({
   // e.g. { value: "3 / 8 sesi diikuti", note: "Sisa 5 sesi" }
   quota: { value: string; note: string };
   preview: ReportPreview | null;
+  // compact Record Unlock block (adult class participants only)
+  record?: RecordSummary | null;
 }) {
   const [nextMain, ...nextRest] = (nextSessionLabel ?? "").split(" · ");
   const attendance = attendanceLabel(preview?.attendance);
@@ -106,6 +111,52 @@ export function ParentChildCard({
         )}
       </div>
 
+      {record && (
+        <div className="rounded-2xl border border-[#35C5D0]/25 bg-[#EEF9FB]/70 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-[#1597A3]">Record Unlock</p>
+            <Link
+              href={childHref(studentId, "record", undefined, programId)}
+              className={`inline-flex min-h-9 items-center rounded-lg px-2 text-xs font-semibold text-[#1597A3] ${GHOST_BUTTON}`}
+            >
+              Lihat Record
+            </Link>
+          </div>
+          {record.top ? (
+            <>
+              <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-[#17263D]">
+                <TierMedal tier={record.top.tier} size={24} decorative />
+                {MEDAL_NAME[record.top.tier]} terbaru
+              </p>
+              <p className="text-sm text-slate-700">
+                {record.top.label}
+                {record.top.valueText ? ` · ${record.top.valueText}` : ""}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {record.unlocked} dari {record.total} rekor terbuka
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {record.unlocked} dari {record.total} rekor terbuka
+              </p>
+              {record.first && (
+                <>
+                  <p className="mt-1.5 flex items-center gap-2 text-sm font-semibold text-[#17263D]">
+                    <TierMedal tier={record.first.tier} size={24} decorative />
+                    Target pertama
+                  </p>
+                  <p className="text-sm text-slate-700">
+                    {record.first.label} &middot; {record.first.valueText}
+                  </p>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col gap-1.5">
         {preview ? (
           <>
@@ -130,7 +181,7 @@ export function ParentChildCard({
         ) : (
           <>
             <Link href={childHref(studentId, links.primaryTab, undefined, programId)} className={CTA_OUTLINE}>
-              Lihat detail
+              {links.emptyPrimaryLabel}
               <ArrowIcon />
             </Link>
             <div className="flex justify-center">
