@@ -1,9 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getUserWithRole } from "@/lib/auth";
 import { GlassCard } from "@/components/ui/glass-card";
-import { GlassInput } from "@/components/ui/glass-input";
-import { GlassSelect } from "@/components/ui/glass-select";
-import { GlassButton } from "@/components/ui/glass-button";
 import { ParentChildCard } from "@/components/parent-child-card";
 import { EnrollmentStatusCard } from "@/components/enrollment-status-card";
 import { EnrollmentRequestFields } from "@/components/enrollment-request-fields";
@@ -24,9 +21,8 @@ import { summarizeRecordUnlock } from "@/lib/record-summary";
 import type { PerformanceRecordRow } from "@/lib/performance";
 import { hasClassAccess } from "@/lib/enrollment";
 import { loadEnrollments } from "@/lib/enrollment-server";
-import { PRIMARY_BUTTON } from "@/lib/ui-classes";
 import { DAYS } from "@/lib/days";
-import { addChildAndRegisterAction } from "./actions";
+import { billingNote, loadEnrollmentBilling, loadInvoiceSummaries } from "@/lib/billing";
 import { ToastForm } from "@/components/ui/toast-form";
 
 export default async function OrtuDashboardPage({
@@ -40,19 +36,16 @@ export default async function OrtuDashboardPage({
 
   const [
     { data: children },
-    { data: invoices },
+    invoices,
+    billingByEnrollment,
     { data: reports },
     { data: scheduleRows },
     { data: pelatihNames },
-    { data: classSlots },
-    { data: availability },
     registration,
   ] = await Promise.all([
     supabase.from("students").select("id, full_name, nickname, is_self, kind, user_id, gender").order("full_name"),
-    supabase
-      .from("invoices")
-      .select("student_id, status, sessions_count, created_at")
-      .order("created_at", { ascending: false }),
+    loadInvoiceSummaries(supabase),
+    loadEnrollmentBilling(supabase),
     supabase
       .from("progress_reports")
       .select("student_id, program_id, session_date, session_number, attendance, notes")
@@ -61,12 +54,6 @@ export default async function OrtuDashboardPage({
       .from("schedules")
       .select("student_id, slot:slot_id(day_of_week, start_time, pelatih_id, program_id)"),
     supabase.rpc("get_public_pelatih_names"),
-    supabase
-      .from("class_slots")
-      .select("id, label, day_of_week, start_time, capacity, program:program_id(name)")
-      .order("day_of_week")
-      .order("start_time"),
-    supabase.rpc("get_slot_availability"),
     loadRegistrationPrograms(),
   ]);
 
@@ -85,25 +72,6 @@ export default async function OrtuDashboardPage({
         .in("id", offeredIds)
     : { data: [] };
   const offeredById = new Map((offeredSlots ?? []).map((s) => [s.id, s]));
-
-  const filledBySlot = new Map<string, number>();
-  for (const row of availability ?? []) {
-    filledBySlot.set(row.slot_id, Number(row.filled));
-  }
-
-  const availableSlots = (classSlots ?? [])
-    .map((s) => {
-      const program = s.program as unknown as { name: string } | null;
-      const filled = filledBySlot.get(s.id) ?? 0;
-      return {
-        id: s.id,
-        remaining: s.capacity - filled,
-        label: `${DAYS[s.day_of_week]}, ${s.start_time.slice(0, 5)} WIB — ${
-          program?.name ?? "Program"
-        }${s.label ? ` (${s.label})` : ""} · Sisa ${Math.max(s.capacity - filled, 0)}`,
-      };
-    })
-    .filter((s) => s.remaining > 0);
 
   const invoicesByStudent = new Map<string, NonNullable<typeof invoices>>();
   for (const inv of invoices ?? []) {
@@ -197,6 +165,14 @@ export default async function OrtuDashboardPage({
   }
 
   const mySelf = childList.find((c) => c.is_self);
+  // children of this family account, with the programs they are already in
+  const childOptions = childList
+    .filter((c) => c.kind === "child")
+    .map((c) => ({
+      id: c.id,
+      name: c.nickname || c.full_name,
+      enrolledProgramIds: enrollments.filter((e) => e.student_id === c.id).map((e) => e.program_id),
+    }));
   const hasEnrollments = enrollments.length > 0;
 
   return (
@@ -228,6 +204,10 @@ export default async function OrtuDashboardPage({
         </GlassCard>
       )}
 
+      {hasEnrollments && (
+        <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">Kelas Saya</h2>
+      )}
+
       <div className={`grid gap-4 ${enrollments.length > 1 ? "lg:grid-cols-2" : ""}`}>
         {enrollments.map((enrollment) => {
           const child = childList.find((c) => c.id === enrollment.student_id);
@@ -255,6 +235,7 @@ export default async function OrtuDashboardPage({
                 preferred={[enrollment.preferred_schedule, enrollment.preferred_location].filter(Boolean).join(" · ") || null}
                 offeredSlot={offered ?? null}
                 restrictedFor={restricted && hasClassAccess(enrollment.status) ? child.full_name : null}
+                billingNote={billingNote(billingByEnrollment.get(enrollment.id), invoices)}
               />
             );
           }
@@ -292,23 +273,22 @@ export default async function OrtuDashboardPage({
               quota={quota}
               preview={latestReportPreview(enrollmentReports)}
               record={recordSummaryByEnrollment.get(enrollment.id) ?? null}
+              billingNote={billingNote(billingByEnrollment.get(enrollment.id), invoices)}
             />
           );
         })}
       </div>
 
-      {/* Registration stays available but folded away so the classes come first. */}
+      {/* One registration flow for everybody in the family. Folded away so the classes come first. */}
       <GlassCard tone="soft" className="flex flex-col gap-2">
-        <h2 className="font-[family-name:var(--font-quicksand)] text-base font-bold text-[#17263D]">
-          Daftar Kelas
-        </h2>
-
         <GroupAccordion
           defaultOpen={!hasEnrollments}
           header={
             <span className="flex flex-col">
-              <span className="text-sm font-semibold text-[#17263D]">Daftarkan Diri ke Kelas</span>
-              <span className="text-xs text-slate-500">Remaja/dewasa &amp; Aquanatal — admin akan mencarikan jadwal</span>
+              <span className="text-sm font-semibold text-[#17263D]">Daftar Kelas Baru</span>
+              <span className="text-xs text-slate-500">
+                Untuk Anda sendiri, anak, atau pasangan / anggota keluarga
+              </span>
             </span>
           }
         >
@@ -318,57 +298,9 @@ export default async function OrtuDashboardPage({
                 programs={registration.programs}
                 loadError={registration.error}
                 initialGender={(mySelf?.gender as Gender | null | undefined) ?? null}
+                childOptions={childOptions}
               />
             </ToastForm>
-          </div>
-        </GroupAccordion>
-
-        <GroupAccordion
-          header={
-            <span className="flex flex-col">
-              <span className="text-sm font-semibold text-[#17263D]">Daftarkan Anak ke Kelas</span>
-              <span className="text-xs text-slate-500">Tambahkan data anak dan pilih jadwal yang tersedia</span>
-            </span>
-          }
-        >
-          <div className="px-4 pb-4 pt-1">
-            <p className="text-sm text-slate-600">
-              Daftarkan anak baru dan pilih jadwal kelas yang masih tersedia. Admin akan langsung dihubungi untuk
-              follow up setelah Anda daftar.
-            </p>
-            <ToastForm action={addChildAndRegisterAction} resetOnSuccess className="mt-3 grid gap-3 sm:grid-cols-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm text-slate-800">Nama Anak</label>
-                <GlassInput name="full_name" required />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm text-slate-800">Tanggal Lahir</label>
-                <GlassInput name="birth_date" type="date" />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm text-slate-800">Jadwal Kelas</label>
-                <GlassSelect name="slot_id" required defaultValue="" glassChevron>
-                  <option value="" disabled>
-                    Pilih jadwal
-                  </option>
-                  {availableSlots.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
-                    </option>
-                  ))}
-                </GlassSelect>
-              </div>
-              <GlassButton
-                type="submit"
-                disabled={availableSlots.length === 0}
-                className={`${PRIMARY_BUTTON} px-4 py-2 text-sm sm:col-span-3 sm:w-fit`}
-              >
-                Daftar
-              </GlassButton>
-            </ToastForm>
-            {availableSlots.length === 0 && (
-              <p className="mt-2 text-sm text-slate-600">Belum ada jadwal yang tersedia saat ini.</p>
-            )}
           </div>
         </GroupAccordion>
 

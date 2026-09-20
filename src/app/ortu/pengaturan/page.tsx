@@ -10,11 +10,13 @@ import {
   updateChildProfileAction,
   updateParticipantProfileAction,
   setReportAccessAction,
+  inviteParticipantAction,
 } from "./actions";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { loadEnrollments } from "@/lib/enrollment-server";
 import { GENDER_OPTIONS, genderLabel } from "@/lib/registration-input";
 import { STATUS_LABEL } from "@/lib/enrollment";
+import { loadEnrollmentBilling } from "@/lib/billing";
 import { ToastForm } from "@/components/ui/toast-form";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
@@ -31,7 +33,7 @@ export default async function OrtuPengaturanPage() {
 
   const { data: people } = await supabase
     .from("students")
-    .select("id, full_name, nickname, avatar_url, kind, user_id, parent_id, is_self, gender, phone, birth_date, relationship")
+    .select("id, full_name, nickname, avatar_url, kind, user_id, parent_id, is_self, gender, phone, birth_date, relationship, claim_token")
     .order("full_name");
 
   const me = session?.user.id ?? "";
@@ -43,6 +45,7 @@ export default async function OrtuPengaturanPage() {
   const registeredByMe = (people ?? []).filter(
     (p) => p.kind === "adult_family" && p.parent_id === me && p.user_id !== me
   );
+  const billing = await loadEnrollmentBilling(supabase);
   const enrollments = await loadEnrollments(
     supabase,
     [...myParticipants, ...registeredByMe].map((p) => p.id)
@@ -200,7 +203,7 @@ export default async function OrtuPengaturanPage() {
         <GlassCard>
           <h2 className={`mb-1 ${HEADING}`}>Peserta yang Anda Daftarkan</h2>
           <p className="mb-4 text-sm text-slate-600">
-            Anda mengurus pendaftaran dan tagihan. Jadwal dan laporan kelas hanya tampil jika peserta mengizinkan.
+            Anda mengurus pendaftaran. Bila peserta memakai akun sendiri, jadwal dan laporan kelas hanya tampil jika peserta mengizinkan.
           </p>
           <div className="flex flex-col gap-3">
             {registeredByMe.map((p) => {
@@ -213,8 +216,20 @@ export default async function OrtuPengaturanPage() {
                   </p>
                   <p className="mt-0.5 text-xs text-slate-600">
                     {genderLabel(p.gender)} ·{" "}
-                    {p.user_id ? "Sudah membuat akun sendiri" : "Belum membuat akun (undangan dikirim lewat WhatsApp)"}
+                    {p.user_id
+                      ? "Sudah membuat akun sendiri"
+                      : p.claim_token
+                        ? "Belum membuat akun (undangan sudah dikirim lewat WhatsApp)"
+                        : "Memakai akun keluarga ini"}
                   </p>
+                  {!p.user_id && (
+                    <ToastForm action={inviteParticipantAction} className="mt-2">
+                      <input type="hidden" name="student_id" value={p.id} />
+                      <GlassButton type="submit" className={`${SECONDARY_BUTTON} w-fit px-4 py-2 text-xs`}>
+                        {p.claim_token ? "Kirim ulang undangan" : "Kirim undangan agar memakai akun sendiri"}
+                      </GlassButton>
+                    </ToastForm>
+                  )}
                   <ul className="mt-2 flex flex-col gap-1 text-sm text-slate-700">
                     {own.map((e) => (
                       <li key={e.id}>
@@ -222,6 +237,9 @@ export default async function OrtuPengaturanPage() {
                         {e.report_access_granted_to_requester
                           ? "jadwal & laporan boleh Anda lihat"
                           : "jadwal & laporan pribadi"}
+                        {billing.get(e.id) && !billing.get(e.id)!.is_payer
+                          ? ` · tagihan dibayar ${billing.get(e.id)!.payer_name ?? "peserta"}`
+                          : ""}
                       </li>
                     ))}
                   </ul>

@@ -23,6 +23,7 @@ import { DAYS } from "@/lib/days";
 import {
   offerScheduleAction,
   saveAdjustmentNoteAction,
+  setBillingPayerAction,
   setEnrollmentStatusAction,
 } from "../actions";
 
@@ -91,7 +92,7 @@ export default async function EnrollmentDetailPage({
   const { data: e } = await supabase
     .from("enrollments")
     .select(
-      "id, status, source, program_id, student_id, slot_id, offered_slot_id, offer_token, offer_expires_at, preferred_schedule, preferred_location, decision_note, acknowledged_at, acknowledgement_version, adjustment_note, created_at, report_access_granted_to_requester, student:student_id(full_name, parent_id, gender, phone, birth_date, relationship, kind, user_id), program:program_id(name, requires_acknowledgement)"
+      "id, status, source, program_id, student_id, slot_id, offered_slot_id, offer_token, offer_expires_at, preferred_schedule, preferred_location, decision_note, acknowledged_at, acknowledgement_version, adjustment_note, created_at, report_access_granted_to_requester, billing_mode, billing_contact_user_id, student:student_id(full_name, parent_id, gender, phone, birth_date, relationship, kind, user_id), program:program_id(name, requires_acknowledgement)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -110,8 +111,13 @@ export default async function EnrollmentDetailPage({
   const program = e.program as unknown as { name: string; requires_acknowledgement: boolean } | null;
   const status = e.status as EnrollmentStatus;
 
-  const [{ data: user }, { data: slots }, { data: availability }, origin] = await Promise.all([
+  const [{ data: user }, { data: payerUser }, { data: slots }, { data: availability }, origin] = await Promise.all([
     supabase.from("users").select("full_name, email, phone").eq("id", student?.parent_id ?? "").maybeSingle(),
+    supabase
+      .from("users")
+      .select("full_name, email")
+      .eq("id", e.billing_contact_user_id ?? "")
+      .maybeSingle(),
     supabase
       .from("class_slots")
       .select("id, label, location, day_of_week, start_time, capacity")
@@ -206,6 +212,16 @@ export default async function EnrollmentDetailPage({
               </span>
             </dd>
           </div>
+          <div>
+            <dt className="text-xs text-slate-500">Penanggung jawab pembayaran</dt>
+            <dd className="font-medium text-[#17263D]">
+              {payerUser?.full_name ?? (e.billing_mode === "participant" ? "Peserta (akun belum aktif)" : "-")}
+              <span className="block text-xs font-normal text-slate-500">
+                {e.billing_mode === "participant" ? "Peserta dengan akun sendiri" : "Akun keluarga / pendaftar"}
+                {payerUser?.email ? ` · ${payerUser.email}` : ""}
+              </span>
+            </dd>
+          </div>
           {registeredForOther && (
             <>
               <div>
@@ -250,6 +266,40 @@ export default async function EnrollmentDetailPage({
           )}
         </dl>
       </GlassCard>
+
+      {registeredForOther && (
+        <GlassCard tone="soft">
+          <h2 className={HEADING}>Penanggung jawab pembayaran</h2>
+          <p className="mb-3 mt-1 text-sm text-slate-600">
+            Setiap tagihan hanya muncul di satu akun. Peserta: {student?.full_name}, program: {program?.name}, penanggung
+            bayar: {payerUser?.full_name ?? "belum ada"}.
+          </p>
+          <ToastForm action={setBillingPayerAction} className="flex flex-wrap gap-2">
+            <input type="hidden" name="id" value={e.id} />
+            <GlassButton
+              type="submit"
+              name="payer"
+              value="requester"
+              disabled={e.billing_mode === "requester"}
+              className={`${SECONDARY_BUTTON} px-4 py-2 text-sm`}
+            >
+              Akun keluarga / pendaftar
+            </GlassButton>
+            <GlassButton
+              type="submit"
+              name="payer"
+              value="participant"
+              disabled={e.billing_mode === "participant" || !student?.user_id}
+              className={`${SECONDARY_BUTTON} px-4 py-2 text-sm`}
+            >
+              Peserta dengan akun sendiri
+            </GlassButton>
+          </ToastForm>
+          {!student?.user_id && (
+            <p className="mt-2 text-xs text-slate-500">Peserta belum membuat akun sendiri, jadi belum bisa menjadi penanggung bayar.</p>
+          )}
+        </GlassCard>
+      )}
 
       {(locked || offered) && (
         <GlassCard tone="soft">

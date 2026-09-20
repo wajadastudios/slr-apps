@@ -37,7 +37,7 @@ export default async function TagihanPage({
     supabase
       .from("invoices")
       .select(
-        "id, student_id, package_name, sessions_count, amount, status, payment_method, payment_proof_url, student:student_id(full_name, parent:parent_id(email))"
+        "id, student_id, package_name, sessions_count, amount, status, payment_method, payment_proof_url, student:student_id(full_name), billing:billing_account_id(full_name, email)"
       )
       .order("id", { ascending: false }),
     supabase
@@ -180,10 +180,8 @@ export default async function TagihanPage({
             <p className="text-sm text-slate-600">Belum ada tagihan.</p>
           )}
           {invoices?.map((inv) => {
-            const student = inv.student as unknown as {
-              full_name: string;
-              parent: { email: string } | null;
-            } | null;
+            const student = inv.student as unknown as { full_name: string } | null;
+            const billing = inv.billing as unknown as { full_name: string | null; email: string } | null;
 
             return (
               <DataRow
@@ -196,7 +194,10 @@ export default async function TagihanPage({
                 }
                 secondary={
                   <div className="flex flex-col gap-1">
-                    <span>{STATUS_LABEL[inv.status] ?? inv.status}</span>
+                    <span>
+                      {STATUS_LABEL[inv.status] ?? inv.status}
+                      {billing?.full_name ? ` · Penanggung bayar: ${billing.full_name}` : ""}
+                    </span>
                     {inv.status === "processing" && inv.payment_proof_url && (
                       <a
                         href={inv.payment_proof_url}
@@ -212,7 +213,7 @@ export default async function TagihanPage({
                         origin={origin}
                         invoiceId={inv.id}
                         studentName={student?.full_name ?? ""}
-                        parentEmail={student?.parent?.email}
+                        parentEmail={billing?.email}
                       />
                     )}
                   </div>

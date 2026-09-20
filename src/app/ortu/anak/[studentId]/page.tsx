@@ -36,6 +36,8 @@ import { loadEnrollments } from "@/lib/enrollment-server";
 import { computeMilestoneStatuses } from "@/lib/milestones";
 import { hasClassAccess, isLive, pickEnrollment } from "@/lib/enrollment";
 import { getUserWithRole } from "@/lib/auth";
+import { billingNote, loadEnrollmentBilling, loadInvoiceSummaries } from "@/lib/billing";
+import { BillingNoteLine } from "@/components/billing-note";
 import { parseTab, tabsFor, usesStars, type ProgramMeta } from "@/lib/programs";
 import type { GoalEntry, PersonalGoal } from "@/lib/personal-goals";
 import { DAYS } from "@/lib/days";
@@ -139,6 +141,10 @@ export default async function AnakDetailPage({
         .maybeSingle();
       offered = data;
     }
+    const [earlyBilling, earlyInvoices] = await Promise.all([
+      loadEnrollmentBilling(supabase),
+      loadInvoiceSummaries(supabase),
+    ]);
     return (
       <div className="flex flex-col gap-4">
         {backLink}
@@ -152,6 +158,7 @@ export default async function AnakDetailPage({
           preferred={[enrollment.preferred_schedule, enrollment.preferred_location].filter(Boolean).join(" · ") || null}
           offeredSlot={offered}
           restrictedFor={restricted && hasClassAccess(enrollment.status) ? student.full_name : null}
+          billingNote={billingNote(earlyBilling.get(enrollment.id), earlyInvoices)}
         />
       </div>
     );
@@ -165,7 +172,8 @@ export default async function AnakDetailPage({
   const [
     indicatorConfig,
     { data: reports },
-    { data: invoices },
+    allInvoices,
+    billingByEnrollment,
     { data: availablePackages },
     { data: scheduleRows },
     { data: pelatihNames },
@@ -176,11 +184,8 @@ export default async function AnakDetailPage({
       .select("*")
       .eq("enrollment_id", enrollment.id)
       .order("session_date", { ascending: false }),
-    supabase
-      .from("invoices")
-      .select("sessions_count, status, created_at")
-      .eq("student_id", studentId)
-      .order("created_at", { ascending: false }),
+    loadInvoiceSummaries(supabase),
+    loadEnrollmentBilling(supabase),
     supabase
       .from("program_packages")
       .select("id, name, sessions_count, price, benefits")
@@ -194,6 +199,9 @@ export default async function AnakDetailPage({
     supabase.rpc("get_public_pelatih_names"),
   ]);
 
+  const invoices = allInvoices.filter((i) => i.student_id === studentId);
+  const billing = billingByEnrollment.get(enrollment.id);
+  const note = billingNote(billing, allInvoices);
   const allReports = (reports ?? []) as ScoredReport[];
   const singleClass = live.filter((e) => hasClassAccess(e.status)).length <= 1;
   const quotaText = singleClass
@@ -209,7 +217,11 @@ export default async function AnakDetailPage({
   // Nudge to pick the next package only when the current paid one is down to
   // its last session and no further invoice (sent/processing) already exists.
   const showRenewalBanner =
-    singleClass && currentPackageSessions > 4 && quota.remaining === 1 && totalAllSessions === quota.total;
+    singleClass &&
+    (billing?.is_payer ?? true) &&
+    currentPackageSessions > 4 &&
+    quota.remaining === 1 &&
+    totalAllSessions === quota.total;
 
   const pelatihNameById = new Map<string, string>();
   for (const p of pelatihNames ?? []) {
@@ -329,6 +341,7 @@ export default async function AnakDetailPage({
           </span>
         </h1>
         {switcher}
+        <BillingNoteLine note={note} />
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="rounded-2xl border border-[#FFC800]/45 bg-gradient-to-br from-[#FFF3C4] to-[#FFF8E1] px-3.5 py-2.5">
             <p className="text-[11px] font-medium text-[#8a6900]">Sesi berikutnya</p>

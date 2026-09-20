@@ -49,20 +49,29 @@ await db.exec(`
 
 // now the feature migrations
 const dir = path.resolve(import.meta.dirname, "../../supabase/migrations");
-for (const f of fs.readdirSync(dir).filter((f) => f >= "0030" && f.endsWith(".sql")).sort()) {
+const apply = async (f) => {
   try {
     await db.exec(fs.readFileSync(path.join(dir, f), "utf8"));
-    console.log("applied", f);
   } catch (e) {
     console.log("MIGRATION FAILED", f, e.message);
     process.exit(1);
   }
+};
+for (const f of fs.readdirSync(dir).filter((f) => f >= "0030" && f <= "0034_z" && f.endsWith(".sql")).sort()) {
+  await apply(f);
+  console.log("applied", f);
 }
-// re-run 0033 to prove idempotence
-await db.exec(fs.readFileSync(path.join(dir, "0033_enrollments_and_program_assessment.sql"), "utf8"));
+// re-run the earlier ones to prove idempotence (before 0035 supersedes 0034's functions)
+await apply("0033_enrollments_and_program_assessment.sql");
 check("0033 is safe to re-run", true);
-await db.exec(fs.readFileSync(path.join(dir, "0034_participants_and_consent.sql"), "utf8"));
+await apply("0034_participants_and_consent.sql");
 check("0034 is safe to re-run", true);
+for (const f of fs.readdirSync(dir).filter((f) => f >= "0035" && f.endsWith(".sql")).sort()) {
+  await apply(f);
+  console.log("applied", f);
+  await apply(f);
+  check(`${f} is safe to re-run`, true);
+}
 
 const q = async (sql, params) => (await db.query(sql, params)).rows;
 const as = async (id) => {
@@ -397,6 +406,148 @@ await su();
 check("legacy children are kind 'child'", (await q("select kind from public.students where id=$1", [uid(100)]))[0].kind === "child");
 await as(P1);
 check("a parent still sees their child's reports", (await q("select id from public.progress_reports where student_id=$1", [uid(100)])).length === 1);
+
+// ---------- family account, participants, one payer (0035) ----------
+await su();
+await db.exec(`
+  insert into public.program_packages (id, program_id, name, sessions_count, price) values
+    ('${uid(500)}','${AQUA}','Aquanatal 4',4,700000),
+    ('${uid(501)}','${KIDS}','Kids 4',4,500000),
+    ('${uid(502)}','${ADULT}','Adult 4',4,600000);
+  insert into public.class_slots (id, program_id, pelatih_id, label, day_of_week, start_time, capacity, location) values
+    ('${uid(205)}','${KIDS}','${PA}','Grup',6,'08:00',1,'Kolam CDR'),
+    ('${uid(206)}','${(await prog("Baby Swim"))}','${PA}','Grup',6,'09:00',3,'Kolam CDR'),
+    ('${uid(207)}','${AQUA}','${PB}','Grup',6,'10:00',5,'Kolam CDR');
+`);
+const regModes = (pid, o) =>
+  db.query(
+    "select out_enrollment_id id, out_student_id student_id, out_claim_token token from public.register_enrollment($1,'other',$2,$3,null,$4,$5,'','',$6,$7,$8,$9)",
+    [pid, o.name, o.phone, o.gender ?? "female", o.rel ?? "Anggota keluarga lain", o.ack ?? "", o.account ?? "own", o.billing ?? "requester", o.report ?? "participant"]
+  );
+
+// -- a participant who stays inside the family account
+await as(HUS);
+check("staying in the family account cannot ask for a participant-paid invoice", /participant account required/.test((await fails(() => regModes(ADULT, { name: "Ani Keluarga", phone: "085722223333", account: "family", billing: "participant" }))) ?? ""));
+check("...nor for reports kept away from the family account", /participant account required/.test((await fails(() => regModes(ADULT, { name: "Ani Keluarga", phone: "085722223333", account: "family", report: "participant" }))) ?? ""));
+check("an unknown access option is refused", /invalid access option/.test((await fails(() => regModes(ADULT, { name: "Ani Keluarga", phone: "085722223333", account: "bogus" }))) ?? ""));
+const ani = (await regModes(AQUA, { name: "Ani Keluarga", phone: "085722223333", account: "family", billing: "requester", report: "family", ack: "aquanatal-2026-09b" })).rows[0];
+check("family mode: no invitation is created or sent", ani.token === null);
+await su();
+const aniEnr = (await q("select * from public.enrollments where id=$1", [ani.id]))[0];
+check("family mode: family account pays and sees reports from the start", aniEnr.billing_mode === "requester" && aniEnr.billing_contact_user_id === HUS && aniEnr.report_access_granted_to_requester === true);
+await db.exec(`update public.enrollments set status='waiting_schedule' where id='${ani.id}'`);
+await db.exec(`insert into public.schedules (student_id, slot_id) values ('${ani.student_id}','${uid(207)}')`);
+await as(PB);
+await insertReportFor(ani.student_id, ani.id, uid(330));
+await as(HUS);
+check("family mode: the family account reads the report, under the participant's own name", (await q("select r.id, s.full_name from public.progress_reports r join public.students s on s.id = r.student_id where r.student_id=$1", [ani.student_id])).filter((r) => r.full_name === "Ani Keluarga").length === 1);
+await as(P2);
+check("...and nobody else does", (await q("select id from public.progress_reports where student_id=$1", [ani.student_id])).length === 0);
+
+// -- the participant pays from her own account, reports asked for by the family
+await as(HUS);
+const dewi = (await regModes(ADULT, { name: "Dewi Mandiri", phone: "085733334444", account: "own", billing: "participant", report: "family" })).rows[0];
+check("own account: an invitation token is returned", !!dewi.token);
+await su();
+const dewiEnr = (await q("select * from public.enrollments where id=$1", [dewi.id]))[0];
+check("participant pays: no payer until she claims; reports are only ASKED for", dewiEnr.billing_mode === "participant" && dewiEnr.billing_contact_user_id === null && dewiEnr.report_access_requested === true && dewiEnr.report_access_granted_to_requester === false, JSON.stringify(dewiEnr));
+check("no invoice can be made while nobody is the payer yet", /billing account not ready/.test((await fails(() => db.query("insert into public.invoices (student_id, program_package_id, package_name, sessions_count, amount, status) values ($1,$2,'Adult 4',4,600000,'draft')", [dewi.student_id, uid(502)]))) ?? ""));
+await anon();
+const dewiInfo = (await q("select * from public.get_claim_info($1)", [dewi.token]))[0];
+check("the invitation shows that the family asks for reports and that she pays", dewiInfo.wants_report_access === true && dewiInfo.participant_pays === true, JSON.stringify(dewiInfo));
+await su();
+const before = (await q("select (select count(*)::int from public.students) s, (select count(*)::int from public.enrollments) e"))[0];
+await as(P2);
+check("she claims her profile and lets the family see her reports", (await q("select public.claim_participant($1, true) r", [dewi.token]))[0].r === "claimed");
+await su();
+const after = (await q("select (select count(*)::int from public.students) s, (select count(*)::int from public.enrollments) e"))[0];
+check("claiming creates no duplicate participant or enrollment", before.s === after.s && before.e === after.e, JSON.stringify([before, after]));
+const dewiAfter = (await q("select billing_contact_user_id, report_access_granted_to_requester g from public.enrollments where id=$1", [dewi.id]))[0];
+check("after claiming she is the payer and her answer decides report access", dewiAfter.billing_contact_user_id === P2 && dewiAfter.g === true, JSON.stringify(dewiAfter));
+await db.query("insert into public.invoices (id, student_id, program_package_id, package_name, sessions_count, amount, status, invoice_number) values ($1,$2,$3,'Adult 4',4,600000,'sent','INV-T1')", [uid(600), dewi.student_id, uid(502)]);
+const inv1 = (await q("select billing_account_id, enrollment_id from public.invoices where id=$1", [uid(600)]))[0];
+check("the invoice is tied to her enrollment and to her alone", inv1.billing_account_id === P2 && inv1.enrollment_id === dewi.id, JSON.stringify(inv1));
+await as(P2);
+check("the payer sees her invoice", (await q("select id from public.invoices where id=$1", [uid(600)])).length === 1);
+await as(HUS);
+check("the registrant does NOT see it", (await q("select id from public.invoices where id=$1", [uid(600)])).length === 0);
+check("the registrant cannot pay it", /not authorized/.test((await fails(() => db.query("select public.submit_invoice_payment_proof($1,'transfer','http://x')", [uid(600)]))) ?? ""));
+const hs = (await q("select * from public.invoice_summaries() where out_enrollment_id=$1", [dewi.id]))[0];
+check("the registrant only gets a summary: status, no invoice id", hs && hs.out_status === "sent" && hs.out_invoice_id === null && hs.out_is_payer === false, JSON.stringify(hs));
+const hb = (await q("select * from public.enrollment_billing() where out_enrollment_id=$1", [dewi.id]))[0];
+check("...and who is responsible for payment", hb.out_payer_name === "Mama Lain" && hb.out_is_payer === false && hb.out_payer_pending === false, JSON.stringify(hb));
+await as(P2);
+check("the payer can pay it", (await fails(() => db.query("select public.submit_invoice_payment_proof($1,'transfer','http://x')", [uid(600)]))) === null);
+const ps = (await q("select * from public.invoice_summaries() where out_enrollment_id=$1", [dewi.id]))[0];
+check("the payer's summary carries the invoice id and status 'processing'", ps.out_invoice_id === uid(600) && ps.out_is_payer && ps.out_status === "processing");
+
+// -- Siti: has her own account, the family (Budi) pays
+await su();
+const sitiEnr = (await q("select billing_mode, billing_contact_user_id from public.enrollments where id=$1", [wifeReg.id]))[0];
+check("Siti: own account, but the family account is the payer", sitiEnr.billing_mode === "requester" && sitiEnr.billing_contact_user_id === HUS, JSON.stringify(sitiEnr));
+await db.query("insert into public.invoices (id, student_id, program_package_id, package_name, sessions_count, amount, status, invoice_number) values ($1,$2,$3,'Aquanatal 4',4,700000,'sent','INV-T2')", [uid(601), wifeReg.student_id, uid(500)]);
+const inv2 = (await q("select billing_account_id, enrollment_id from public.invoices where id=$1", [uid(601)]))[0];
+check("Siti's invoice belongs to her Aquanatal enrollment and to Budi only", inv2.billing_account_id === HUS && inv2.enrollment_id === wifeReg.id, JSON.stringify(inv2));
+await as(HUS);
+check("Budi sees and can pay it", (await q("select id from public.invoices where id=$1", [uid(601)])).length === 1);
+await as(WIFE);
+check("Siti cannot read the invoice", (await q("select id from public.invoices where id=$1", [uid(601)])).length === 0);
+check("Siti cannot pay the invoice", /not authorized/.test((await fails(() => db.query("select public.submit_invoice_payment_proof($1,'transfer','http://x')", [uid(601)]))) ?? ""));
+const ss = (await q("select * from public.invoice_summaries() where out_enrollment_id=$1", [wifeReg.id]))[0];
+const sb = (await q("select * from public.enrollment_billing() where out_enrollment_id=$1", [wifeReg.id]))[0];
+check("Siti sees 'managed by Budi' and 'waiting for payment'", sb.out_payer_name === "Budi Suami" && !sb.out_is_payer && ss.out_status === "sent" && ss.out_invoice_id === null, JSON.stringify([sb, ss]));
+await su();
+await db.exec(`update public.invoices set status='paid' where id='${uid(601)}'`);
+await as(WIFE);
+check("...and 'paid' once it is settled", (await q("select out_status from public.invoice_summaries() where out_enrollment_id=$1", [wifeReg.id]))[0].out_status === "paid");
+await as(P1);
+check("an unrelated family sees neither invoice nor summary", (await q("select id from public.invoices where id in ($1,$2)", [uid(600), uid(601)])).length === 0 && (await q("select * from public.invoice_summaries() where out_enrollment_id in ($1,$2)", [wifeReg.id, dewi.id])).length === 0);
+await as(ADMIN);
+check("admin sees every invoice with its billing account", (await q("select id from public.invoices where id in ($1,$2)", [uid(600), uid(601)])).length === 2);
+
+// -- an invoice can never exist for two accounts: one column, NOT NULL
+await su();
+check("every invoice has exactly one billing account (NOT NULL)", (await q("select count(*)::int c from public.invoices where billing_account_id is null"))[0].c === 0 && (await q("select is_nullable from information_schema.columns where table_name='invoices' and column_name='billing_account_id'"))[0].is_nullable === "NO");
+await db.query("insert into public.invoices (id, student_id, program_package_id, package_name, sessions_count, amount, status) values ($1,$2,$3,'Kids 4',4,500000,'sent')", [uid(602), uid(100), uid(501)]);
+check("a child's invoice goes to the parent", (await q("select billing_account_id from public.invoices where id=$1", [uid(602)]))[0].billing_account_id === P1);
+check("...and the parent's summary marks them as the payer", (await (async () => { await as(P1); return q("select out_is_payer from public.invoice_summaries() where out_student_id=$1", [uid(100)]); })())[0].out_is_payer === true);
+
+// -- invitation later for a participant kept inside the family account
+await as(P2);
+check("someone else cannot invite Ani", (await q("select public.invite_participant($1) t", [ani.student_id]))[0].t === null);
+await as(HUS);
+const later = (await q("select public.invite_participant($1) t", [ani.student_id]))[0].t;
+check("the family account can invite Ani later", !!later);
+await su();
+const aniStudentId = ani.student_id;
+await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values ('${uid(9)}','ani@t.co','{"role":"ortu","full_name":"Ani Sendiri"}')`);
+await as(uid(9));
+check("Ani claims it and keeps her reports private", (await q("select public.claim_participant($1, false) r", [later]))[0].r === "claimed");
+await as(HUS);
+check("the family account no longer sees Ani's reports", (await q("select id from public.progress_reports where student_id=$1", [aniStudentId])).length === 0);
+await as(uid(9));
+check("Ani sees them", (await q("select id from public.progress_reports where student_id=$1", [aniStudentId])).length === 1);
+
+// -- children: an existing child or a new one, cards stay separate
+await as(P1);
+const newKid = (await db.query("select out_enrollment_id id, out_student_id student_id from public.register_child_enrollment(null,'Adik Rara',null,$1)", [uid(205)])).rows[0];
+await su();
+const kid = (await q("select kind, parent_id, is_self from public.students where id=$1", [newKid.student_id]))[0];
+const kidEnr = (await q("select status, requested_by_user_id, billing_contact_user_id, billing_mode from public.enrollments where id=$1", [newKid.id]))[0];
+check("a new child is a child participant of the family account", kid.kind === "child" && kid.parent_id === P1 && !kid.is_self);
+check("...with its own enrollment, paid by the family account", kidEnr.status === "active" && kidEnr.requested_by_user_id === P1 && kidEnr.billing_contact_user_id === P1 && kidEnr.billing_mode === "requester", JSON.stringify(kidEnr));
+await as(P1);
+check("the last seat is gone: the next child is refused and nothing is left behind", /slot is full/.test((await fails(() => db.query("select * from public.register_child_enrollment(null,'Anak Ketiga',null,$1)", [uid(205)]))) ?? "") && (await q("select id from public.students where full_name='Anak Ketiga'")).length === 0);
+check("an adult program cannot be booked through the child flow", /not open/.test((await fails(() => db.query("select * from public.register_child_enrollment(null,'Anak Salah',null,$1)", [uid(207)]))) ?? ""));
+const rara2 = (await db.query("select out_enrollment_id id, out_student_id student_id from public.register_child_enrollment($1,null,null,$2)", [uid(100), uid(206)])).rows[0];
+check("an existing child joins a second program with a separate enrollment", rara2.student_id === uid(100) && rara2.id !== rara.id);
+check("an existing child cannot be booked into the same program twice", /already enrolled/.test((await fails(() => db.query("select * from public.register_child_enrollment($1,null,null,$2)", [uid(100), uid(205)]))) ?? ""));
+await as(P2);
+check("another family cannot book somebody else's child", /not authorized/.test((await fails(() => db.query("select * from public.register_child_enrollment($1,null,null,$2)", [uid(100), uid(206)]))) ?? ""));
+await as(P1);
+const cards = await q("select e.id, p.name from public.enrollments e join public.programs p on p.id = e.program_id join public.students s on s.id = e.student_id where s.parent_id = $1 and e.status not in ('cancelled','rejected')", [P1]);
+check("one family account shows a separate enrollment (card) per participant and program", cards.length >= 3 && new Set(cards.map((c) => c.id)).size === cards.length, JSON.stringify(cards.map((c) => c.name)));
+check("reports of Rara stay with her Kids Swim enrollment", (await q("select id from public.progress_reports where enrollment_id=$1", [rara2.id])).length === 0 && (await q("select id from public.progress_reports where enrollment_id=$1", [rara.id])).length === 1);
 
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);

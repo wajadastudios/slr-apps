@@ -5,6 +5,8 @@ import { attendanceLabel, childHref, type ReportPreview } from "@/lib/report-pre
 import type { CardLinks } from "@/lib/programs";
 import type { RecordSummary } from "@/lib/record-summary";
 import { MEDAL_NAME, TierMedal } from "@/components/ui/tier-medal";
+import { BillingNoteLine } from "@/components/billing-note";
+import type { BillingNote } from "@/lib/billing";
 
 const CTA_BASE =
   "inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C5D0] focus-visible:ring-offset-2 focus-visible:ring-offset-white/60 active:scale-[0.98]";
@@ -41,6 +43,7 @@ export function ParentChildCard({
   quota,
   preview,
   record = null,
+  billingNote = null,
 }: {
   studentId: string;
   // the enrollment this card is about (a person can have several)
@@ -54,6 +57,8 @@ export function ParentChildCard({
   preview: ReportPreview | null;
   // compact Record Unlock block (adult class participants only)
   record?: RecordSummary | null;
+  // who pays, when that is another account
+  billingNote?: BillingNote | null;
 }) {
   const [nextMain, ...nextRest] = (nextSessionLabel ?? "").split(" · ");
   const attendance = attendanceLabel(preview?.attendance);
@@ -64,6 +69,8 @@ export function ParentChildCard({
         {name}
         <span className="font-medium text-slate-500"> · {program ?? "Belum ada program"}</span>
       </h2>
+
+      <BillingNoteLine note={billingNote} />
 
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="rounded-2xl border border-[#FFC800]/45 bg-gradient-to-br from-[#FFF3C4] to-[#FFF8E1] px-3.5 py-2.5">

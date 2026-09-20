@@ -31,11 +31,13 @@ import {
   checkRequestAgainstProgram,
   normalizePhone,
   parseAccountInput,
+  parseChildRequest,
   parseEnrollmentRequest,
   preferenceSummary,
   programSuitsGender,
   unsuitableProgramMessage,
 } from "../src/lib/registration-input";
+import { billingNote, type EnrollmentBilling, type InvoiceSummary } from "../src/lib/billing";
 import { parseScoresPayload, sessionAllowsAssessment } from "../src/lib/report-scores";
 import { goalProgress, type GoalEntry } from "../src/lib/personal-goals";
 import { supportChanges, summarizeLevelGroups } from "../src/lib/level-summary";
@@ -210,6 +212,63 @@ test("registering someone else needs their own name, WhatsApp, gender and relati
   assert.ok(!parseEnrollmentRequest({ ...spouse, participant_phone: "12" }).ok);
   assert.ok(!parseEnrollmentRequest({ ...spouse, relationship: "" }).ok);
   assert.ok(!parseEnrollmentRequest({ ...spouse, gender: "" }).ok);
+});
+
+test("staying in the family account cannot demand a participant-only payer or report view", () => {
+  const ok = parseEnrollmentRequest({ ...spouse, account_mode: "family", billing: "requester", report_access: "family" });
+  assert.ok(ok.ok);
+  assert.ok(!parseEnrollmentRequest({ ...spouse, account_mode: "family", billing: "participant" }).ok);
+  assert.ok(!parseEnrollmentRequest({ ...spouse, account_mode: "family", report_access: "participant" }).ok);
+  // with an invited account both are possible
+  const own = parseEnrollmentRequest({ ...spouse, account_mode: "own", billing: "participant", report_access: "participant" });
+  assert.ok(own.ok);
+  if (own.ok) assert.deepEqual([own.value.account_mode, own.value.billing, own.value.report_access], ["own", "participant", "participant"]);
+  assert.ok(!parseEnrollmentRequest({ ...spouse, account_mode: "bogus" }).ok);
+  // registering yourself never carries a payer or access choice
+  const me = parseEnrollmentRequest({ for: "self", program_id: "p1", account_mode: "family", billing: "participant" });
+  assert.ok(me.ok);
+  if (me.ok) assert.deepEqual([me.value.account_mode, me.value.billing], ["own", "requester"]);
+});
+
+test("a child is registered from an existing child or a new one, always into a slot", () => {
+  const newChild = parseChildRequest({ child_id: "new", child_name: "Adik", program_id: "kids", slot_id: "s1" });
+  assert.ok(newChild.ok);
+  if (newChild.ok) assert.deepEqual([newChild.value.child_id, newChild.value.child_name], ["", "Adik"]);
+  const existing = parseChildRequest({ child_id: "c-1", program_id: "kids", slot_id: "s1" });
+  assert.ok(existing.ok);
+  if (existing.ok) assert.equal(existing.value.child_id, "c-1");
+  assert.ok(!parseChildRequest({ program_id: "kids", slot_id: "s1" }).ok); // nobody chosen
+  assert.ok(!parseChildRequest({ child_id: "new", child_name: "", program_id: "kids", slot_id: "s1" }).ok);
+  assert.ok(!parseChildRequest({ child_id: "c-1", program_id: "", slot_id: "s1" }).ok);
+  assert.ok(!parseChildRequest({ child_id: "c-1", program_id: "kids", slot_id: "" }).ok);
+});
+
+test("a participant whose invoices someone else pays sees who pays and the status, nothing more", () => {
+  const billing = (o: Partial<EnrollmentBilling>): EnrollmentBilling => ({
+    enrollment_id: "e1",
+    student_id: "s1",
+    payer_name: "Budi",
+    is_payer: false,
+    payer_pending: false,
+    ...o,
+  });
+  const inv = (status: InvoiceSummary["status"]): InvoiceSummary => ({
+    invoice_id: null,
+    student_id: "s1",
+    enrollment_id: "e1",
+    status,
+    sessions_count: 4,
+    package_name: "Aquanatal 4",
+    created_at: "2026-09-01",
+    is_payer: false,
+  });
+  assert.deepEqual(billingNote(billing({}), [inv("sent")]), { line: "Tagihan dikelola oleh Budi", status: "Menunggu pembayaran" });
+  assert.equal(billingNote(billing({}), [inv("paid")])?.status, "Lunas");
+  assert.equal(billingNote(billing({}), [])?.status, null);
+  // the payer sees the invoice itself, not a note
+  assert.equal(billingNote(billing({ is_payer: true }), [inv("sent")]), null);
+  assert.equal(billingNote(undefined, []), null);
+  assert.match(String(billingNote(billing({ payer_name: null, payer_pending: true }), [])?.line), /peserta/i);
 });
 
 test("gender is a hint for the program, never the only eligibility rule", () => {

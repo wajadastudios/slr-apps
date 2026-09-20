@@ -44,6 +44,9 @@ export async function submitAdultRegistrationAction(formData: FormData) {
     preferred_schedule: formData.get("preferred_schedule"),
     preferred_location: formData.get("preferred_location"),
     acknowledged: formData.get("acknowledged"),
+    account_mode: formData.get("account_mode"),
+    billing: formData.get("billing"),
+    report_access: formData.get("report_access"),
   });
   if (!request.ok) fail(request.error, programId);
 
@@ -59,11 +62,11 @@ export async function submitAdultRegistrationAction(formData: FormData) {
 
   const { data: program } = await admin
     .from("programs")
-    .select("id, name, active, self_registration, requires_acknowledgement, intended_gender")
+    .select("id, name, active, self_registration, requires_acknowledgement, intended_gender, audience")
     .eq("id", request.value.program_id)
     .maybeSingle();
   const problem = checkRequestAgainstProgram(
-    program ? { ...program, intended_gender: program.intended_gender ?? null } : null,
+    program ? { ...program, intended_gender: program.intended_gender ?? null, audience: program.audience } : null,
     request.value
   );
   if (problem) fail(problem, programId);

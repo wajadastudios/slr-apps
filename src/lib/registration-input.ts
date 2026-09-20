@@ -21,6 +21,13 @@ export function genderLabel(value: string | null | undefined): string {
 export const RELATIONSHIPS = ["Pasangan", "Anak", "Orang tua", "Saudara", "Anggota keluarga lain"] as const;
 
 export type ParticipantKind = "self" | "other";
+// the first question of the registration form
+export type WhoKind = ParticipantKind | "child";
+
+// how an adult registered by someone else takes part
+export type AccountMode = "family" | "own"; // stay in the family account | own account by invitation
+export type BillingMode = "requester" | "participant"; // who pays the invoices
+export type ReportAccess = "family" | "participant"; // who sees reports
 
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -54,6 +61,10 @@ export type EnrollmentRequest = {
   preferred_schedule: string;
   preferred_location: string;
   acknowledged: boolean;
+  // only meaningful for "other"
+  account_mode: AccountMode;
+  billing: BillingMode;
+  report_access: ReportAccess;
 };
 
 export function parseEnrollmentRequest(raw: {
@@ -67,6 +78,9 @@ export function parseEnrollmentRequest(raw: {
   preferred_schedule?: unknown;
   preferred_location?: unknown;
   acknowledged?: unknown;
+  account_mode?: unknown;
+  billing?: unknown;
+  report_access?: unknown;
 }): ParseResult<EnrollmentRequest> {
   const who = String(raw.for ?? "");
   if (who !== "self" && who !== "other") {
@@ -87,6 +101,10 @@ export function parseEnrollmentRequest(raw: {
     return { ok: false, error: "Tanggal lahir tidak valid." };
   }
 
+  const account_mode = String(raw.account_mode ?? "own") as AccountMode;
+  const billing = String(raw.billing ?? "requester") as BillingMode;
+  const report_access = String(raw.report_access ?? "participant") as ReportAccess;
+
   let participant_name = "";
   let participant_phone = "";
   let relationship = "";
@@ -100,6 +118,19 @@ export function parseEnrollmentRequest(raw: {
     if (!relationship) return { ok: false, error: "Pilih hubungan peserta dengan Anda." };
     if (!gender) return { ok: false, error: "Pilih jenis kelamin peserta." };
     participant_phone = phone;
+
+    if (!["family", "own"].includes(account_mode)) return { ok: false, error: "Pilih akses akun peserta." };
+    if (!["requester", "participant"].includes(billing)) {
+      return { ok: false, error: "Pilih penanggung jawab pembayaran." };
+    }
+    if (!["family", "participant"].includes(report_access)) return { ok: false, error: "Pilih akses laporan peserta." };
+    // a participant who stays in the family account has no account of their own
+    if (account_mode === "family" && (billing === "participant" || report_access === "participant")) {
+      return {
+        ok: false,
+        error: "Pembayaran atau laporan khusus peserta memerlukan akun sendiri. Pilih undangan akun untuk peserta.",
+      };
+    }
   }
 
   return {
@@ -115,7 +146,50 @@ export function parseEnrollmentRequest(raw: {
       preferred_schedule: String(raw.preferred_schedule ?? "").trim().slice(0, 200),
       preferred_location: String(raw.preferred_location ?? "").trim().slice(0, 200),
       acknowledged: raw.acknowledged === "on" || raw.acknowledged === "true" || raw.acknowledged === true,
+      account_mode: who === "other" ? account_mode : "own",
+      billing: who === "other" ? billing : "requester",
+      report_access: who === "other" ? report_access : "participant",
     },
+  };
+}
+
+// ---------- "Anak saya" ----------
+export type ChildRequest = {
+  // an existing child of this account, or "" for a new one
+  child_id: string;
+  child_name: string;
+  birth_date: string | null;
+  program_id: string;
+  slot_id: string;
+};
+
+export function parseChildRequest(raw: {
+  child_id?: unknown;
+  child_name?: unknown;
+  birth_date?: unknown;
+  program_id?: unknown;
+  slot_id?: unknown;
+}): ParseResult<ChildRequest> {
+  const choice = String(raw.child_id ?? "").trim();
+  if (!choice) return { ok: false, error: "Pilih anak yang akan didaftarkan, atau tambah anak baru." };
+  const isNew = choice === "new";
+
+  const program_id = String(raw.program_id ?? "").trim();
+  if (!program_id) return { ok: false, error: "Pilih program terlebih dahulu." };
+  const slot_id = String(raw.slot_id ?? "").trim();
+  if (!slot_id) return { ok: false, error: "Pilih jadwal kelas untuk anak." };
+
+  const child_name = String(raw.child_name ?? "").trim();
+  if (isNew && child_name.length < 2) return { ok: false, error: "Nama anak wajib diisi." };
+
+  const birth = String(raw.birth_date ?? "").trim();
+  if (birth && (!DATE.test(birth) || Number.isNaN(Date.parse(birth)))) {
+    return { ok: false, error: "Tanggal lahir tidak valid." };
+  }
+
+  return {
+    ok: true,
+    value: { child_id: isNew ? "" : choice, child_name: isNew ? child_name : "", birth_date: birth || null, program_id, slot_id },
   };
 }
 
@@ -146,10 +220,16 @@ export function checkRequestAgainstProgram(
     self_registration: boolean;
     requires_acknowledgement: boolean;
     intended_gender?: "male" | "female" | null;
+    audience?: "child" | "adult" | "all";
   } | null,
   request: Pick<EnrollmentRequest, "for" | "gender" | "acknowledged">
 ): string | null {
-  if (!program || !program.active || !program.self_registration) {
+  if (
+    !program ||
+    !program.active ||
+    !program.self_registration ||
+    program.audience === "child"
+  ) {
     return "Program ini belum dibuka untuk pendaftaran mandiri.";
   }
   if (program.requires_acknowledgement && !request.acknowledged) {

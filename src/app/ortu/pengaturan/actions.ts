@@ -6,6 +6,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { deleteStorageFileFromUrl } from "@/lib/storage";
 import { GENDER_OPTIONS, normalizePhone } from "@/lib/registration-input";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getSiteOrigin } from "@/lib/site-url";
+import { sendWhatsApp } from "@/lib/whatsapp";
+import { participantInviteMessage } from "@/lib/enrollment";
 
 async function uploadAvatar(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -184,7 +188,55 @@ async function setReportAccessActionImpl(formData: FormData) {
   revalidatePath("/ortu");
 }
 
+// A participant who stays inside the family account can be invited later to
+// take over their own account. The invitation goes to THEIR WhatsApp.
+async function inviteParticipantActionImpl(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const student_id = String(formData.get("student_id") ?? "");
+  if (!student_id) return;
+
+  const { data: token } = await supabase.rpc("invite_participant", { p_student_id: student_id });
+  if (typeof token !== "string" || !token) {
+    redirect(`/ortu/pengaturan?error=${encodeURIComponent("Undangan belum dapat dikirim untuk peserta ini.")}`);
+  }
+
+  const admin = createAdminClient();
+  const [{ data: participant }, { data: sender }, { data: programs }] = await Promise.all([
+    admin.from("students").select("full_name, phone").eq("id", student_id).maybeSingle(),
+    admin.from("users").select("full_name").eq("id", user.id).maybeSingle(),
+    admin
+      .from("enrollments")
+      .select("program:program_id(name)")
+      .eq("student_id", student_id)
+      .not("status", "in", "(cancelled,rejected)"),
+  ]);
+  if (!participant?.phone) {
+    redirect(`/ortu/pengaturan?error=${encodeURIComponent("Nomor WhatsApp peserta belum ada, undangan tidak dapat dikirim.")}`);
+  }
+
+  const programNames = (programs ?? [])
+    .map((p) => (p.program as unknown as { name: string } | null)?.name)
+    .filter(Boolean)
+    .join(", ");
+  await sendWhatsApp(
+    participant.phone,
+    participantInviteMessage({
+      name: (participant.full_name ?? "").split(" ")[0] || "Peserta",
+      registeredBy: sender?.full_name ?? "Keluarga Anda",
+      program: programNames || "kelas renang",
+      link: `${await getSiteOrigin()}/klaim/${token}`,
+    })
+  );
+  revalidatePath("/ortu/pengaturan");
+}
+
 export const updateOwnProfileAction = safeAction(updateOwnProfileActionImpl, "Profil berhasil disimpan");
 export const updateChildProfileAction = safeAction(updateChildProfileActionImpl, "Profil anak berhasil disimpan");
 export const updateParticipantProfileAction = safeAction(updateParticipantProfileActionImpl, "Profil peserta berhasil disimpan");
 export const setReportAccessAction = safeAction(setReportAccessActionImpl, "Pengaturan akses berhasil disimpan");
+export const inviteParticipantAction = safeAction(inviteParticipantActionImpl, "Undangan dikirim ke WhatsApp peserta");

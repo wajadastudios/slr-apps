@@ -5,21 +5,42 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getUserWithRole } from "@/lib/auth";
-import { sendWhatsApp } from "@/lib/whatsapp";
-import { DAYS } from "@/lib/days";
 import { offerOutcomeMessage } from "@/lib/enrollment";
 import { notifyOfferOutcome } from "@/lib/enrollment-server";
-import { parseEnrollmentRequest } from "@/lib/registration-input";
-import { submitEnrollmentRequest } from "@/lib/enrollment-register";
+import { parseChildRequest, parseEnrollmentRequest } from "@/lib/registration-input";
+import { submitChildRegistration, submitEnrollmentRequest } from "@/lib/enrollment-register";
 
-// A signed-in account asks to enrol somebody in a program -- itself ("Saya
-// sendiri") or a spouse / family member. Only creates a `pending_review`
-// enrollment: no schedule and no class access until admin has offered a slot
-// and it was approved.
+// "Daftar Kelas Baru": a signed-in account registers somebody. Adults (itself or
+// a spouse / family member) only get a `pending_review` enrollment: no schedule
+// and no class access until admin has offered a slot and it was approved. A
+// child is booked straight into a free slot of a children's program.
 async function requestEnrollmentActionImpl(formData: FormData) {
   const session = await getUserWithRole();
   if (!session || session.role !== "ortu") {
     redirect("/login");
+  }
+
+  if (String(formData.get("for") ?? "") === "child") {
+    const child = parseChildRequest({
+      child_id: formData.get("child_id"),
+      child_name: formData.get("child_name"),
+      birth_date: formData.get("birth_date"),
+      program_id: formData.get("program_id"),
+      slot_id: formData.get("slot_id"),
+    });
+    if (!child.ok) {
+      redirect(`/ortu?error=${encodeURIComponent(child.error)}`);
+    }
+    const childResult = await submitChildRegistration(
+      await createClient(),
+      { fullName: session.fullName ?? session.user.email ?? "Orang tua" },
+      child.value
+    );
+    if (!childResult.ok) {
+      redirect(`/ortu?error=${encodeURIComponent(childResult.error)}`);
+    }
+    revalidatePath("/ortu");
+    redirect("/ortu?child_added=1");
   }
 
   const request = parseEnrollmentRequest({
@@ -33,6 +54,9 @@ async function requestEnrollmentActionImpl(formData: FormData) {
     preferred_schedule: formData.get("preferred_schedule"),
     preferred_location: formData.get("preferred_location"),
     acknowledged: formData.get("acknowledged"),
+    account_mode: formData.get("account_mode"),
+    billing: formData.get("billing"),
+    report_access: formData.get("report_access"),
   });
   if (!request.ok) {
     redirect(`/ortu?error=${encodeURIComponent(request.error)}`);
@@ -99,68 +123,6 @@ async function cancelEnrollmentActionImpl(formData: FormData) {
   redirect("/ortu");
 }
 
-async function addChildAndRegisterActionImpl(formData: FormData) {
-  const session = await getUserWithRole();
-  if (!session || session.role !== "ortu") {
-    redirect("/login");
-  }
-
-  const full_name = String(formData.get("full_name") ?? "").trim();
-  const birth_date = String(formData.get("birth_date") ?? "") || null;
-  const slot_id = String(formData.get("slot_id") ?? "");
-
-  if (!full_name || !slot_id) {
-    redirect(
-      `/ortu?error=${encodeURIComponent(
-        "Nama anak dan jadwal wajib diisi."
-      )}`
-    );
-  }
-
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("ortu_add_child_and_register", {
-    p_full_name: full_name,
-    p_birth_date: birth_date,
-    p_slot_id: slot_id,
-  });
-
-  if (error) {
-    redirect(
-      `/ortu?error=${encodeURIComponent(
-        error.message.includes("slot is full")
-          ? "Maaf, slot jadwal ini baru saja penuh. Silakan pilih jadwal lain."
-          : error.message
-      )}`
-    );
-  }
-
-  const { data: slot } = await supabase
-    .from("class_slots")
-    .select("day_of_week, start_time, label, program:program_id(name)")
-    .eq("id", slot_id)
-    .single();
-
-  const { data: adminPhone } = await supabase
-    .from("site_settings")
-    .select("value")
-    .eq("key", "phone")
-    .single();
-
-  if (slot) {
-    const program = slot.program as unknown as { name: string } | null;
-    await sendWhatsApp(
-      adminPhone?.value,
-      `Pendaftaran baru dari ${session.fullName ?? "orang tua"} untuk anak ${full_name}. Permintaan jadwal: ${DAYS[slot.day_of_week]}, ${slot.start_time.slice(0, 5)} WIB${
-        program?.name ? ` — ${program.name}` : ""
-      }${slot.label ? ` (${slot.label})` : ""}. Mohon di-follow up.`
-    );
-  }
-
-  revalidatePath("/ortu");
-  redirect("/ortu?child_added=1");
-}
-
 export const requestEnrollmentAction = safeAction(requestEnrollmentActionImpl, "Pendaftaran terkirim. Admin akan menghubungi Anda");
 export const respondScheduleOfferAction = safeAction(respondScheduleOfferActionImpl, "Jawaban Anda sudah disimpan");
 export const cancelEnrollmentAction = safeAction(cancelEnrollmentActionImpl, "Pendaftaran dibatalkan");
-export const addChildAndRegisterAction = safeAction(addChildAndRegisterActionImpl, "Pendaftaran berhasil! Admin akan segera menghubungi Anda");

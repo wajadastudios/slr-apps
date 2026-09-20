@@ -22,6 +22,30 @@ function Shell({ children }: { children: React.ReactNode }) {
 // Invitation for a participant who was registered by someone else (spouse or
 // family member). It shows only who registered them and for which class --
 // never a schedule or report -- and lets them create / link their own account.
+function ShareChoice({ info }: { info: { registered_by: string | null; wants_report_access: boolean; participant_pays: boolean } }) {
+  const who = info.registered_by ?? "pendaftar";
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-white/50 bg-white/50 p-3">
+      {info.wants_report_access && (
+        <p className="text-xs text-slate-600">{who} meminta dapat melihat jadwal dan laporan kelas Anda.</p>
+      )}
+      <label className="flex items-start gap-2 text-sm text-slate-800">
+        <input type="checkbox" name="share_reports" className="mt-1 h-4 w-4" />
+        <span>Izinkan pendaftar melihat jadwal dan laporan kelas saya</span>
+      </label>
+      <p className="text-xs text-slate-500">
+        Tidak dicentang = hanya Anda yang melihat. Anda dapat mengubahnya kapan saja di Pengaturan.
+      </p>
+      {info.participant_pays && (
+        <p className="text-xs text-slate-600">
+          {who} meminta tagihan kelas Anda dibayar dari akun Anda. Tagihan akan muncul di menu Tagihan setelah admin
+          menerbitkannya.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default async function ClaimParticipantPage({
   params,
   searchParams,
@@ -34,7 +58,13 @@ export default async function ClaimParticipantPage({
   const supabase = await createClient();
 
   const { data } = await supabase.rpc("get_claim_info", { p_token: token }).maybeSingle();
-  const info = data as { participant_name: string; registered_by: string | null; program_names: string[] } | null;
+  const info = data as {
+    participant_name: string;
+    registered_by: string | null;
+    program_names: string[];
+    wants_report_access: boolean;
+    participant_pays: boolean;
+  } | null;
 
   if (!info) {
     return (
@@ -59,8 +89,8 @@ export default async function ClaimParticipantPage({
       <h1 className={HEADING}>Halo, {info.participant_name}</h1>
       <p className="mt-2 text-sm text-slate-700">
         {info.registered_by ?? "Seseorang"} mendaftarkan Anda ke <strong>{programs}</strong> di Sari Les Renang. Buat
-        akun Anda sendiri untuk mengikuti prosesnya: jadwal, laporan, dan data Anda hanya dapat dilihat oleh Anda.
-        Anda yang memutuskan apakah {info.registered_by ?? "pendaftar"} boleh ikut melihat jadwal dan laporan kelas.
+        akun Anda sendiri untuk mengikuti prosesnya. Laporan tetap milik Anda; Anda yang memutuskan apakah{" "}
+        {info.registered_by ?? "pendaftar"} boleh ikut melihat jadwal dan laporan kelas.
       </p>
 
       {error && (
@@ -76,6 +106,7 @@ export default async function ClaimParticipantPage({
             <p className="text-sm text-slate-600">
               Anda masuk sebagai <strong>{session.fullName ?? session.user.email}</strong>.
             </p>
+            <ShareChoice info={info} />
             <GlassButton type="submit" className={`${PRIMARY_BUTTON} w-fit`}>
               Hubungkan ke akun saya
             </GlassButton>
@@ -121,6 +152,7 @@ export default async function ClaimParticipantPage({
             <GlassInput id="claim-password" name="password" type="password" required minLength={8} autoComplete="new-password" />
             <p className="text-xs text-slate-500">Minimal 8 karakter.</p>
           </div>
+          <ShareChoice info={info} />
           <GlassButton type="submit" className={`${PRIMARY_BUTTON} w-fit`}>
             Buat Akun Saya
           </GlassButton>

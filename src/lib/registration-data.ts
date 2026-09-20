@@ -10,15 +10,19 @@ export type RegistrationProgram = {
   name: string;
   description: string | null;
   requires_acknowledgement: boolean;
+  // which registration flow lists it: adults (self / spouse / family) and/or children
+  open_for_adults: boolean;
+  open_for_children: boolean;
   // who the program is meant for (Aquanatal: female / pregnant participants)
   intended_gender: "male" | "female" | null;
   slots: RegistrationSlot[];
   packages: RegistrationPackage[];
 };
 
-// Everything the "Daftarkan Diri ke Kelas" form needs, straight from what the
-// admin configured: active programs open for self registration, each with its
-// own packages and the slots that still have room. Read with the service
+// Everything the "Daftar Kelas Baru" form needs, straight from what the admin
+// configured: active programs, each with its own packages and the slots that
+// still have room. The form lists a program for adults when it is open for
+// self registration, and for children when it is meant for children. Read with the service
 // client (this also has to work for a visitor without an account) and only the
 // public-facing fields are passed on. `error` lets the form say "could not
 // load" instead of showing an empty list that looks like "no programs".
@@ -32,9 +36,8 @@ export async function loadRegistrationPrograms(): Promise<{
     const [programsRes, slotsRes, packagesRes, availabilityRes] = await Promise.all([
       admin
         .from("programs")
-        .select("id, name, description, requires_acknowledgement, intended_gender")
+        .select("id, name, description, requires_acknowledgement, intended_gender, self_registration, audience")
         .eq("active", true)
-        .eq("self_registration", true)
         .order("name"),
       admin
         .from("class_slots")
@@ -61,6 +64,8 @@ export async function loadRegistrationPrograms(): Promise<{
       name: p.name,
       description: p.description ?? null,
       requires_acknowledgement: p.requires_acknowledgement === true,
+      open_for_adults: p.self_registration === true && (p.audience === "adult" || p.audience === "all"),
+      open_for_children: p.audience === "child" || p.audience === "all",
       intended_gender: p.intended_gender === "male" || p.intended_gender === "female" ? p.intended_gender : null,
       slots: (slotsRes.data ?? [])
         .filter((s) => s.program_id === p.id && s.capacity - (filled.get(s.id) ?? 0) > 0)

@@ -27,7 +27,8 @@ export async function claimParticipantAction(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) back(token, CLAIM_MESSAGE.not_authenticated);
 
-  const { data: outcome, error } = await supabase.rpc("claim_participant", { p_token: token });
+  const shareReports = formData.get("share_reports") === "on";
+  const { data: outcome, error } = await supabase.rpc("claim_participant", { p_token: token, p_share_reports: shareReports });
   if (error || outcome !== "claimed") {
     back(token, CLAIM_MESSAGE[String(outcome)] ?? "Undangan belum dapat dipakai. Coba lagi.");
   }
@@ -90,7 +91,8 @@ export async function createAccountAndClaimAction(formData: FormData) {
   });
   if (signInError) redirect("/login?dibuat=1");
 
-  const { data: outcome } = await supabase.rpc("claim_participant", { p_token: token });
+  const shareReports = formData.get("share_reports") === "on";
+  const { data: outcome } = await supabase.rpc("claim_participant", { p_token: token, p_share_reports: shareReports });
   if (outcome !== "claimed") {
     redirect(`/ortu?error=${encodeURIComponent("Akun sudah dibuat, tetapi undangan belum dapat dihubungkan. Hubungi admin.")}`);
   }

@@ -11,6 +11,8 @@ import {
   slotDescription,
   type EnrollmentStatus,
 } from "@/lib/enrollment";
+import { BillingNoteLine } from "@/components/billing-note";
+import type { BillingNote } from "@/lib/billing";
 import { cancelEnrollmentAction, respondScheduleOfferAction } from "@/app/ortu/actions";
 
 // What a participant sees while a class is not active yet: where the
@@ -25,6 +27,7 @@ export function EnrollmentStatusCard({
   offeredSlot,
   full = false,
   restrictedFor = null,
+  billingNote = null,
 }: {
   enrollmentId: string;
   name: string;
@@ -37,6 +40,8 @@ export function EnrollmentStatusCard({
   // set when the class is running but this viewer registered someone else and
   // was not given access: only the status is shown
   restrictedFor?: string | null;
+  // who pays, when that is another account
+  billingNote?: BillingNote | null;
 }) {
   const copy = participantStatusCopy(status, programName);
 
@@ -66,6 +71,8 @@ export function EnrollmentStatusCard({
           <p className="mt-2 text-xs text-slate-500">Pilihan Anda: {preferred}</p>
         )}
       </div>
+
+      <BillingNoteLine note={billingNote} />
 
       {restrictedFor && (
         <p className="rounded-2xl bg-[#EEF9FB] px-4 py-3 text-sm text-slate-700">

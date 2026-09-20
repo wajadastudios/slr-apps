@@ -67,7 +67,13 @@ async function createInvoiceForStudentActionImpl(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/admin/tagihan?error=${encodeURIComponent(error.message)}`);
+    redirect(
+      `/admin/tagihan?error=${encodeURIComponent(
+        error.message.includes("billing account not ready")
+          ? "Peserta ini membayar dari akunnya sendiri, tetapi akunnya belum aktif. Minta peserta membuka undangan, atau ubah penanggung jawab pembayaran di halaman pendaftar."
+          : error.message
+      )}`
+    );
   }
 
   // Clear the parent's renewal preference now that it's been acted on.
@@ -87,19 +93,19 @@ async function getInvoiceNotifyInfo(
   const { data } = await supabase
     .from("invoices")
     .select(
-      "package_name, student:student_id(full_name, users:parent_id(phone))"
+      "package_name, student:student_id(full_name), billing:billing_account_id(phone)"
     )
     .eq("id", invoice_id)
     .single();
 
-  const student = data?.student as unknown as {
-    full_name: string;
-    users: { phone: string | null } | null;
-  } | null;
+  const student = data?.student as unknown as { full_name: string } | null;
+  // the invoice goes to its ONE billing account, never to whoever else manages
+  // the participant
+  const billing = data?.billing as unknown as { phone: string | null } | null;
 
   return {
     studentName: student?.full_name ?? "-",
-    parentPhone: student?.users?.phone ?? null,
+    parentPhone: billing?.phone ?? null,
     packageName: data?.package_name ?? "-",
   };
 }

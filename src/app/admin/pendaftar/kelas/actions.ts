@@ -161,6 +161,56 @@ async function saveNoteImpl(formData: FormData) {
   redirect(back(id));
 }
 
+// Who pays this enrollment's invoices: the family account that registered, or
+// the participant's own account. An invoice always has exactly one billing
+// account, so changing it also moves the invoices that were not sent yet;
+// invoices already sent stay with whoever received them.
+async function setBillingPayerImpl(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const payer = String(formData.get("payer") ?? "");
+  if (payer !== "requester" && payer !== "participant") fail(id, "Pilih penanggung jawab pembayaran.");
+
+  const supabase = await createClient();
+  const { data: enrollment } = await supabase
+    .from("enrollments")
+    .select("id, student:student_id(parent_id, user_id)")
+    .eq("id", id)
+    .maybeSingle();
+  if (!enrollment) fail(id, "Pendaftaran tidak ditemukan.");
+
+  const student = enrollment.student as unknown as { parent_id: string; user_id: string | null } | null;
+  const account = payer === "participant" ? student?.user_id : student?.parent_id;
+  if (!account) {
+    fail(id, "Peserta belum memiliki akun sendiri. Minta peserta membuka undangan terlebih dahulu.");
+  }
+
+  const { count: inFlight } = await supabase
+    .from("invoices")
+    .select("id", { count: "exact", head: true })
+    .eq("enrollment_id", id)
+    .in("status", ["sent", "processing"]);
+  if ((inFlight ?? 0) > 0) {
+    fail(id, "Ada tagihan yang sudah dikirim atau sedang diverifikasi. Selesaikan tagihan itu dulu sebelum mengganti penanggung jawab.");
+  }
+
+  const { error } = await supabase
+    .from("enrollments")
+    .update({ billing_mode: payer, billing_contact_user_id: account, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) fail(id, "Penanggung jawab pembayaran belum dapat disimpan.");
+
+  await supabase
+    .from("invoices")
+    .update({ billing_account_id: account })
+    .eq("enrollment_id", id)
+    .in("status", ["draft", "approved"]);
+
+  revalidatePath(back(id));
+  redirect(back(id));
+}
+
+export const setBillingPayerAction = safeAction(setBillingPayerImpl, "Penanggung jawab pembayaran diperbarui");
 export const setEnrollmentStatusAction = safeAction(setStatusImpl, "Status pendaftaran diperbarui");
 export const offerScheduleAction = safeAction(offerScheduleImpl, "Penawaran jadwal dikirim ke peserta");
 export const saveAdjustmentNoteAction = safeAction(saveNoteImpl, "Catatan penyesuaian disimpan");
