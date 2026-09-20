@@ -156,15 +156,52 @@ export function computeMilestoneStatuses(
   return statuses;
 }
 
+function trimNumber(v: number): string {
+  return String(Math.round(Number(v) * 100) / 100);
+}
+
+function clock(seconds: number): string {
+  const total = Math.round(Number(seconds));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+// Times read as m:ss (1:05), distances in meters, holds in seconds.
 export function formatMilestoneValue(metricType: MetricType, value: number): string {
-  const v = Number(value);
-  if (metricType === "jarak_tempuh") return `${v} m`;
-  if (v >= 60) {
-    const m = Math.floor(v / 60);
-    const s = Math.round(v % 60);
-    return `${m}:${String(s).padStart(2, "0")}`;
-  }
-  return `${v} detik`;
+  if (metricType === "waktu_tempuh") return clock(value);
+  if (metricType === "jarak_tempuh") return `${trimNumber(value)} meter`;
+  return `${trimNumber(value)} detik`;
+}
+
+// "3 / 5 / 8 detik", "1:00 / 0:50 / 0:40", "3 / 5 / 8 meter"
+export function formatMilestoneTargets(
+  m: Pick<Milestone, "metric_type" | "bronze" | "silver" | "gold">
+): string {
+  const tiers = [m.bronze, m.silver, m.gold];
+  if (m.metric_type === "waktu_tempuh") return tiers.map(clock).join(" / ");
+  const unit = m.metric_type === "jarak_tempuh" ? "meter" : "detik";
+  return `${tiers.map(trimNumber).join(" / ")} ${unit}`;
+}
+
+// Breath-hold is only ever assessed by the pengajar, supervised in session.
+export function isSupervisedOnly(metricType: MetricType): boolean {
+  return metricType === "tahan_nafas";
+}
+
+const NEXT_TIER: Record<Tier, Tier | null> = { bronze: "silver", silver: "gold", gold: null };
+
+export type NextTarget = { status: MilestoneStatus; tier: Tier; value: number };
+
+// The one goal worth showing first: the earliest milestone (admin order) that
+// has not been unlocked at all; once everything is unlocked, the earliest one
+// that can still be upgraded. null when every badge is gold.
+export function pickNextTarget(statuses: MilestoneStatus[]): NextTarget | null {
+  const open = [...statuses]
+    .sort((a, b) => a.milestone.sort_order - b.milestone.sort_order)
+    .filter((s) => !s.archived && s.tier !== "gold");
+  const pick = open.find((s) => s.tier === null) ?? open[0];
+  if (!pick) return null;
+  const tier = pick.tier ? NEXT_TIER[pick.tier]! : "bronze";
+  return { status: pick, tier, value: Number(pick.milestone[tier]) };
 }
 
 // Levels are free-text categories; shown in the order of their first

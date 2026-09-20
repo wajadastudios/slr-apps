@@ -1,13 +1,45 @@
 import type { Milestone } from "@/lib/milestones";
+import type { MetricType } from "@/lib/performance";
 
-// Used ONLY when the milestones table does not exist yet (migration 0031 not
-// applied). Once the table exists the database is the sole source of truth.
+// Used ONLY when the milestones table does not exist yet (migration 0031
+// not applied). Once the table exists the database is the sole source of
+// truth; the same starting set is seeded by migration 0032.
+const m = (
+  key: string,
+  order: number,
+  level: string,
+  label: string,
+  metric_type: MetricType,
+  stroke: string | null,
+  distance_m: number | null,
+  [bronze, silver, gold]: [number, number, number]
+): Milestone => ({
+  id: `seed:${key}`,
+  label,
+  level,
+  metric_type,
+  stroke,
+  distance_m,
+  bronze,
+  silver,
+  gold,
+  sort_order: order,
+  active: true,
+});
+
 export const DEFAULT_MILESTONES: Milestone[] = [
-  { id: "seed:tahan-nafas", label: "Tahan Nafas", level: "Dasar 1", metric_type: "tahan_nafas", stroke: null, distance_m: null, bronze: 3, silver: 5, gold: 8, sort_order: 1, active: true },
-  { id: "seed:jarak-meluncur", label: "Jarak Meluncur", level: "Dasar 2", metric_type: "jarak_tempuh", stroke: null, distance_m: null, bronze: 5, silver: 8, gold: 10, sort_order: 2, active: true },
-  { id: "seed:waktu-25m-bebas", label: "Waktu 25m Gaya Bebas", level: "Menengah", metric_type: "waktu_tempuh", stroke: "Bebas", distance_m: 25, bronze: 60, silver: 50, gold: 40, sort_order: 3, active: true },
-  { id: "seed:treading-water", label: "Treading Water", level: "Mahir", metric_type: "treading_water", stroke: null, distance_m: null, bronze: 15, silver: 22, gold: 30, sort_order: 4, active: true },
-  { id: "seed:waktu-25m-punggung", label: "25m Gaya Punggung", level: "Mahir", metric_type: "waktu_tempuh", stroke: "Punggung", distance_m: 25, bronze: 65, silver: 50, gold: 35, sort_order: 5, active: true },
-  { id: "seed:waktu-25m-dada", label: "25m Gaya Dada", level: "Mahir", metric_type: "waktu_tempuh", stroke: "Dada", distance_m: 25, bronze: 70, silver: 55, gold: 40, sort_order: 6, active: true },
-  { id: "seed:waktu-25m-kupu", label: "25m Gaya Kupu-kupu", level: "Mahir", metric_type: "waktu_tempuh", stroke: "Kupu-kupu", distance_m: 25, bronze: 80, silver: 60, gold: 45, sort_order: 7, active: true },
+  m("tahan-nafas", 1, "Dasar", "Tahan Nafas Terkontrol", "tahan_nafas", null, null, [3, 5, 8]),
+  m("mengapung-telentang", 2, "Dasar", "Mengapung Telentang Mandiri", "mengapung_telentang", null, null, [5, 10, 20]),
+  m("jarak-meluncur", 3, "Dasar", "Jarak Meluncur", "jarak_tempuh", "Meluncur", null, [3, 5, 8]),
+  m("tendangan-bebas", 4, "Dasar", "Tendangan Gaya Bebas", "jarak_tempuh", "Tendangan Bebas", null, [5, 10, 15]),
+  m("bebas-tanpa-berhenti", 5, "Dasar", "Gaya Bebas Tanpa Berhenti", "jarak_tempuh", "Bebas", null, [10, 15, 25]),
+  m("waktu-25m-bebas", 6, "Menengah", "Waktu 25 m Gaya Bebas", "waktu_tempuh", "Bebas", 25, [60, 50, 40]),
+  m("bebas-napas-samping", 7, "Menengah", "Gaya Bebas dengan Pernapasan Samping", "jarak_tempuh", "Bebas Napas Samping", null, [15, 25, 50]),
+  m("dada-tanpa-berhenti", 8, "Menengah", "Gaya Dada Tanpa Berhenti", "jarak_tempuh", "Dada", null, [10, 15, 25]),
+  m("punggung-tanpa-berhenti", 9, "Menengah", "Gaya Punggung Tanpa Berhenti", "jarak_tempuh", "Punggung", null, [10, 15, 25]),
+  m("treading-water", 10, "Mahir", "Treading Water", "treading_water", null, null, [15, 30, 60]),
+  m("waktu-25m-punggung", 11, "Mahir", "Waktu 25 m Gaya Punggung", "waktu_tempuh", "Punggung", 25, [65, 55, 45]),
+  m("waktu-25m-dada", 12, "Mahir", "Waktu 25 m Gaya Dada", "waktu_tempuh", "Dada", 25, [70, 60, 50]),
+  m("waktu-25m-kupu", 13, "Mahir", "Waktu 25 m Gaya Kupu-kupu", "waktu_tempuh", "Kupu-kupu", 25, [80, 70, 60]),
+  m("medley-4x25", 14, "Mahir", "Medley 4 × 25 m", "waktu_tempuh", "Medley", 100, [300, 260, 230]),
 ];

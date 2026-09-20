@@ -3,6 +3,7 @@ export const METRIC_TYPES = [
   "jarak_tempuh",
   "tahan_nafas",
   "treading_water",
+  "mengapung_telentang",
 ] as const;
 
 export type MetricType = (typeof METRIC_TYPES)[number];
@@ -12,10 +13,38 @@ export const METRIC_LABELS: Record<MetricType, string> = {
   jarak_tempuh: "Jarak Tempuh",
   tahan_nafas: "Tahan Nafas",
   treading_water: "Treading Water",
+  mengapung_telentang: "Mengapung Telentang",
 };
 
 export const STROKES = ["Bebas", "Dada", "Punggung", "Kupu-kupu"] as const;
 export type Stroke = (typeof STROKES)[number];
+
+// The "Gaya" field means different things per metric: a timed swim is one of
+// the four strokes (or Medley), a distance is a stroke or a drill/technique.
+export const WAKTU_STROKES = [...STROKES, "Medley"] as const;
+export const DISTANCE_TECHNIQUES = [
+  "Meluncur",
+  "Tendangan Bebas",
+  "Bebas",
+  "Bebas Napas Samping",
+  "Dada",
+  "Punggung",
+  "Kupu-kupu",
+] as const;
+
+export function usesStroke(metric: MetricType): boolean {
+  return metric === "waktu_tempuh" || metric === "jarak_tempuh";
+}
+
+export function strokeOptions(metric: MetricType): readonly string[] {
+  if (metric === "waktu_tempuh") return WAKTU_STROKES;
+  if (metric === "jarak_tempuh") return DISTANCE_TECHNIQUES;
+  return [];
+}
+
+export function strokeFieldLabel(metric: MetricType): string {
+  return metric === "jarak_tempuh" ? "Gaya / Teknik" : "Gaya";
+}
 
 // Lower is better for waktu_tempuh (faster); higher is better for the rest
 // (further distance, longer breath-hold / treading time).
@@ -84,9 +113,16 @@ export function formatMetricLabel(r: {
 }): string {
   switch (r.metric_type) {
     case "waktu_tempuh":
-      return `Waktu ${r.distance_m ?? "-"}m Gaya ${r.stroke ?? "-"}`;
+      return r.stroke === "Medley"
+        ? `Waktu ${r.distance_m ?? "-"}m Medley`
+        : `Waktu ${r.distance_m ?? "-"}m Gaya ${r.stroke ?? "-"}`;
     case "jarak_tempuh":
-      return `Jarak Meluncur${r.stroke ? ` Gaya ${r.stroke}` : ""}`;
+      if (!r.stroke) return "Jarak Tempuh";
+      if (r.stroke === "Meluncur") return "Jarak Meluncur";
+      if (r.stroke === "Tendangan Bebas") return "Jarak Tendangan Gaya Bebas";
+      return `Jarak Gaya ${r.stroke}`;
+    case "mengapung_telentang":
+      return "Mengapung Telentang";
     case "tahan_nafas":
       return "Tahan Nafas";
     case "treading_water":

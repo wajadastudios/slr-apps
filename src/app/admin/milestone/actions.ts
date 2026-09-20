@@ -9,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadMilestones } from "@/lib/milestone-loader";
 import { freezeLegacyAwards, awardMilestoneToExisting } from "@/lib/milestone-awards";
 import { parseMilestoneInput } from "@/lib/record-input";
-import { computeReorder, nextSortOrder } from "@/lib/reorder";
+import { computeReorderInGroup, nextSortOrder } from "@/lib/reorder";
 
 const BACK = "/admin/milestone";
 
@@ -75,7 +75,8 @@ async function createMilestoneActionImpl(formData: FormData) {
 
   revalidatePath(BACK);
   revalidatePath("/admin/laporan");
-  redirect(BACK);
+  // open the new milestone in the editor
+  redirect(`${BACK}?sel=${created.id}`);
 }
 
 async function updateMilestoneActionImpl(formData: FormData) {
@@ -116,7 +117,7 @@ async function updateMilestoneActionImpl(formData: FormData) {
 
   revalidatePath(BACK);
   revalidatePath("/admin/laporan");
-  redirect(BACK);
+  redirect(`${BACK}?sel=${id}`);
 }
 
 async function toggleMilestoneActiveActionImpl(formData: FormData) {
@@ -133,7 +134,7 @@ async function toggleMilestoneActiveActionImpl(formData: FormData) {
 
   revalidatePath(BACK);
   revalidatePath("/admin/laporan");
-  redirect(BACK);
+  redirect(`${BACK}?sel=${id}`);
 }
 
 async function moveMilestoneActionImpl(formData: FormData) {
@@ -142,8 +143,16 @@ async function moveMilestoneActionImpl(formData: FormData) {
   const direction = String(formData.get("direction") ?? "") === "up" ? "up" : "down";
 
   const supabase = await createClient();
-  const { data } = await supabase.from("milestones").select("id, sort_order").order("sort_order");
-  const changes = computeReorder(data ?? [], id, direction);
+  const { data } = await supabase
+    .from("milestones")
+    .select("id, sort_order, level")
+    .order("sort_order");
+  // moves within its level (Dasar / Menengah / Mahir), never across levels
+  const changes = computeReorderInGroup(
+    (data ?? []).map((m) => ({ id: m.id, sort_order: m.sort_order, group: m.level })),
+    id,
+    direction
+  );
 
   for (const change of changes ?? []) {
     const { error } = await supabase

@@ -136,7 +136,7 @@ test("waktu tempuh needs gaya, jarak target and time", () => {
 });
 
 test("jarak = meters, tahan nafas/treading = seconds; bad values are rejected", () => {
-  const jarak = parseRecordInput({ metric_type: "jarak_tempuh", distance_m: "8", recorded_at: "2026-09-01" });
+  const jarak = parseRecordInput({ metric_type: "jarak_tempuh", stroke: "Meluncur", distance_m: "8", recorded_at: "2026-09-01" });
   assert.ok(jarak.ok && jarak.value.distance_m === 8 && jarak.value.duration_seconds === null);
   const nafas = parseRecordInput({ metric_type: "tahan_nafas", duration_seconds: "6", recorded_at: "2026-09-01" });
   assert.ok(nafas.ok && nafas.value.duration_seconds === 6 && nafas.value.distance_m === null);
@@ -166,8 +166,8 @@ const rec = (over: Partial<PerformanceRecordRow>): PerformanceRecordRow => ({
   ...over,
 });
 
-test("the seven default milestones are present and tier thresholds work", () => {
-  assert.equal(DEFAULT_MILESTONES.length, 7);
+test("the starter milestones are present and tier thresholds work", () => {
+  assert.equal(DEFAULT_MILESTONES.length, 14);
   const nafas = DEFAULT_MILESTONES.find((m) => m.id === "seed:tahan-nafas")!;
   assert.equal(tierForValue(nafas, 2), null);
   assert.equal(tierForValue(nafas, 3), "bronze");

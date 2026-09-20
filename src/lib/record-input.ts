@@ -1,4 +1,4 @@
-import { METRIC_TYPES, STROKES, type MetricType } from "@/lib/performance";
+import { METRIC_TYPES, strokeOptions, type MetricType } from "@/lib/performance";
 
 export type RecordInput = {
   metric_type: MetricType;
@@ -21,8 +21,8 @@ function positive(raw: unknown): number | null {
 
 // Same rules for the pengajar form, the edit dialog and the admin form:
 //  waktu_tempuh  -> gaya + jarak target (m) + waktu (detik)
-//  jarak_tempuh  -> jarak tercapai (m), gaya optional
-//  tahan_nafas / treading_water -> durasi (detik)
+//  jarak_tempuh  -> gaya/teknik + jarak tercapai (m)
+//  tahan_nafas / treading_water / mengapung_telentang -> durasi (detik)
 export function parseRecordInput(raw: {
   metric_type?: unknown;
   stroke?: unknown;
@@ -42,7 +42,7 @@ export function parseRecordInput(raw: {
   }
 
   const strokeRaw = String(raw.stroke ?? "");
-  const strokeValid = (STROKES as readonly string[]).includes(strokeRaw);
+  const strokeValid = strokeOptions(metric_type).includes(strokeRaw);
   const distance = positive(raw.distance_m);
   const duration = positive(raw.duration_seconds);
 
@@ -53,10 +53,12 @@ export function parseRecordInput(raw: {
       if (duration === null) return { ok: false, error: "Isi waktu tempuh (detik) dengan angka lebih dari 0." };
       return { ok: true, value: { metric_type, stroke: strokeRaw, distance_m: distance, duration_seconds: duration, recorded_at } };
     case "jarak_tempuh":
+      if (!strokeValid) return { ok: false, error: "Pilih gaya atau teknik untuk jarak tempuh." };
       if (distance === null) return { ok: false, error: "Isi jarak (meter) dengan angka lebih dari 0." };
-      return { ok: true, value: { metric_type, stroke: strokeValid ? strokeRaw : null, distance_m: distance, duration_seconds: null, recorded_at } };
+      return { ok: true, value: { metric_type, stroke: strokeRaw, distance_m: distance, duration_seconds: null, recorded_at } };
     case "tahan_nafas":
     case "treading_water":
+    case "mengapung_telentang":
       if (duration === null) return { ok: false, error: "Isi durasi (detik) dengan angka lebih dari 0." };
       return { ok: true, value: { metric_type, stroke: null, distance_m: null, duration_seconds: duration, recorded_at } };
   }
@@ -96,10 +98,16 @@ export function parseMilestoneInput(raw: {
   const metric_type = metric as MetricType;
 
   const strokeRaw = String(raw.stroke ?? "");
-  const strokeValid = (STROKES as readonly string[]).includes(strokeRaw);
-  const usesStroke = metric_type === "waktu_tempuh";
+  const strokeValid = strokeOptions(metric_type).includes(strokeRaw);
+  const usesStroke = metric_type === "waktu_tempuh" || metric_type === "jarak_tempuh";
   if (usesStroke && !strokeValid) {
-    return { ok: false, error: "Pilih gaya renang untuk milestone waktu tempuh." };
+    return {
+      ok: false,
+      error:
+        metric_type === "waktu_tempuh"
+          ? "Pilih gaya renang untuk milestone waktu tempuh."
+          : "Pilih gaya atau teknik untuk milestone jarak tempuh.",
+    };
   }
 
   const distance = positive(raw.distance_m);

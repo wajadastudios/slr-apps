@@ -7,7 +7,7 @@ import { DataRow } from "@/components/ui/data-row";
 import { ProgressTrend } from "@/components/progress-trend";
 import { ReportHistoryCard } from "@/components/report-history-card";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
-import { MilestoneBadgesCard } from "@/components/milestone-badges-card";
+import { RecordUnlockCard } from "@/components/record-unlock-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { StarScoreLegend } from "@/components/star-score-legend";
 import { ChildSummaryWidget } from "@/components/child-summary-widget";
@@ -24,6 +24,7 @@ import { AttendanceConsistencyCard } from "@/components/attendance-consistency-c
 import { formatAge } from "@/lib/performance";
 import { loadIndicatorConfig } from "@/lib/indicator-loader";
 import { loadMilestones } from "@/lib/milestone-loader";
+import { computeMilestoneStatuses } from "@/lib/milestones";
 import { DAYS } from "@/lib/days";
 import { setPackagePreferenceAction } from "./actions";
 import { ToastForm } from "@/components/ui/toast-form";
@@ -216,7 +217,7 @@ export default async function AnakDetailPage({
 
       <ProgressTrend indicatorConfig={indicatorConfig} reports={reports ?? []} />
 
-      <MilestoneBadgesCard records={performanceRecords ?? []} milestones={milestones} />
+      <RecordUnlockCard statuses={computeMilestoneStatuses(performanceRecords ?? [], milestones)} />
 
       <PerformanceRecordsCard records={performanceRecords ?? []} />
 
@@ -227,7 +228,7 @@ export default async function AnakDetailPage({
       <ReportHistoryCard
         reports={reports ?? []}
         indicatorConfig={indicatorConfig}
-        lockZeroScores
+        parentView
       />
     </div>
   );

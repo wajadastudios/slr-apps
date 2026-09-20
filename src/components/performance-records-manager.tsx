@@ -11,7 +11,9 @@ import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-classes";
 import {
   METRIC_LABELS,
   METRIC_TYPES,
-  STROKES,
+  strokeFieldLabel,
+  strokeOptions,
+  usesStroke as metricUsesStroke,
   annotatePersonalBests,
   formatMetricLabel,
   formatMetricValue,
@@ -30,8 +32,8 @@ function RecordFields({
   today: string;
 }) {
   const [metric, setMetric] = useState<MetricType>(record?.metric_type ?? "waktu_tempuh");
-  const usesStroke = metric === "waktu_tempuh" || metric === "jarak_tempuh";
-  const usesDistance = metric === "waktu_tempuh" || metric === "jarak_tempuh";
+  const usesStroke = metricUsesStroke(metric);
+  const usesDistance = metricUsesStroke(metric);
   const usesDuration = metric !== "jarak_tempuh";
 
   return (
@@ -54,9 +56,14 @@ function RecordFields({
 
       {usesStroke && (
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-600">Gaya</label>
-          <GlassSelect name="stroke" defaultValue={record?.stroke ?? "Bebas"} className="min-w-[130px] text-sm">
-            {STROKES.map((s) => (
+          <label className="text-xs text-slate-600">{strokeFieldLabel(metric)}</label>
+          <GlassSelect
+            key={metric}
+            name="stroke"
+            defaultValue={record?.metric_type === metric && record.stroke ? record.stroke : strokeOptions(metric)[0]}
+            className="min-w-[150px] text-sm"
+          >
+            {strokeOptions(metric).map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>

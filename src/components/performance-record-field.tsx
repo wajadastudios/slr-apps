@@ -4,7 +4,14 @@ import { useState } from "react";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
-import { METRIC_TYPES, METRIC_LABELS, STROKES, type MetricType } from "@/lib/performance";
+import {
+  METRIC_TYPES,
+  METRIC_LABELS,
+  strokeFieldLabel,
+  strokeOptions,
+  usesStroke,
+  type MetricType,
+} from "@/lib/performance";
 
 type Row = {
   metric_type: MetricType;
@@ -20,14 +27,11 @@ const EMPTY_ROW: Row = {
   duration_seconds: "",
 };
 
-function usesStroke(metric: MetricType) {
-  return metric === "waktu_tempuh" || metric === "jarak_tempuh";
-}
 function usesDistance(metric: MetricType) {
   return metric === "waktu_tempuh" || metric === "jarak_tempuh";
 }
 function usesDuration(metric: MetricType) {
-  return metric === "waktu_tempuh" || metric === "tahan_nafas" || metric === "treading_water";
+  return metric !== "jarak_tempuh";
 }
 
 export function PerformanceRecordField({
@@ -62,9 +66,10 @@ export function PerformanceRecordField({
               <label className="text-xs text-slate-600">Jenis</label>
               <GlassSelect
                 value={row.metric_type}
-                onChange={(e) =>
-                  updateRow(i, { metric_type: e.target.value as MetricType })
-                }
+                onChange={(e) => {
+                  const metric_type = e.target.value as MetricType;
+                  updateRow(i, { metric_type, stroke: strokeOptions(metric_type)[0] ?? "" });
+                }}
                 className="min-w-[160px]"
               >
                 {METRIC_TYPES.map((m) => (
@@ -77,13 +82,13 @@ export function PerformanceRecordField({
 
             {usesStroke(row.metric_type) && (
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-600">Gaya</label>
+                <label className="text-xs text-slate-600">{strokeFieldLabel(row.metric_type)}</label>
                 <GlassSelect
                   value={row.stroke}
                   onChange={(e) => updateRow(i, { stroke: e.target.value })}
-                  className="min-w-[130px]"
+                  className="min-w-[150px]"
                 >
-                  {STROKES.map((s) => (
+                  {strokeOptions(row.metric_type).map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>

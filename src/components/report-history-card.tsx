@@ -9,7 +9,7 @@ import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import { StarRating } from "@/components/ui/star-rating";
 import { SkillScoresField } from "@/components/skill-scores-field";
-import { LockIcon, LOCKED_HINT } from "@/components/ui/lock-icon";
+import { ParentIndicatorSummary } from "@/components/parent-indicator-summary";
 import { AccordionItem } from "@/components/ui/accordion";
 import { formatShortDate } from "@/lib/format-date";
 import {
@@ -18,6 +18,8 @@ import {
   type IndicatorConfig,
   type IndicatorSnapshot,
 } from "@/lib/indicators";
+import { isAbsent } from "@/lib/progress";
+import { summarizeReportGroups } from "@/lib/report-summary";
 import { GHOST_BUTTON } from "@/lib/ui-classes";
 import { ToastForm } from "@/components/ui/toast-form";
 import type { ActionState } from "@/lib/action-result";
@@ -54,7 +56,7 @@ function ReportEntry({
   report,
   studentId,
   indicatorConfig,
-  lockZeroScores,
+  parentView,
   editable,
   updateAction,
   deleteAction,
@@ -62,29 +64,30 @@ function ReportEntry({
   report: ReportRow;
   studentId: string;
   indicatorConfig: IndicatorConfig;
-  lockZeroScores: boolean;
+  parentView: boolean;
   editable: boolean;
   updateAction?: ReportAction;
   deleteAction?: ReportAction;
 }) {
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [lockedOpen, setLockedOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
 
   const scores = (report.scores as Record<string, number>) ?? {};
   // Snapshot first (how the report looked when written), then the current
   // structure, so a later rename/regroup never rewrites history.
   const resolved = resolveReportIndicators(scores, report.indicator_snapshot, indicatorConfig);
-  const isLocked = (score: number) => lockZeroScores && score === 0;
-  const unlocked = resolved.filter((r) => !isLocked(r.score));
-  const locked = resolved.filter((r) => isLocked(r.score));
-  const unlockedGroups = unlocked.reduce<{ name: string; items: typeof unlocked }[]>((acc, r) => {
+  const unlockedGroups = resolved.reduce<{ name: string; items: typeof resolved }[]>((acc, r) => {
     const last = acc[acc.length - 1];
     if (last && last.name === r.group) last.items.push(r);
     else acc.push({ name: r.group, items: [r] });
     return acc;
   }, []);
+  // A missed session (izin/sakit) says nothing about what the child can do.
+  const parentGroups =
+    parentView && !isAbsent(report.attendance)
+      ? summarizeReportGroups(scores, report.indicator_snapshot, indicatorConfig)
+      : [];
 
   if (editing && editable && updateAction) {
     return (
@@ -257,7 +260,9 @@ function ReportEntry({
         </div>
       )}
 
-      {resolved.length > 0 && (
+      {parentView && <ParentIndicatorSummary groups={parentGroups} />}
+
+      {!parentView && resolved.length > 0 && (
         <AccordionItem
           variant="ortu"
           chevronSize="sm"
@@ -288,38 +293,6 @@ function ReportEntry({
                 ))}
               </div>
             ))}
-            {locked.length > 0 && (
-              <AccordionItem
-                variant="ortu"
-                chevronSize="sm"
-                open={lockedOpen}
-                onToggle={() => setLockedOpen((v) => !v)}
-                className="rounded-xl bg-white/50"
-                headerClassName="min-h-11 rounded-xl px-2.5 py-1"
-                header={
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-                    <LockIcon />
-                    {locked.length} indikator belum dibuka
-                  </span>
-                }
-              >
-                <div className="flex flex-col gap-1.5 px-2.5 pb-2.5 pt-1">
-                  {locked.map((r) => (
-                    <div
-                      key={r.key}
-                      title={LOCKED_HINT}
-                      className="flex items-center justify-between gap-3 text-slate-400"
-                    >
-                      <span className="text-sm">{r.group} &middot; {r.label}</span>
-                      <span className="flex items-center gap-1 text-xs">
-                        <LockIcon className="h-3 w-3" />
-                        Belum dibuka
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </AccordionItem>
-            )}
           </div>
         </AccordionItem>
       )}
@@ -354,7 +327,7 @@ function ReportEntry({
 export function ReportHistoryCard({
   reports,
   indicatorConfig,
-  lockZeroScores = false,
+  parentView = false,
   editable = false,
   studentId = "",
   updateAction,
@@ -362,9 +335,9 @@ export function ReportHistoryCard({
 }: {
   reports: ReportRow[];
   indicatorConfig: IndicatorConfig;
-  // Orang tua sees a skill scored 0 as "not unlocked yet" rather than a
-  // bare 0-star rating -- pelatih/admin still see the real score.
-  lockZeroScores?: boolean;
+  // Orang tua: read-only summary per indicator group (collapsed, with
+  // averages) instead of the flat indicator list pelatih/admin see.
+  parentView?: boolean;
   // Pengajar-only: shows Edit/Hapus controls per report.
   editable?: boolean;
   studentId?: string;
@@ -404,7 +377,7 @@ export function ReportHistoryCard({
             report={r}
             studentId={studentId}
             indicatorConfig={indicatorConfig}
-            lockZeroScores={lockZeroScores}
+            parentView={parentView}
             editable={editable}
             updateAction={updateAction}
             deleteAction={deleteAction}
