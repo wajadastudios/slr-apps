@@ -88,11 +88,11 @@ export default async function PelatihDashboardPage({
     supabase
       .from("schedules")
       .select(
-        "id, student:student_id(id, full_name), slot:slot_id(id, label, location, day_of_week, start_time, programs:program_id(name))"
+        "id, student:student_id(id, full_name), slot:slot_id(id, label, location, day_of_week, start_time, program_id, programs:program_id(name))"
       ),
     supabase
       .from("progress_reports")
-      .select("student_id, session_date, attendance, next_focus")
+      .select("student_id, program_id, session_date, attendance, next_focus")
       .order("session_date", { ascending: false }),
   ]);
 
@@ -105,6 +105,7 @@ export default async function PelatihDashboardPage({
       location: string | null;
       day_of_week: number;
       start_time: string;
+      program_id: string;
       programs: { name: string } | null;
     } | null;
   }[]) {
@@ -117,6 +118,7 @@ export default async function PelatihDashboardPage({
         location: row.slot.location,
         day_of_week: row.slot.day_of_week,
         start_time: row.slot.start_time,
+        program_id: row.slot.program_id,
         program: row.slot.programs?.name ?? null,
       },
     });

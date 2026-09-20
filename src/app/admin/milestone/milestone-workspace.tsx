@@ -52,10 +52,12 @@ export function MilestoneWorkspace({
   milestones,
   levels,
   focusId,
+  programId,
 }: {
   milestones: MilestoneItem[];
   levels: string[];
   focusId?: string;
+  programId: string;
 }) {
   const [selected, setSelected] = useState<Selection>(focusId ?? null);
   const [lastFocus, setLastFocus] = useState(focusId);
@@ -209,6 +211,7 @@ export function MilestoneWorkspace({
                             <MoveButtons
                               action={moveMilestoneAction}
                               id={m.id}
+                              fields={{ program_id: programId }}
                               canUp={index > 0}
                               canDown={index < all.length - 1}
                             />
@@ -286,6 +289,7 @@ export function MilestoneWorkspace({
                 key={editorKey}
                 action={current ? updateMilestoneAction : createMilestoneAction}
                 milestone={current ?? undefined}
+                programId={programId}
                 definitionLocked={(current?.used ?? 0) > 0}
                 levels={levels}
                 submitLabel={current ? "Simpan Perubahan" : "Tambah Milestone"}
@@ -300,6 +304,7 @@ export function MilestoneWorkspace({
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/40 pt-3">
                   <ToastForm action={toggleMilestoneActiveAction} pendingLabel="Memproses...">
                     <input type="hidden" name="id" value={current.id} />
+                    <input type="hidden" name="program_id" value={programId} />
                     <input type="hidden" name="next_active" value={(!current.active).toString()} />
                     <GlassButton type="submit" className={`${SECONDARY_BUTTON} px-3 py-1.5 text-sm`}>
                       {current.active ? "Nonaktifkan" : "Aktifkan"}
@@ -308,6 +313,7 @@ export function MilestoneWorkspace({
                   {current.used === 0 ? (
                     <ToastForm action={deleteMilestoneAction} pendingLabel="Menghapus...">
                       <input type="hidden" name="id" value={current.id} />
+                      <input type="hidden" name="program_id" value={programId} />
                       <ConfirmSubmitButton
                         message={`Hapus milestone "${current.label}"? Tindakan ini tidak bisa dibatalkan.`}
                         className="!border-red-300 !bg-red-500/10 px-3 py-1.5 text-sm !text-red-700 hover:!bg-red-500/20"

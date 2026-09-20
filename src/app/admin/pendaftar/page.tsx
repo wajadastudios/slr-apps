@@ -13,6 +13,8 @@ import {
   scheduleTrialAction,
 } from "./actions";
 import { ToastForm } from "@/components/ui/toast-form";
+import Link from "next/link";
+import { STATUS_LABEL as ENROLLMENT_LABEL, STATUS_TONE, type EnrollmentStatus } from "@/lib/enrollment";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -31,7 +33,7 @@ export default async function PendaftarPage({
   const supabase = await createClient();
   const origin = await getSiteOrigin();
 
-  const [{ data: registrations }, { data: pelatihList }] = await Promise.all([
+  const [{ data: registrations }, { data: pelatihList }, { data: enrollmentQueue }] = await Promise.all([
     supabase
       .from("registrations")
       .select(
@@ -44,6 +46,11 @@ export default async function PendaftarPage({
       .eq("role", "pelatih")
       .eq("active", true)
       .order("full_name"),
+    supabase
+      .from("enrollments")
+      .select("id, status, preferred_schedule, preferred_location, created_at, student:student_id(full_name), program:program_id(name)")
+      .in("status", ["pending_review", "waiting_schedule", "schedule_offered", "scheduled"])
+      .order("created_at", { ascending: false }),
   ]);
 
   const pelatihNameById = new Map<string, string>();
@@ -56,6 +63,42 @@ export default async function PendaftarPage({
 
   return (
     <div className="flex flex-col gap-6">
+      {(enrollmentQueue ?? []).length > 0 && (
+        <GlassCard>
+          <h2 className={`mb-1 ${HEADING}`}>Pendaftaran Kelas</h2>
+          <p className="mb-3 text-sm text-slate-600">
+            Peserta yang sudah punya akun dan menunggu ditinjau, dijadwalkan, atau dikonfirmasi.
+          </p>
+          <div className="flex flex-col gap-2">
+            {(enrollmentQueue ?? []).map((row) => {
+              const student = row.student as unknown as { full_name: string } | null;
+              const program = row.program as unknown as { name: string } | null;
+              const status = row.status as EnrollmentStatus;
+              return (
+                <Link
+                  key={row.id}
+                  href={`/admin/pendaftar/kelas/${row.id}`}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/55 px-4 py-3 transition-colors hover:bg-[#35C5D0]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C5D0]"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-[#17263D]">
+                      {student?.full_name ?? "Peserta"} &middot; {program?.name}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {[row.preferred_schedule, row.preferred_location].filter(Boolean).join(" · ") ||
+                        "Tanpa pilihan jadwal"}
+                    </span>
+                  </span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_TONE[status]}`}>
+                    {ENROLLMENT_LABEL[status]}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </GlassCard>
+      )}
+
       {error && (
         <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>
       )}

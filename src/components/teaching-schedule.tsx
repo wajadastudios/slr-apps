@@ -25,6 +25,31 @@ const CTA_PRIMARY =
   "inline-flex min-h-10 items-center justify-center rounded-xl bg-[#35C5D0] px-4 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(53,197,208,0.35)] transition-all duration-200 hover:bg-[#22B8C7] active:scale-[0.98] active:bg-[#1597A3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C5D0] focus-visible:ring-offset-2 focus-visible:ring-offset-white/60";
 const CTA_SECONDARY = `inline-flex min-h-10 items-center justify-center rounded-xl border border-[#35C5D0]/40 bg-white/50 px-4 text-sm font-medium text-[#1597A3] ${GHOST_BUTTON}`;
 
+const PROGRAM_TONES = [
+  "bg-[#DFF3FF] text-[#0b5f8a]",
+  "bg-[#E9E5FF] text-[#4b3a9e]",
+  "bg-[#FFE9E0] text-[#9a4a2a]",
+  "bg-[#E2F6E9] text-[#1f6b3f]",
+];
+
+// A stable colour per program name so the same program always looks the same.
+function programTone(name: string) {
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) % 997;
+  return PROGRAM_TONES[hash % PROGRAM_TONES.length];
+}
+
+function ProgramLabel({ item }: { item: SessionItem }) {
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${programTone(item.program)}`}>
+        {item.program}
+      </span>
+      {item.classLabel && <span className="text-sm font-semibold text-[#17263D]">{item.classLabel}</span>}
+    </span>
+  );
+}
+
 function StatusBadge({ status }: { status: SessionStatus }) {
   if (status === "mendatang") return null;
   const b = BADGE[status];
@@ -38,7 +63,7 @@ function StatusBadge({ status }: { status: SessionStatus }) {
 // One action per child: "Isi Laporan" is the only turquoise button, saved
 // reports get a quiet "Lihat" so the eye lands on what still needs doing.
 function StudentAction({ s }: { s: StudentSession }) {
-  const href = reportHref(s.studentId, s.status, s.date);
+  const href = reportHref(s.studentId, s.status, s.date, s.programId);
   return s.status === "belum" ? (
     <Link href={href} className={CTA_PRIMARY}>
       Isi Laporan
@@ -66,7 +91,7 @@ function PrivateRow({ item }: { item: SessionItem }) {
           {item.time}
         </span>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-[#17263D]">{item.title}</p>
+          <ProgramLabel item={item} />
           <p className="text-sm text-slate-700">
             {s.name}
             {focus && <span className="text-slate-500"> · {focus}</span>}
@@ -104,7 +129,9 @@ function GroupRow({ item }: { item: SessionItem }) {
                 {item.time}
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-[#17263D]">{item.title}</span>
+                <span className="block">
+                  <ProgramLabel item={item} />
+                </span>
                 <span className="block text-xs text-slate-600">
                   {total} murid{item.location ? ` · ${item.location}` : ""}
                 </span>

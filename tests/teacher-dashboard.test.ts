@@ -30,6 +30,7 @@ const slot = (id: string, day: number, time: string, label: string, over: Partia
   location: null,
   day_of_week: day,
   start_time: time,
+  program_id: "p-kids",
   program: "Kids Swim",
   ...over,
 });
@@ -46,8 +47,8 @@ const enrollments: Enrollment[] = [
 ];
 
 const reports: ReportLite[] = [
-  { student_id: "rara", session_date: "2026-09-14", attendance: "hadir", next_focus: "Meluncur" },
-  { student_id: "ica", session_date: "2026-09-21", attendance: "sakit", next_focus: null },
+  { student_id: "rara", program_id: "p-kids", session_date: "2026-09-14", attendance: "hadir", next_focus: "Meluncur" },
+  { student_id: "ica", program_id: "p-kids", session_date: "2026-09-21", attendance: "sakit", next_focus: null },
 ];
 
 test("time reads 15.00, not 15:00:00", () => {
@@ -114,8 +115,8 @@ test("focus line data: latest next_focus or 'has report' flag, nothing otherwise
 
 test("group progress counts written reports, including izin/sakit", () => {
   const groupReports: ReportLite[] = [
-    { student_id: "g0", session_date: "2026-09-21", attendance: "hadir", next_focus: null },
-    { student_id: "g1", session_date: "2026-09-21", attendance: "izin", next_focus: null },
+    { student_id: "g0", program_id: "p-kids", session_date: "2026-09-21", attendance: "hadir", next_focus: null },
+    { student_id: "g1", program_id: "p-kids", session_date: "2026-09-21", attendance: "izin", next_focus: null },
   ];
   const group = buildWeek(
     enrollments.map((e) => (e.slot.id === "s3" ? { ...e, slot: { ...e.slot, day_of_week: 1 } } : e)),
@@ -129,8 +130,8 @@ test("group progress counts written reports, including izin/sakit", () => {
 });
 
 test("only an unwritten report links with the session date", () => {
-  assert.equal(reportHref("rara", "belum", "2026-09-21"), "/pelatih/murid/rara?tanggal=2026-09-21");
-  assert.equal(reportHref("rara", "tersimpan", "2026-09-21"), "/pelatih/murid/rara");
+  assert.equal(reportHref("rara", "belum", "2026-09-21", "p-kids"), "/pelatih/murid/rara?program=p-kids&tanggal=2026-09-21");
+  assert.equal(reportHref("rara", "tersimpan", "2026-09-21", "p-kids"), "/pelatih/murid/rara?program=p-kids");
 });
 
 // ---------- medals ----------

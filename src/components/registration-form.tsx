@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
@@ -66,6 +67,21 @@ export function RegistrationForm({
         </div>
       )}
 
+      {mode === "diri" ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-[#35C5D0]/30 bg-[#EEF9FB] p-4">
+          <p className="text-sm text-slate-700">
+            Pendaftaran untuk diri sendiri (remaja/dewasa, termasuk Aquanatal) memakai akun pribadi
+            Anda. Buat akun dan pilih program, lalu admin akan mencarikan jadwal.
+          </p>
+          <Link
+            href="/daftar/dewasa"
+            className="inline-flex min-h-11 w-fit items-center rounded-2xl bg-[#35C5D0] px-5 text-sm font-semibold text-white hover:bg-[#2bb0ba]"
+          >
+            Lanjut ke Pendaftaran Dewasa
+          </Link>
+        </div>
+      ) : (
+        <>
       {mode === "anak" ? (
         <>
           <div className="flex flex-col gap-1.5">
@@ -155,6 +171,8 @@ export function RegistrationForm({
       >
         Kirim Pendaftaran
       </GlassButton>
+        </>
+      )}
     </form>
   );
 }

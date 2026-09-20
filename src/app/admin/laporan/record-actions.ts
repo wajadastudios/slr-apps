@@ -16,12 +16,14 @@ import type { MetricType } from "@/lib/performance";
 // pelatih_id = NULL (so no trainer gains edit rights over them) and
 // created_by = the admin.
 
-function back(studentId: string) {
-  return `/admin/laporan?id=${encodeURIComponent(studentId)}`;
+// Admin works per enrollment (participant + program): the page id is the
+// enrollment id, so a record can never be filed under the wrong program.
+function back(enrollmentId: string) {
+  return `/admin/laporan?id=${encodeURIComponent(enrollmentId)}`;
 }
 
-function fail(studentId: string, message: string): never {
-  redirect(`${back(studentId)}&error=${encodeURIComponent(message)}`);
+function fail(enrollmentId: string, message: string): never {
+  redirect(`${back(enrollmentId)}&error=${encodeURIComponent(message)}`);
 }
 
 function readInput(formData: FormData) {
@@ -37,32 +39,43 @@ function readInput(formData: FormData) {
 async function addPerformanceRecordActionImpl(formData: FormData) {
   const session = await requireAdmin();
   const studentId = String(formData.get("student_id") ?? "");
-  if (!studentId) redirect("/admin/laporan");
+  const enrollmentId = String(formData.get("enrollment_id") ?? "");
+  if (!studentId || !enrollmentId) redirect("/admin/laporan");
 
   const parsed = readInput(formData);
-  if (!parsed.ok) fail(studentId, parsed.error);
+  if (!parsed.ok) fail(enrollmentId, parsed.error);
 
   const supabase = await createClient();
-  const milestones = await loadMilestones(supabase);
+  const { data: enrollment } = await supabase
+    .from("enrollments")
+    .select("id, student_id, program_id, status, program:program_id(records_mode)")
+    .eq("id", enrollmentId)
+    .maybeSingle();
+  if (!enrollment || enrollment.student_id !== studentId) fail(enrollmentId, "Pendaftaran tidak ditemukan.");
+  const program = enrollment.program as unknown as { records_mode: string } | null;
+  if (program?.records_mode !== "medals") fail(enrollmentId, "Program ini tidak memakai rekor.");
+
+  const milestones = await loadMilestones(supabase, enrollment.program_id);
   const error = await insertRecords(supabase, [
     {
       student_id: studentId,
+      enrollment_id: enrollmentId,
       pelatih_id: null,
       created_by: session.user.id,
       ...parsed.value,
       awards: computeAwards(parsed.value, milestones),
     },
   ]);
-  if (error) fail(studentId, error.message);
+  if (error) fail(enrollmentId, error.message);
 
   revalidatePath("/admin/laporan");
-  redirect(back(studentId));
+  redirect(back(enrollmentId));
 }
 
 async function updatePerformanceRecordActionImpl(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");
-  const studentId = String(formData.get("student_id") ?? "");
+  const studentId = String(formData.get("enrollment_id") ?? "");
   if (!id || !studentId) fail(studentId, "Rekor tidak ditemukan.");
 
   const parsed = readInput(formData);
@@ -84,7 +97,8 @@ async function updatePerformanceRecordActionImpl(formData: FormData) {
       duration_seconds: existing.duration_seconds === null ? null : Number(existing.duration_seconds),
     },
     parsed.value,
-    await loadMilestones(supabase)
+    // judged against the record's own program only
+    await loadMilestones(supabase, existing.program_id)
   );
 
   const error = await updateRecord(supabase, id, patch);
@@ -97,7 +111,7 @@ async function updatePerformanceRecordActionImpl(formData: FormData) {
 async function deletePerformanceRecordActionImpl(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");
-  const studentId = String(formData.get("student_id") ?? "");
+  const studentId = String(formData.get("enrollment_id") ?? "");
   if (!id || !studentId) fail(studentId, "Rekor tidak ditemukan.");
 
   const supabase = await createClient();

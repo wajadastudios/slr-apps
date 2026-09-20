@@ -65,6 +65,7 @@ function isDirty(a: Values, b: Values) {
 export function MilestoneForm({
   action,
   milestone,
+  programId,
   definitionLocked = false,
   levels,
   submitLabel,
@@ -73,6 +74,7 @@ export function MilestoneForm({
 }: {
   action: Action;
   milestone?: Milestone;
+  programId: string;
   // Metric/gaya/jarak can't change once the milestone has produced badges.
   definitionLocked?: boolean;
   levels: string[];
@@ -108,6 +110,7 @@ export function MilestoneForm({
   return (
     <ToastForm action={action} className="flex flex-col gap-4">
       {milestone && <input type="hidden" name="id" value={milestone.id} />}
+      <input type="hidden" name="program_id" value={programId} />
       {/* the (possibly locked) definition always travels with the form */}
       <input type="hidden" name="metric_type" value={values.metric_type} />
       <input type="hidden" name="stroke" value={showStroke ? values.stroke : ""} />

@@ -11,10 +11,17 @@ import { freezeLegacyAwards, awardMilestoneToExisting } from "@/lib/milestone-aw
 import { parseMilestoneInput } from "@/lib/record-input";
 import { computeReorderInGroup, nextSortOrder } from "@/lib/reorder";
 
-const BACK = "/admin/milestone";
+// Milestones belong to one program. Every form carries `program_id`, and every
+// redirect returns to that program's "Rekor & Milestone" tab.
 
-function fail(message: string): never {
-  redirect(`${BACK}?error=${encodeURIComponent(message)}`);
+function backUrl(formData: FormData, selected?: string) {
+  const program = String(formData.get("program_id") ?? "");
+  const sel = selected ? `&sel=${selected}` : "";
+  return `/admin/penilaian?program=${encodeURIComponent(program)}&tab=rekor${sel}`;
+}
+
+function fail(formData: FormData, message: string): never {
+  redirect(`${backUrl(formData)}&error=${encodeURIComponent(message)}`);
 }
 
 function rawInput(formData: FormData) {
@@ -44,25 +51,44 @@ async function milestoneUsed(
   });
 }
 
+// Only programs that award medals may have milestones.
+async function requireMedalProgram(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  formData: FormData
+): Promise<string> {
+  const programId = String(formData.get("program_id") ?? "");
+  const { data } = await supabase
+    .from("programs")
+    .select("id, records_mode")
+    .eq("id", programId)
+    .maybeSingle();
+  if (!data) fail(formData, "Program tidak ditemukan.");
+  if (data.records_mode !== "medals") {
+    fail(formData, "Program ini tidak memakai medali, jadi tidak punya milestone.");
+  }
+  return data.id;
+}
+
 async function createMilestoneActionImpl(formData: FormData) {
   await requireAdmin();
   const parsed = parseMilestoneInput(rawInput(formData));
-  if (!parsed.ok) fail(parsed.error);
+  if (!parsed.ok) fail(formData, parsed.error);
 
   const supabase = await createClient();
   const admin = createAdminClient();
+  const programId = await requireMedalProgram(supabase, formData);
 
   // Freeze what existing records already earned before anything changes.
   await freezeLegacyAwards(admin, await loadMilestones(supabase));
 
-  const existing = await loadMilestones(supabase);
+  const existing = await loadMilestones(supabase, programId);
   const { data: created, error } = await supabase
     .from("milestones")
-    .insert({ ...parsed.value, sort_order: nextSortOrder(existing) })
-    .select("id, label, level, metric_type, stroke, distance_m, bronze, silver, gold, sort_order, active")
+    .insert({ ...parsed.value, program_id: programId, sort_order: nextSortOrder(existing) })
+    .select("id, label, level, metric_type, stroke, distance_m, bronze, silver, gold, sort_order, active, program_id")
     .single();
   if (error || !created) {
-    fail(error?.message ?? "Milestone gagal dibuat.");
+    fail(formData, error?.message ?? "Milestone gagal dibuat.");
   }
 
   await awardMilestoneToExisting(admin, {
@@ -73,19 +99,19 @@ async function createMilestoneActionImpl(formData: FormData) {
     gold: Number(created.gold),
   });
 
-  revalidatePath(BACK);
+  revalidatePath("/admin/penilaian");
   revalidatePath("/admin/laporan");
   // open the new milestone in the editor
-  redirect(`${BACK}?sel=${created.id}`);
+  redirect(backUrl(formData, created.id));
 }
 
 async function updateMilestoneActionImpl(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");
-  if (!id) fail("Milestone tidak ditemukan.");
+  if (!id) fail(formData, "Milestone tidak ditemukan.");
 
   const parsed = parseMilestoneInput(rawInput(formData));
-  if (!parsed.ok) fail(parsed.error);
+  if (!parsed.ok) fail(formData, parsed.error);
 
   const supabase = await createClient();
   const admin = createAdminClient();
@@ -95,7 +121,7 @@ async function updateMilestoneActionImpl(formData: FormData) {
     .select("metric_type, stroke, distance_m")
     .eq("id", id)
     .single();
-  if (!current) fail("Milestone tidak ditemukan.");
+  if (!current) fail(formData, "Milestone tidak ditemukan.");
 
   const currentDistance = current.distance_m === null ? null : Number(current.distance_m);
   const definitionChanged =
@@ -105,6 +131,7 @@ async function updateMilestoneActionImpl(formData: FormData) {
 
   if (definitionChanged && (await milestoneUsed(supabase, id))) {
     fail(
+      formData,
       "Jenis metrik, gaya, dan jarak tidak bisa diubah karena milestone ini sudah menghasilkan lencana. Nonaktifkan lalu buat milestone baru."
     );
   }
@@ -113,11 +140,11 @@ async function updateMilestoneActionImpl(formData: FormData) {
   await freezeLegacyAwards(admin, await loadMilestones(supabase));
 
   const { error } = await supabase.from("milestones").update(parsed.value).eq("id", id);
-  if (error) fail(error.message);
+  if (error) fail(formData, error.message);
 
-  revalidatePath(BACK);
+  revalidatePath("/admin/penilaian");
   revalidatePath("/admin/laporan");
-  redirect(`${BACK}?sel=${id}`);
+  redirect(backUrl(formData, id));
 }
 
 async function toggleMilestoneActiveActionImpl(formData: FormData) {
@@ -130,22 +157,24 @@ async function toggleMilestoneActiveActionImpl(formData: FormData) {
   await freezeLegacyAwards(createAdminClient(), await loadMilestones(supabase));
 
   const { error } = await supabase.from("milestones").update({ active: nextActive }).eq("id", id);
-  if (error) fail(error.message);
+  if (error) fail(formData, error.message);
 
-  revalidatePath(BACK);
+  revalidatePath("/admin/penilaian");
   revalidatePath("/admin/laporan");
-  redirect(`${BACK}?sel=${id}`);
+  redirect(backUrl(formData, id));
 }
 
 async function moveMilestoneActionImpl(formData: FormData) {
   await requireAdmin();
   const id = String(formData.get("id") ?? "");
   const direction = String(formData.get("direction") ?? "") === "up" ? "up" : "down";
+  const programId = String(formData.get("program_id") ?? "");
 
   const supabase = await createClient();
   const { data } = await supabase
     .from("milestones")
     .select("id, sort_order, level")
+    .eq("program_id", programId)
     .order("sort_order");
   // moves within its level (Dasar / Menengah / Mahir), never across levels
   const changes = computeReorderInGroup(
@@ -159,11 +188,11 @@ async function moveMilestoneActionImpl(formData: FormData) {
       .from("milestones")
       .update({ sort_order: change.sort_order })
       .eq("id", change.id);
-    if (error) fail(error.message);
+    if (error) fail(formData, error.message);
   }
 
-  revalidatePath(BACK);
-  redirect(BACK);
+  revalidatePath("/admin/penilaian");
+  redirect(backUrl(formData));
 }
 
 async function deleteMilestoneActionImpl(formData: FormData) {
@@ -177,15 +206,16 @@ async function deleteMilestoneActionImpl(formData: FormData) {
   const { error } = await supabase.rpc("admin_delete_milestone", { p_id: id });
   if (error) {
     fail(
+      formData,
       error.message.includes("milestone in use")
         ? "Milestone ini sudah menghasilkan lencana siswa, jadi tidak bisa dihapus. Nonaktifkan saja agar riwayat lencana tetap aman."
         : error.message
     );
   }
 
-  revalidatePath(BACK);
+  revalidatePath("/admin/penilaian");
   revalidatePath("/admin/laporan");
-  redirect(BACK);
+  redirect(backUrl(formData));
 }
 
 export const createMilestoneAction = safeAction(createMilestoneActionImpl, "Milestone berhasil ditambahkan");

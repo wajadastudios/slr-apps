@@ -12,7 +12,7 @@ import {
   deleteProgramAction,
 } from "./actions";
 import { ToastForm } from "@/components/ui/toast-form";
-import { IndicatorManager } from "./indicator-manager";
+import Link from "next/link";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -188,8 +188,19 @@ export default async function ProgramPage({
       )}
 
       {selected && structured && (
-        <GlassCard>
-          <IndicatorManager programId={selected.id} />
+        <GlassCard tone="soft">
+          <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
+            Indikator &amp; Milestone
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Kelompok indikator, skala penilaian, dan milestone diatur per program di halaman Penilaian Program.
+          </p>
+          <Link
+            href={`/admin/penilaian?program=${selected.id}`}
+            className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-[#35C5D0] px-4 text-sm font-semibold text-white hover:bg-[#2bb0ba]"
+          >
+            Buka Penilaian {selected.name}
+          </Link>
         </GlassCard>
       )}
     </div>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GHOST_BUTTON } from "@/lib/ui-classes";
 import { attendanceLabel, childHref, type ReportPreview } from "@/lib/report-preview";
+import type { CardLinks } from "@/lib/programs";
 
 const CTA_BASE =
   "inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C5D0] focus-visible:ring-offset-2 focus-visible:ring-offset-white/60 active:scale-[0.98]";
@@ -30,15 +31,20 @@ function ArrowIcon() {
 // primary button says exactly where it goes, so there is nothing to guess.
 export function ParentChildCard({
   studentId,
+  programId,
   name,
   program,
+  links,
   nextSessionLabel,
   quota,
   preview,
 }: {
   studentId: string;
+  // the enrollment this card is about (a person can have several)
+  programId: string;
   name: string;
   program: string | null;
+  links: CardLinks;
   nextSessionLabel: string | null;
   // e.g. { value: "3 / 8 sesi diikuti", note: "Sisa 5 sesi" }
   quota: { value: string; note: string };
@@ -48,7 +54,7 @@ export function ParentChildCard({
   const attendance = attendanceLabel(preview?.attendance);
 
   return (
-    <GlassCard id={`anak-${studentId}`} className="flex scroll-mt-6 flex-col gap-4 !bg-white/85">
+    <GlassCard id={`anak-${studentId}-${programId}`} className="flex scroll-mt-6 flex-col gap-4 !bg-white/85">
       <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold leading-tight text-[#17263D]">
         {name}
         <span className="font-medium text-slate-500"> · {program ?? "Belum ada program"}</span>
@@ -76,7 +82,7 @@ export function ParentChildCard({
       </div>
 
       <div className="rounded-2xl border border-white/70 bg-white/60 px-4 py-3">
-        <p className="text-[11px] font-medium text-slate-500">Laporan terakhir</p>
+        <p className="text-[11px] font-medium text-slate-500">{links.latestLabel}</p>
         {preview ? (
           <>
             <p className="mt-0.5 text-xs text-slate-500">
@@ -94,10 +100,8 @@ export function ParentChildCard({
           </>
         ) : (
           <>
-            <p className="mt-0.5 text-sm font-semibold text-[#17263D]">Belum ada laporan latihan</p>
-            <p className="mt-0.5 text-sm text-slate-600">
-              Laporan akan muncul di sini setelah sesi latihan pertama.
-            </p>
+            <p className="mt-0.5 text-sm font-semibold text-[#17263D]">{links.emptyTitle}</p>
+            <p className="mt-0.5 text-sm text-slate-600">{links.emptyBody}</p>
           </>
         )}
       </div>
@@ -105,29 +109,36 @@ export function ParentChildCard({
       <div className="flex flex-col gap-1.5">
         {preview ? (
           <>
-            <Link href={childHref(studentId, "laporan", "laporan-terbaru")} className={CTA_PRIMARY}>
-              Lihat laporan terakhir
+            <Link
+              href={childHref(studentId, links.primaryTab, links.primaryHash, programId)}
+              className={CTA_PRIMARY}
+            >
+              {links.primaryLabel}
               <ArrowIcon />
             </Link>
             <div className="flex flex-wrap items-center justify-center gap-x-1 text-slate-300">
-              <Link href={childHref(studentId, "laporan", "riwayat-laporan")} className={TEXT_LINK}>
-                Semua laporan
-              </Link>
-              <span aria-hidden="true">·</span>
-              <Link href={childHref(studentId, "perkembangan")} className={TEXT_LINK}>
-                Perkembangan anak
-              </Link>
+              {links.secondary.map((l, i) => (
+                <span key={l.label} className="inline-flex items-center gap-x-1">
+                  {i > 0 && <span aria-hidden="true">·</span>}
+                  <Link href={childHref(studentId, l.tab, l.hash, programId)} className={TEXT_LINK}>
+                    {l.label}
+                  </Link>
+                </span>
+              ))}
             </div>
           </>
         ) : (
           <>
-            <Link href={childHref(studentId, "laporan")} className={CTA_OUTLINE}>
-              Lihat detail anak
+            <Link href={childHref(studentId, links.primaryTab, undefined, programId)} className={CTA_OUTLINE}>
+              Lihat detail
               <ArrowIcon />
             </Link>
             <div className="flex justify-center">
-              <Link href={childHref(studentId, "perkembangan")} className={TEXT_LINK}>
-                Perkembangan anak
+              <Link
+                href={childHref(studentId, links.secondary[links.secondary.length - 1].tab, undefined, programId)}
+                className={TEXT_LINK}
+              >
+                {links.secondary[links.secondary.length - 1].label}
               </Link>
             </div>
           </>

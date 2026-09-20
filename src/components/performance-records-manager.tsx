@@ -131,6 +131,7 @@ export function PerformanceRecordsManager({
   deleteAction,
   addAction,
   today,
+  hidden,
 }: {
   records: PerformanceRecordRow[];
   studentId: string;
@@ -140,7 +141,12 @@ export function PerformanceRecordsManager({
   deleteAction: Action;
   addAction?: Action;
   today: string;
+  // extra hidden fields every form carries (program / enrollment to return to)
+  hidden?: Record<string, string>;
 }) {
+  const hiddenFields = Object.entries(hidden ?? {}).map(([name, value]) => (
+    <input key={name} type="hidden" name={name} value={value} />
+  ));
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const annotated = annotatePersonalBests(records).sort(
@@ -179,6 +185,7 @@ export function PerformanceRecordsManager({
               >
                 <input type="hidden" name="id" value={r.id} />
                 <input type="hidden" name="student_id" value={studentId} />
+                {hiddenFields}
                 <RecordFields record={r} today={today} />
                 <div className="flex gap-2">
                   <GlassButton type="submit" className={`${PRIMARY_BUTTON} px-4 py-2 text-xs`}>
@@ -227,6 +234,7 @@ export function PerformanceRecordsManager({
                   <ToastForm action={deleteAction} pendingLabel="Menghapus...">
                     <input type="hidden" name="id" value={r.id} />
                     <input type="hidden" name="student_id" value={studentId} />
+                {hiddenFields}
                     <ConfirmSubmitButton
                       message={`Hapus rekor ini?\n\n${label}\n\nTindakan ini tidak bisa dibatalkan.`}
                       className="!border-red-300 !bg-red-500/10 px-3 py-1.5 text-xs !text-red-700 hover:!bg-red-500/20"
@@ -248,6 +256,7 @@ export function PerformanceRecordsManager({
           className="mt-4 flex flex-col gap-3 rounded-2xl border border-dashed border-[#35C5D0]/40 p-3"
         >
           <input type="hidden" name="student_id" value={studentId} />
+                {hiddenFields}
           <p className="text-sm font-medium text-[#17263D]">Tambah rekor</p>
           <RecordFields today={today} />
           <GlassButton type="submit" className={`${SECONDARY_BUTTON} w-fit px-4 py-2 text-xs`}>

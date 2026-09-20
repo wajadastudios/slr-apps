@@ -9,6 +9,7 @@ export type Enrollment = {
     location: string | null;
     day_of_week: number;
     start_time: string;
+    program_id: string;
     program: string | null;
   };
 };
@@ -16,6 +17,8 @@ export type Enrollment = {
 // Newest first, as the dashboard queries them.
 export type ReportLite = {
   student_id: string;
+  // the program (enrollment) the report belongs to
+  program_id: string | null;
   session_date: string;
   attendance: string | null;
   next_focus: string | null;
@@ -25,6 +28,8 @@ export type SessionStatus = "belum" | "tersimpan" | "izin" | "sakit" | "mendatan
 
 export type StudentSession = {
   studentId: string;
+  // which enrollment this session is for (a person can have several)
+  programId: string;
   name: string;
   status: SessionStatus;
   // trainer's own latest "fokus sesi berikutnya" for this child
@@ -38,7 +43,11 @@ export type StudentSession = {
 export type SessionItem = {
   key: string;
   time: string;
-  title: string;
+  programId: string;
+  // program name, shown as a label on every session
+  program: string;
+  // "Private" / "Grup" (null when the slot has no label)
+  classLabel: string | null;
   location: string | null;
   isGroup: boolean;
   students: StudentSession[];
@@ -84,15 +93,18 @@ export function buildWeek(
   weekStart: Date,
   todayIso: string
 ): DaySchedule[] {
+  // Everything is keyed by participant AND program: the same person can have
+  // Adult Swim and Aquanatal sessions and their reports must never mix.
   const reportByKey = new Map<string, ReportLite>();
-  const focusByStudent = new Map<string, string>();
+  const focusByEnrollment = new Map<string, string>();
   const hasReport = new Set<string>();
   for (const r of reports) {
-    const key = `${r.student_id}|${r.session_date}`;
+    const enrollment = `${r.student_id}|${r.program_id ?? ""}`;
+    const key = `${enrollment}|${r.session_date}`;
     if (!reportByKey.has(key)) reportByKey.set(key, r);
-    hasReport.add(r.student_id);
-    if (!focusByStudent.has(r.student_id) && r.next_focus?.trim()) {
-      focusByStudent.set(r.student_id, r.next_focus.trim());
+    hasReport.add(enrollment);
+    if (!focusByEnrollment.has(enrollment) && r.next_focus?.trim()) {
+      focusByEnrollment.set(enrollment, r.next_focus.trim());
     }
   }
 
@@ -112,25 +124,31 @@ export function buildWeek(
       const slot = list[0].slot;
       if (slot.day_of_week !== i) continue;
       const students: StudentSession[] = list
-        .map((e) => ({
-          studentId: e.student.id,
-          name: e.student.full_name,
-          status: sessionStatus(reportByKey.get(`${e.student.id}|${iso}`), iso, todayIso),
-          focus: focusByStudent.get(e.student.id) ?? null,
-          hasReport: hasReport.has(e.student.id),
-          date: iso,
-        }))
+        .map((e) => {
+          const enrollment = `${e.student.id}|${e.slot.program_id}`;
+          return {
+            studentId: e.student.id,
+            programId: e.slot.program_id,
+            name: e.student.full_name,
+            status: sessionStatus(reportByKey.get(`${enrollment}|${iso}`), iso, todayIso),
+            focus: focusByEnrollment.get(enrollment) ?? null,
+            hasReport: hasReport.has(enrollment),
+            date: iso,
+          };
+        })
         .sort((a, b) => a.name.localeCompare(b.name, "id"));
       items.push({
         key: `${slotId}|${iso}`,
         time: formatSessionTime(slot.start_time),
-        title: [slot.program ?? "Kelas", slot.label].filter(Boolean).join(" · "),
+        programId: slot.program_id,
+        program: slot.program ?? "Kelas",
+        classLabel: slot.label,
         location: slot.location,
         isGroup: list.length > 1 || isGroupLabel(slot.label),
         students,
       });
     }
-    items.sort((a, b) => a.time.localeCompare(b.time) || a.title.localeCompare(b.title));
+    items.sort((a, b) => a.time.localeCompare(b.time) || a.program.localeCompare(b.program));
 
     return {
       iso,
@@ -161,9 +179,14 @@ export function namesPreview(names: string[], max = 3): string {
   return firsts.length > max ? `${shown} +${firsts.length - max}` : shown;
 }
 
-export function reportHref(studentId: string, status: SessionStatus, date: string): string {
+export function reportHref(
+  studentId: string,
+  status: SessionStatus,
+  date: string,
+  programId: string
+): string {
   // only an unwritten report needs a date to prefill
   return status === "belum"
-    ? `/pelatih/murid/${studentId}?tanggal=${date}`
-    : `/pelatih/murid/${studentId}`;
+    ? `/pelatih/murid/${studentId}?program=${programId}&tanggal=${date}`
+    : `/pelatih/murid/${studentId}?program=${programId}`;
 }

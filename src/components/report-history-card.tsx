@@ -4,12 +4,16 @@ import { useRef, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { GlassInput } from "@/components/ui/glass-input";
-import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import { StarRating } from "@/components/ui/star-rating";
 import { SkillScoresField } from "@/components/skill-scores-field";
 import { ParentIndicatorSummary } from "@/components/parent-indicator-summary";
+import { ParentLevelSummary } from "@/components/parent-level-summary";
+import { LevelScoresField } from "@/components/level-scores-field";
+import { AttendanceProvider, AttendanceSelect, PresentOnly } from "@/components/report-attendance";
+import { summarizeLevelGroups } from "@/lib/level-summary";
+import { levelLabel, levelsFor, usesStars, type AssessmentType } from "@/lib/programs";
 import { AccordionItem } from "@/components/ui/accordion";
 import { formatShortDate } from "@/lib/format-date";
 import {
@@ -48,6 +52,8 @@ export type ReportRow = {
   substitute_for?: string | null;
   // label/group of every scored indicator as they were when the report was written
   indicator_snapshot?: IndicatorSnapshot | null;
+  // how the scores were measured when the report was written
+  assessment_type?: AssessmentType | null;
 };
 
 type ReportAction = (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -74,6 +80,8 @@ function ReportEntry({
   const [notesOpen, setNotesOpen] = useState(false);
 
   const scores = (report.scores as Record<string, number>) ?? {};
+  const type: AssessmentType = report.assessment_type ?? "score_5";
+  const levels = levelsFor(type);
   // Snapshot first (how the report looked when written), then the current
   // structure, so a later rename/regroup never rewrites history.
   const resolved = resolveReportIndicators(scores, report.indicator_snapshot, indicatorConfig);
@@ -85,14 +93,19 @@ function ReportEntry({
   }, []);
   // A missed session (izin/sakit) says nothing about what the child can do.
   const parentGroups =
-    parentView && !isAbsent(report.attendance)
+    parentView && !isAbsent(report.attendance) && usesStars(type)
       ? summarizeReportGroups(scores, report.indicator_snapshot, indicatorConfig)
+      : [];
+  const parentLevelGroups =
+    parentView && !isAbsent(report.attendance) && !usesStars(type)
+      ? summarizeLevelGroups(scores, report.indicator_snapshot, indicatorConfig, type)
       : [];
 
   if (editing && editable && updateAction) {
     return (
       <div className="rounded-xl border border-[#35C5D0]/40 bg-white/50 px-4 py-3">
         <ToastForm action={updateAction} className="flex flex-col gap-3">
+          <AttendanceProvider initial={report.attendance ?? "hadir"}>
           <input type="hidden" name="report_id" value={report.id} />
           <input type="hidden" name="student_id" value={studentId} />
 
@@ -119,31 +132,38 @@ function ReportEntry({
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-600">Kehadiran</label>
-              <GlassSelect
-                name="attendance"
-                required
-                defaultValue={report.attendance ?? "hadir"}
-              >
-                <option value="hadir">Hadir</option>
-                <option value="izin">Izin</option>
-                <option value="sakit">Sakit</option>
-              </GlassSelect>
+              <AttendanceSelect initial={report.attendance ?? "hadir"} />
             </div>
           </div>
 
-          <SkillScoresField
-            groups={formGroups(indicatorConfig, Object.keys(scores))}
-            initialScores={scores}
-            initiallyOpen={formGroups(indicatorConfig, Object.keys(scores))
-              .filter((g) => g.indicators.some((i) => (scores[i.key] ?? 0) > 0))
-              .map((g) => g.id)}
-          />
+          <PresentOnly>
+            {levels ? (
+              <LevelScoresField
+                groups={formGroups(indicatorConfig, Object.keys(scores))}
+                levels={levels}
+                legend={type === "observation" ? "Observasi sesi" : "Tingkat dukungan per indikator"}
+                initialScores={scores}
+                initiallyOpen={formGroups(indicatorConfig, Object.keys(scores))
+                  .filter((g) => g.indicators.some((i) => (scores[i.key] ?? 0) > 0))
+                  .map((g) => g.id)}
+              />
+            ) : (
+              <SkillScoresField
+                groups={formGroups(indicatorConfig, Object.keys(scores))}
+                initialScores={scores}
+                initiallyOpen={formGroups(indicatorConfig, Object.keys(scores))
+                  .filter((g) => g.indicators.some((i) => (scores[i.key] ?? 0) > 0))
+                  .map((g) => g.id)}
+              />
+            )}
+          </PresentOnly>
 
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-600">Catatan</label>
             <GlassTextarea name="notes" rows={3} defaultValue={report.notes ?? ""} />
           </div>
 
+          {type !== "observation" && (
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-600">
               Tambah Foto/Video (opsional, lampiran lama tetap tersimpan)
@@ -156,6 +176,7 @@ function ReportEntry({
               className="w-full text-sm text-slate-700 file:mr-3 file:rounded-xl file:border-0 file:bg-[#35C5D0] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-[#2bb0ba]"
             />
           </div>
+          )}
 
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-600">
@@ -179,6 +200,7 @@ function ReportEntry({
               Simpan Perubahan
             </GlassButton>
           </div>
+          </AttendanceProvider>
         </ToastForm>
       </div>
     );
@@ -261,6 +283,12 @@ function ReportEntry({
       )}
 
       {parentView && <ParentIndicatorSummary groups={parentGroups} />}
+      {parentView && (
+        <ParentLevelSummary
+          groups={parentLevelGroups}
+          title={type === "observation" ? "Catatan observasi" : "Penilaian dukungan & kemandirian"}
+        />
+      )}
 
       {!parentView && resolved.length > 0 && (
         <AccordionItem
@@ -288,7 +316,11 @@ function ReportEntry({
                 {group.items.map((r) => (
                   <div key={r.key} className="flex items-center justify-between gap-3">
                     <span className="text-sm text-slate-700">{r.label}</span>
-                    <StarRating value={r.score} size={14} />
+                    {usesStars(type) ? (
+                      <StarRating value={r.score} size={14} />
+                    ) : (
+                      <span className="text-xs font-medium text-[#0b5f8a]">{levelLabel(type, r.score)}</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -466,14 +498,18 @@ function Pagination({
 export function LatestReportCard({
   report,
   indicatorConfig,
+  title = "Laporan Terbaru",
+  anchorId = "laporan-terbaru",
 }: {
   report: ReportRow;
   indicatorConfig: IndicatorConfig;
+  title?: string;
+  anchorId?: string;
 }) {
   return (
-    <GlassCard id="laporan-terbaru" className="scroll-mt-20">
+    <GlassCard id={anchorId} className="scroll-mt-20">
       <h2 className="mb-3 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
-        Laporan Terbaru
+        {title}
       </h2>
       <ReportEntry
         report={report}

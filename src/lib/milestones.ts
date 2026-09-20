@@ -28,6 +28,8 @@ export type Milestone = {
   gold: number;
   sort_order: number;
   active: boolean;
+  // the program this milestone belongs to (each program has its own set)
+  program_id?: string | null;
 };
 
 function isFaster(a: number, b: number) {

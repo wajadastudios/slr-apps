@@ -215,21 +215,28 @@ test("a report with no scores at all lists every group as Belum dinilai", () => 
 });
 
 // ---------- parent navigation ----------
-import { childHref, latestReportPreview, parseChildTab, CHILD_TABS } from "../src/lib/report-preview";
+import { childHref, latestReportPreview } from "../src/lib/report-preview";
+import { parseTab, tabsFor } from "../src/lib/programs";
 
-test("child tab comes from the URL and falls back to laporan", () => {
-  assert.equal(parseChildTab(undefined), "laporan");
-  assert.equal(parseChildTab("perkembangan"), "perkembangan");
-  assert.equal(parseChildTab("record"), "record");
-  assert.equal(parseChildTab("nonsense"), "laporan");
-  assert.equal(parseChildTab(["record", "laporan"]), "record");
-  assert.deepEqual(CHILD_TABS.map((t) => t.id), ["laporan", "perkembangan", "record"]);
+test("child tab comes from the URL and falls back to the first tab of the program", () => {
+  const kids = tabsFor({ assessment_type: "score_5", records_mode: "medals" });
+  assert.deepEqual(kids.map((t) => t.id), ["laporan", "perkembangan", "record"]);
+  assert.equal(parseTab(undefined, kids), "laporan");
+  assert.equal(parseTab("perkembangan", kids), "perkembangan");
+  assert.equal(parseTab("record", kids), "record");
+  assert.equal(parseTab("nonsense", kids), "laporan");
+  assert.equal(parseTab(["record", "laporan"], kids), "record");
+  // a tab that belongs to another program falls back too
+  assert.equal(parseTab("target", kids), "laporan");
 });
 
-test("deep links point at the right tab and anchor", () => {
+test("deep links point at the right tab, anchor and program", () => {
   assert.equal(childHref("abc", "laporan", "laporan-terbaru"), "/ortu/anak/abc?tab=laporan#laporan-terbaru");
-  assert.equal(childHref("abc", "laporan", "riwayat-laporan"), "/ortu/anak/abc?tab=laporan#riwayat-laporan");
   assert.equal(childHref("abc", "perkembangan"), "/ortu/anak/abc?tab=perkembangan");
+  assert.equal(
+    childHref("abc", "catatan", "catatan-terbaru", "p1"),
+    "/ortu/anak/abc?tab=catatan&program=p1#catatan-terbaru"
+  );
 });
 
 test("latest report preview: newest report, note trimmed, null when none", () => {

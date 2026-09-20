@@ -13,6 +13,10 @@ import { StarScoreLegend } from "@/components/star-score-legend";
 import { ChildTabs } from "@/components/child-tabs";
 import { ParentIndicatorSummary } from "@/components/parent-indicator-summary";
 import { AttendanceConsistencyCard } from "@/components/attendance-consistency-card";
+import { SupportProgressCard } from "@/components/support-progress-card";
+import { ClassJourneyCard } from "@/components/class-journey-card";
+import { PersonalGoalsView } from "@/components/personal-goals";
+import { EnrollmentStatusCard } from "@/components/enrollment-status-card";
 import {
   computeLatestAchievement,
   computeNextSession,
@@ -21,36 +25,40 @@ import {
   latestAttendedReport,
 } from "@/lib/progress";
 import { summarizeReportGroups } from "@/lib/report-summary";
-import { parseChildTab } from "@/lib/report-preview";
+import { supportChanges } from "@/lib/level-summary";
 import { formatShortDate } from "@/lib/format-date";
 import { PRIMARY_BUTTON, SECONDARY_BUTTON, GHOST_BUTTON } from "@/lib/ui-classes";
 import { formatAge, type PerformanceRecordRow } from "@/lib/performance";
 import { loadIndicatorConfig } from "@/lib/indicator-loader";
 import type { IndicatorConfig } from "@/lib/indicators";
 import { loadMilestones } from "@/lib/milestone-loader";
+import { loadEnrollments } from "@/lib/enrollment-server";
 import { computeMilestoneStatuses } from "@/lib/milestones";
+import { hasClassAccess, isLive, pickEnrollment } from "@/lib/enrollment";
+import { parseTab, tabsFor, usesStars, type ProgramMeta } from "@/lib/programs";
+import type { GoalEntry, PersonalGoal } from "@/lib/personal-goals";
 import { DAYS } from "@/lib/days";
 import { setPackagePreferenceAction } from "./actions";
 import { ToastForm } from "@/components/ui/toast-form";
+
+type ScoredReport = ReportRow & { scores: Record<string, number> | null };
 
 export default async function AnakDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ studentId: string }>;
-  searchParams: Promise<{ tab?: string | string[] }>;
+  searchParams: Promise<{ tab?: string | string[]; program?: string }>;
 }) {
   const { studentId } = await params;
-  const tab = parseChildTab((await searchParams).tab);
+  const { tab: tabParam, program: programParam } = await searchParams;
   const supabase = await createClient();
 
   // RLS (parent_owns_student) already scopes this to the caller's own
   // children — an empty result means access denied.
   const { data: student } = await supabase
     .from("students")
-    .select(
-      "id, full_name, nickname, birth_date, program_id, next_package_preference_id, program:program_id(name)"
-    )
+    .select("id, full_name, nickname, birth_date, next_package_preference_id")
     .eq("id", studentId)
     .single();
 
@@ -58,17 +66,91 @@ export default async function AnakDetailPage({
     redirect("/ortu");
   }
 
-  const program = student.program as unknown as { name: string } | null;
+  // The page follows ONE enrollment (program) at a time; reports, indicators,
+  // records and progress of the other programs are never mixed in.
+  const allEnrollments = await loadEnrollments(supabase, [studentId]);
+  const live = allEnrollments.filter((e) => isLive(e.status));
+  const enrollment = pickEnrollment(live, programParam);
+  if (!enrollment) {
+    redirect("/ortu");
+  }
+  const program: ProgramMeta = enrollment.program;
+  const displayName = student.nickname || student.full_name;
   const age = formatAge(student.birth_date);
 
-  // Only the record tab needs records and milestones.
-  const recordsPromise =
-    tab === "record"
-      ? Promise.all([
-          supabase.from("performance_records").select("*").eq("student_id", studentId),
-          loadMilestones(supabase),
-        ])
-      : Promise.resolve(null);
+  const switcher =
+    live.length > 1 ? (
+      <nav aria-label="Program" className="flex flex-wrap gap-1.5">
+        {live.map((e) => (
+          <Link
+            key={e.id}
+            href={`/ortu/anak/${studentId}?program=${e.program_id}`}
+            replace
+            aria-current={e.id === enrollment.id ? "page" : undefined}
+            className={`inline-flex min-h-10 items-center rounded-xl px-3.5 text-sm font-semibold transition-colors ${
+              e.id === enrollment.id
+                ? "bg-[#35C5D0] text-white shadow-[0_2px_10px_rgba(53,197,208,0.4)]"
+                : "border border-white/60 bg-white/60 text-slate-700 hover:bg-[#35C5D0]/15"
+            }`}
+          >
+            {e.program.name}
+          </Link>
+        ))}
+      </nav>
+    ) : null;
+
+  const backLink = (
+    <Link
+      href={`/ortu#anak-${studentId}-${enrollment.program_id}`}
+      className={`-ml-2 inline-flex min-h-11 w-fit items-center gap-1 rounded-xl px-2 text-sm font-medium text-[#1597A3] ${GHOST_BUTTON}`}
+    >
+      <svg
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        className="h-4 w-4"
+        aria-hidden="true"
+      >
+        <path d="M12.5 5.5L8 10l4.5 4.5" />
+      </svg>
+      Ringkasan
+    </Link>
+  );
+
+  // Before the class is scheduled/active: only the registration status.
+  if (!hasClassAccess(enrollment.status)) {
+    let offered = null;
+    if (enrollment.offered_slot_id) {
+      const { data } = await supabase
+        .from("class_slots")
+        .select("id, label, location, day_of_week, start_time")
+        .eq("id", enrollment.offered_slot_id)
+        .maybeSingle();
+      offered = data;
+    }
+    return (
+      <div className="flex flex-col gap-4">
+        {backLink}
+        {switcher}
+        <EnrollmentStatusCard
+          full
+          enrollmentId={enrollment.id}
+          name={displayName}
+          programName={program.name}
+          status={enrollment.status}
+          preferred={[enrollment.preferred_schedule, enrollment.preferred_location].filter(Boolean).join(" · ") || null}
+          offeredSlot={offered}
+        />
+      </div>
+    );
+  }
+
+  const tabs = tabsFor(program);
+  const tab = parseTab(tabParam, tabs);
+  const medals = program.records_mode === "medals";
+  const goalsMode = program.records_mode === "personal_goals";
 
   const [
     indicatorConfig,
@@ -77,13 +159,12 @@ export default async function AnakDetailPage({
     { data: availablePackages },
     { data: scheduleRows },
     { data: pelatihNames },
-    recordsData,
   ] = await Promise.all([
-    loadIndicatorConfig(supabase, student.program_id),
+    loadIndicatorConfig(supabase, program.id),
     supabase
       .from("progress_reports")
       .select("*")
-      .eq("student_id", studentId)
+      .eq("enrollment_id", enrollment.id)
       .order("session_date", { ascending: false }),
     supabase
       .from("invoices")
@@ -93,28 +174,32 @@ export default async function AnakDetailPage({
     supabase
       .from("program_packages")
       .select("id, name, sessions_count, price, benefits")
-      .eq("program_id", student.program_id)
+      .eq("program_id", program.id)
       .eq("active", true)
       .order("sessions_count"),
     supabase
       .from("schedules")
-      .select("slot:slot_id(day_of_week, start_time, label, pelatih_id)")
+      .select("slot:slot_id(day_of_week, start_time, label, pelatih_id, program_id)")
       .eq("student_id", studentId),
     supabase.rpc("get_public_pelatih_names"),
-    recordsPromise,
   ]);
 
-  const allReports = reports ?? [];
+  const allReports = (reports ?? []) as ScoredReport[];
+  const singleClass = live.filter((e) => hasClassAccess(e.status)).length <= 1;
+  const quotaText = singleClass
+    ? formatSessionQuota(computeSessionQuota(invoices ?? [], allReports))
+    : {
+        value: `${allReports.filter((r) => r.attendance === "hadir").length} sesi diikuti`,
+        note: "Kuota paket ada di menu Tagihan",
+      };
   const quota = computeSessionQuota(invoices ?? [], allReports);
-  const quotaText = formatSessionQuota(quota);
-  const currentPackageSessions =
-    (invoices ?? []).find((i) => i.status === "paid")?.sessions_count ?? 0;
+  const currentPackageSessions = (invoices ?? []).find((i) => i.status === "paid")?.sessions_count ?? 0;
   const totalAllSessions = (invoices ?? []).reduce((sum, i) => sum + i.sessions_count, 0);
 
   // Nudge to pick the next package only when the current paid one is down to
   // its last session and no further invoice (sent/processing) already exists.
   const showRenewalBanner =
-    currentPackageSessions > 4 && quota.remaining === 1 && totalAllSessions === quota.total;
+    singleClass && currentPackageSessions > 4 && quota.remaining === 1 && totalAllSessions === quota.total;
 
   const pelatihNameById = new Map<string, string>();
   for (const p of pelatihNames ?? []) {
@@ -129,9 +214,10 @@ export default async function AnakDetailPage({
           start_time: string;
           label: string | null;
           pelatih_id: string;
+          program_id: string;
         } | null
     )
-    .filter((s): s is NonNullable<typeof s> => s !== null)
+    .filter((s): s is NonNullable<typeof s> => s !== null && s.program_id === program.id)
     .map((s) => ({
       day_of_week: s.day_of_week,
       start_time: s.start_time,
@@ -146,37 +232,93 @@ export default async function AnakDetailPage({
       }`
     : null;
 
-  const displayName = student.nickname || student.full_name;
   const [latestReport, ...olderReports] = allReports;
+  const isObservation = program.assessment_type === "observation";
+
+  // record / goals data only for the tab that needs it
+  let records: PerformanceRecordRow[] = [];
+  let milestones: Awaited<ReturnType<typeof loadMilestones>> = [];
+  if (tab === "record" && medals) {
+    const [recordsRes, ms] = await Promise.all([
+      supabase.from("performance_records").select("*").eq("enrollment_id", enrollment.id),
+      loadMilestones(supabase, program.id),
+    ]);
+    records = (recordsRes.data ?? []) as PerformanceRecordRow[];
+    milestones = ms;
+  }
+
+  let goals: PersonalGoal[] = [];
+  let goalEntries: GoalEntry[] = [];
+  if (tab === "target" && goalsMode) {
+    const { data: goalRows } = await supabase
+      .from("personal_goals")
+      .select("id, label, unit, baseline, target, status")
+      .eq("enrollment_id", enrollment.id);
+    goals = ((goalRows ?? []) as PersonalGoal[]).map((g) => ({
+      ...g,
+      baseline: g.baseline === null ? null : Number(g.baseline),
+      target: Number(g.target),
+    }));
+    if (goals.length > 0) {
+      const { data } = await supabase
+        .from("personal_goal_entries")
+        .select("id, goal_id, value, recorded_at, note")
+        .in(
+          "goal_id",
+          goals.map((g) => g.id)
+        );
+      goalEntries = ((data ?? []) as GoalEntry[]).map((e) => ({ ...e, value: Number(e.value) }));
+    }
+  }
+
+  const reportsTab = (
+    <>
+      {!latestReport ? (
+        <GlassCard>
+          <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
+            {isObservation ? "Belum ada catatan sesi" : "Belum ada laporan latihan"}
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            {isObservation
+              ? "Catatan sesi dari instruktur akan muncul di sini setelah sesi pertama."
+              : `Laporan dari pelatih akan muncul di sini setelah sesi latihan pertama ${displayName}.`}
+          </p>
+        </GlassCard>
+      ) : (
+        <>
+          <LatestReportCard
+            report={latestReport}
+            indicatorConfig={indicatorConfig}
+            title={isObservation ? "Catatan Sesi Terbaru" : "Laporan Terbaru"}
+            anchorId={isObservation ? "catatan-terbaru" : "laporan-terbaru"}
+          />
+          {olderReports.length > 0 && (
+            <ReportHistoryCard
+              id={isObservation ? "riwayat-catatan" : "riwayat-laporan"}
+              title={isObservation ? "Riwayat Catatan" : "Riwayat Laporan"}
+              reports={olderReports}
+              indicatorConfig={indicatorConfig}
+              parentView
+            />
+          )}
+        </>
+      )}
+    </>
+  );
 
   return (
     <div className="flex flex-col gap-4">
       <GlassCard className="flex flex-col gap-3 !bg-white/85">
-        <Link
-          href={`/ortu#anak-${studentId}`}
-          className={`-ml-2 inline-flex min-h-11 w-fit items-center gap-1 rounded-xl px-2 text-sm font-medium text-[#1597A3] ${GHOST_BUTTON}`}
-        >
-          <svg
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            className="h-4 w-4"
-            aria-hidden="true"
-          >
-            <path d="M12.5 5.5L8 10l4.5 4.5" />
-          </svg>
-          Ringkasan
-        </Link>
+        {backLink}
         <h1 className="font-[family-name:var(--font-quicksand)] text-xl font-bold leading-tight text-[#17263D]">
           {displayName}
           <span className="text-base font-medium text-slate-500">
             {" "}
-            · {program?.name ?? "Belum ada program"}
+            · {program.name}
             {age ? ` · ${age}` : ""}
           </span>
         </h1>
+        {switcher}
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="rounded-2xl border border-[#FFC800]/45 bg-gradient-to-br from-[#FFF3C4] to-[#FFF8E1] px-3.5 py-2.5">
             <p className="text-[11px] font-medium text-[#8a6900]">Sesi berikutnya</p>
@@ -198,9 +340,9 @@ export default async function AnakDetailPage({
             Sesi Terakhir di Paket Ini
           </h2>
           <p className="mb-4 text-sm text-slate-700">
-            Tinggal 1 sesi lagi di paket {student.full_name} saat ini. Pilih paket untuk sesi
-            berikutnya — pilihan Anda akan dilihat admin saat menyiapkan tagihan berikutnya (admin
-            tetap yang mengonfirmasi & mengirim tagihannya).
+            Tinggal 1 sesi lagi di paket {student.full_name} saat ini. Pilih paket untuk sesi berikutnya — pilihan
+            Anda akan dilihat admin saat menyiapkan tagihan berikutnya (admin tetap yang mengonfirmasi & mengirim
+            tagihannya).
           </p>
           <div className="flex flex-col gap-2">
             {availablePackages.map((pkg) => {
@@ -236,64 +378,52 @@ export default async function AnakDetailPage({
         </GlassCard>
       )}
 
-      <ChildTabs studentId={studentId} active={tab} />
+      <ChildTabs studentId={studentId} programId={program.id} tabs={tabs} active={tab} />
 
-      {tab === "laporan" && (
-        <>
-          {!latestReport ? (
-            <GlassCard>
-              <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
-                Belum ada laporan latihan
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Laporan dari pelatih akan muncul di sini setelah sesi latihan pertama {displayName}.
-              </p>
-            </GlassCard>
-          ) : (
-            <>
-              <LatestReportCard report={latestReport} indicatorConfig={indicatorConfig} />
-              {olderReports.length > 0 && (
-                <ReportHistoryCard
-                  id="riwayat-laporan"
-                  reports={olderReports}
-                  indicatorConfig={indicatorConfig}
-                  parentView
-                />
-              )}
-            </>
-          )}
-        </>
-      )}
+      {(tab === "laporan" || tab === "catatan") && reportsTab}
 
       {tab === "perkembangan" && (
-        <PerkembanganTab
+        <ProgressTab
+          program={program}
           reports={allReports}
           indicatorConfig={indicatorConfig}
         />
       )}
 
-      {tab === "record" && (
+      {tab === "perjalanan" && <ClassJourneyCard reports={allReports} />}
+
+      {tab === "record" && medals && (
         <>
-          <RecordUnlockCard
-            statuses={computeMilestoneStatuses(
-              (recordsData?.[0].data ?? []) as PerformanceRecordRow[],
-              recordsData?.[1] ?? []
-            )}
-          />
-          <PerformanceRecordsCard records={(recordsData?.[0].data ?? []) as PerformanceRecordRow[]} />
+          <RecordUnlockCard statuses={computeMilestoneStatuses(records, milestones)} />
+          <PerformanceRecordsCard records={records} />
         </>
       )}
+
+      {tab === "target" && goalsMode && <PersonalGoalsView goals={goals} entries={goalEntries} />}
     </div>
   );
 }
 
-function PerkembanganTab({
+// Score programs: chart, latest indicator summary, attendance, guide.
+// Adaptive Swim: how support levels changed. Never mixes the two scales.
+function ProgressTab({
+  program,
   reports,
   indicatorConfig,
 }: {
-  reports: (ReportRow & { scores: Record<string, number> | null })[];
+  program: ProgramMeta;
+  reports: ScoredReport[];
   indicatorConfig: IndicatorConfig;
 }) {
+  if (!usesStars(program.assessment_type)) {
+    return (
+      <>
+        <SupportProgressCard changes={supportChanges(reports, indicatorConfig, program.assessment_type)} />
+        <AttendanceConsistencyCard reports={reports} />
+      </>
+    );
+  }
+
   const achievement = computeLatestAchievement(reports, indicatorConfig);
   const latestAttended = latestAttendedReport(reports);
   const groups = latestAttended

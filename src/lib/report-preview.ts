@@ -1,4 +1,5 @@
 import { formatShortDate } from "@/lib/format-date";
+import type { ChildTab } from "@/lib/programs";
 
 export type ReportPreview = {
   dateLabel: string;
@@ -38,21 +39,12 @@ export function latestReportPreview(
   };
 }
 
-export type ChildTab = "laporan" | "perkembangan" | "record";
-
-export const CHILD_TABS: { id: ChildTab; label: string }[] = [
-  { id: "laporan", label: "Laporan" },
-  { id: "perkembangan", label: "Perkembangan" },
-  { id: "record", label: "Record" },
-];
-
-// Anything unknown falls back to the report tab, so a stale or hand-edited
-// link never lands on an empty page.
-export function parseChildTab(raw: string | string[] | undefined): ChildTab {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  return CHILD_TABS.some((t) => t.id === value) ? (value as ChildTab) : "laporan";
-}
-
-export function childHref(studentId: string, tab: ChildTab, hash?: string): string {
-  return `/ortu/anak/${studentId}?tab=${tab}${hash ? `#${hash}` : ""}`;
+// `program` keeps a participant with several enrollments on the right one.
+export function childHref(
+  studentId: string,
+  tab: ChildTab,
+  hash?: string,
+  program?: string
+): string {
+  return `/ortu/anak/${studentId}?tab=${tab}${program ? `&program=${program}` : ""}${hash ? `#${hash}` : ""}`;
 }

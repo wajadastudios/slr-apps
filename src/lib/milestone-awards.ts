@@ -10,6 +10,7 @@ type RecordDb = {
   distance_m: number | string | null;
   duration_seconds: number | string | null;
   awards: Record<string, string> | null;
+  program_id?: string | null;
 };
 
 const toNum = (v: number | string | null) => (v === null ? null : Number(v));
@@ -24,11 +25,13 @@ export async function freezeLegacyAwards(
 ): Promise<void> {
   const { data, error } = await admin
     .from("performance_records")
-    .select("id, metric_type, stroke, distance_m, duration_seconds, awards")
+    .select("id, metric_type, stroke, distance_m, duration_seconds, awards, program_id")
     .is("awards", null);
   if (error || !data) return; // column missing = nothing to freeze
 
   for (const r of data as RecordDb[]) {
+    // a record is only ever judged against ITS program's milestones
+    const own = milestones.filter((m) => !r.program_id || m.program_id === r.program_id);
     const awards = computeAwards(
       {
         metric_type: r.metric_type,
@@ -36,7 +39,7 @@ export async function freezeLegacyAwards(
         distance_m: toNum(r.distance_m),
         duration_seconds: toNum(r.duration_seconds),
       },
-      milestones
+      own
     );
     await admin.from("performance_records").update({ awards }).eq("id", r.id);
   }
@@ -51,10 +54,11 @@ export async function awardMilestoneToExisting(
 ): Promise<void> {
   const { data, error } = await admin
     .from("performance_records")
-    .select("id, metric_type, stroke, distance_m, duration_seconds, awards");
+    .select("id, metric_type, stroke, distance_m, duration_seconds, awards, program_id");
   if (error || !data) return;
 
   for (const r of data as RecordDb[]) {
+    if (r.program_id && milestone.program_id && r.program_id !== milestone.program_id) continue;
     const record = {
       metric_type: r.metric_type,
       stroke: r.stroke,

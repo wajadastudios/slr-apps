@@ -16,12 +16,13 @@ import type { MetricType } from "@/lib/performance";
 // by RLS ("pelatih can update/delete own records" -> pelatih_id = auth.uid()
 // AND the student is one they teach). Records without an owner are admin-only.
 
-function back(studentId: string) {
-  return `/pelatih/murid/${studentId}`;
+function back(studentId: string, program = "") {
+  return `/pelatih/murid/${studentId}${program ? `?program=${program}` : ""}`;
 }
 
-function fail(studentId: string, message: string): never {
-  redirect(`${back(studentId)}?error=${encodeURIComponent(message)}`);
+function fail(studentId: string, message: string, program = ""): never {
+  const url = back(studentId, program);
+  redirect(`${url}${url.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
 }
 
 async function updatePerformanceRecordActionImpl(formData: FormData) {
@@ -59,14 +60,15 @@ async function updatePerformanceRecordActionImpl(formData: FormData) {
       duration_seconds: existing.duration_seconds === null ? null : Number(existing.duration_seconds),
     },
     parsed.value,
-    await loadMilestones(supabase)
+    // a record is judged against ITS program's milestones only
+    await loadMilestones(supabase, existing.program_id)
   );
 
   const error = await updateRecord(supabase, id, patch, session.user.id);
   if (error) fail(studentId, error.message);
 
-  revalidatePath(back(studentId));
-  redirect(back(studentId));
+  revalidatePath(`/pelatih/murid/${studentId}`);
+  redirect(back(studentId, String(formData.get("program") ?? "")));
 }
 
 async function deletePerformanceRecordActionImpl(formData: FormData) {
@@ -79,8 +81,8 @@ async function deletePerformanceRecordActionImpl(formData: FormData) {
   const error = await deleteRecord(supabase, id, session.user.id);
   if (error) fail(studentId, error.message);
 
-  revalidatePath(back(studentId));
-  redirect(back(studentId));
+  revalidatePath(`/pelatih/murid/${studentId}`);
+  redirect(back(studentId, String(formData.get("program") ?? "")));
 }
 
 export const updatePerformanceRecordAction = safeAction(updatePerformanceRecordActionImpl, "Rekor performa berhasil diperbarui");

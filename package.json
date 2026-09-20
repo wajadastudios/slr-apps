@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --tsconfig tsconfig.json --test tests/*.test.ts"
+    "test": "tsx --tsconfig tsconfig.json --test tests/*.test.ts",
+    "test:db": "node tests/db/enrollment-rls.test.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.6.1",
@@ -21,6 +22,7 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

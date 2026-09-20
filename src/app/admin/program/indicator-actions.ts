@@ -10,19 +10,28 @@ import { computeReorder, nextSortOrder } from "@/lib/reorder";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
-function back(programId: string) {
-  return `/admin/program?id=${encodeURIComponent(programId)}`;
+function back(programId: string, selected?: string) {
+  return `/admin/penilaian?program=${encodeURIComponent(programId)}&tab=indikator${
+    selected ? `&sel=${encodeURIComponent(selected)}` : ""
+  }`;
 }
 
 function fail(programId: string, message: string): never {
   redirect(`${back(programId)}&error=${encodeURIComponent(message)}`);
 }
 
-function done(programId: string): never {
-  revalidatePath("/admin/program");
+// Any structural change bumps the program's template version, which every new
+// report records next to its indicator snapshot.
+async function done(programId: string, selected?: string): Promise<never> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("programs").select("template_version").eq("id", programId).maybeSingle();
+  if (data && typeof data.template_version === "number") {
+    await supabase.from("programs").update({ template_version: data.template_version + 1 }).eq("id", programId);
+  }
+  revalidatePath("/admin/penilaian");
   revalidatePath("/admin/laporan");
   revalidatePath("/pelatih");
-  redirect(back(programId));
+  redirect(back(programId, selected));
 }
 
 function str(formData: FormData, name: string) {
@@ -64,7 +73,7 @@ async function createGroupActionImpl(formData: FormData) {
   await requireAdmin();
   const programId = str(formData, "program_id");
   const name = str(formData, "name");
-  if (!programId) redirect("/admin/program");
+  if (!programId) redirect("/admin/penilaian");
   if (!name) fail(programId, "Nama kelompok wajib diisi.");
 
   const supabase = await createClient();
@@ -74,11 +83,13 @@ async function createGroupActionImpl(formData: FormData) {
     .eq("program_id", programId);
   if (readError) dbError(programId, readError);
 
-  const { error } = await supabase
+  const { data: created, error } = await supabase
     .from("indicator_groups")
-    .insert({ program_id: programId, name, sort_order: nextSortOrder(siblings ?? []) });
+    .insert({ program_id: programId, name, sort_order: nextSortOrder(siblings ?? []) })
+    .select("id")
+    .single();
   if (error) dbError(programId, error);
-  done(programId);
+  await done(programId, created ? `g:${created.id}` : undefined);
 }
 
 async function renameGroupActionImpl(formData: FormData) {
@@ -91,7 +102,7 @@ async function renameGroupActionImpl(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from("indicator_groups").update({ name }).eq("id", id);
   if (error) dbError(programId, error);
-  done(programId);
+  await done(programId);
 }
 
 async function toggleGroupActiveActionImpl(formData: FormData) {
@@ -104,7 +115,7 @@ async function toggleGroupActiveActionImpl(formData: FormData) {
   // Only the flag changes: indicators and every stored score stay untouched.
   const { error } = await supabase.from("indicator_groups").update({ active: nextActive }).eq("id", id);
   if (error) dbError(programId, error);
-  done(programId);
+  await done(programId);
 }
 
 async function moveGroupActionImpl(formData: FormData) {
@@ -121,7 +132,7 @@ async function moveGroupActionImpl(formData: FormData) {
     .order("sort_order");
   if (error) dbError(programId, error);
   await reorder(supabase, "indicator_groups", data ?? [], id, direction, programId);
-  done(programId);
+  await done(programId);
 }
 
 // ---------------- indicators ----------------
@@ -143,15 +154,19 @@ async function createIndicatorActionImpl(formData: FormData) {
   // The key is what report scores are stored under: generated once, never
   // derived from the label, so renaming can't orphan any score.
   const key = `ind_${randomUUID().replace(/-/g, "").slice(0, 10)}`;
-  const { error } = await supabase.from("indicators").insert({
-    program_id: programId,
-    group_id: groupId,
-    key,
-    label,
-    sort_order: nextSortOrder(siblings ?? []),
-  });
+  const { data: created, error } = await supabase
+    .from("indicators")
+    .insert({
+      program_id: programId,
+      group_id: groupId,
+      key,
+      label,
+      sort_order: nextSortOrder(siblings ?? []),
+    })
+    .select("id")
+    .single();
   if (error) dbError(programId, error);
-  done(programId);
+  await done(programId, created ? `i:${created.id}` : undefined);
 }
 
 async function renameIndicatorActionImpl(formData: FormData) {
@@ -165,7 +180,37 @@ async function renameIndicatorActionImpl(formData: FormData) {
   // label only -- `key` is never written here.
   const { error } = await supabase.from("indicators").update({ label }).eq("id", id);
   if (error) dbError(programId, error);
-  done(programId);
+  await done(programId);
+}
+
+// One save for the indicator editor: label and (optionally) its group. The key
+// never changes; moving to another group puts it at the end of that group.
+async function updateIndicatorActionImpl(formData: FormData) {
+  await requireAdmin();
+  const programId = str(formData, "program_id");
+  const id = str(formData, "id");
+  const label = str(formData, "label");
+  const groupId = str(formData, "group_id");
+  if (!label) fail(programId, "Nama indikator wajib diisi.");
+
+  const supabase = await createClient();
+  const { data: current, error: readError } = await supabase
+    .from("indicators")
+    .select("group_id")
+    .eq("id", id)
+    .single();
+  if (readError || !current) fail(programId, "Indikator tidak ditemukan.");
+
+  const patch: Record<string, unknown> = { label };
+  if (groupId && groupId !== current.group_id) {
+    const { data: siblings } = await supabase.from("indicators").select("sort_order").eq("group_id", groupId);
+    patch.group_id = groupId;
+    patch.sort_order = nextSortOrder(siblings ?? []);
+  }
+
+  const { error } = await supabase.from("indicators").update(patch).eq("id", id);
+  if (error) dbError(programId, error);
+  await done(programId, `i:${id}`);
 }
 
 async function moveIndicatorToGroupActionImpl(formData: FormData) {
@@ -187,7 +232,7 @@ async function moveIndicatorToGroupActionImpl(formData: FormData) {
     .update({ group_id: targetGroupId, sort_order: nextSortOrder(siblings ?? []) })
     .eq("id", id);
   if (error) dbError(programId, error);
-  done(programId);
+  await done(programId);
 }
 
 async function moveIndicatorActionImpl(formData: FormData) {
@@ -205,7 +250,7 @@ async function moveIndicatorActionImpl(formData: FormData) {
     .order("sort_order");
   if (error) dbError(programId, error);
   await reorder(supabase, "indicators", data ?? [], id, direction, programId);
-  done(programId);
+  await done(programId);
 }
 
 async function toggleIndicatorActiveActionImpl(formData: FormData) {
@@ -217,7 +262,7 @@ async function toggleIndicatorActiveActionImpl(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from("indicators").update({ active: nextActive }).eq("id", id);
   if (error) dbError(programId, error);
-  done(programId);
+  await done(programId);
 }
 
 async function deleteIndicatorActionImpl(formData: FormData) {
@@ -238,7 +283,7 @@ async function deleteIndicatorActionImpl(formData: FormData) {
           : error.message
     );
   }
-  done(programId);
+  await done(programId);
 }
 
 export const createGroupAction = safeAction(createGroupActionImpl, "Kelompok berhasil ditambahkan");
@@ -246,6 +291,7 @@ export const renameGroupAction = safeAction(renameGroupActionImpl, "Nama kelompo
 export const toggleGroupActiveAction = safeAction(toggleGroupActiveActionImpl, "Status kelompok berhasil diperbarui");
 export const moveGroupAction = safeAction(moveGroupActionImpl, "Urutan kelompok berhasil diperbarui");
 export const createIndicatorAction = safeAction(createIndicatorActionImpl, "Indikator berhasil ditambahkan");
+export const updateIndicatorAction = safeAction(updateIndicatorActionImpl, "Indikator berhasil disimpan");
 export const renameIndicatorAction = safeAction(renameIndicatorActionImpl, "Nama indikator berhasil diperbarui");
 export const moveIndicatorToGroupAction = safeAction(moveIndicatorToGroupActionImpl, "Indikator berhasil dipindahkan");
 export const moveIndicatorAction = safeAction(moveIndicatorActionImpl, "Urutan indikator berhasil diperbarui");
