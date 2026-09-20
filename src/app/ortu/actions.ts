@@ -7,77 +7,46 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserWithRole } from "@/lib/auth";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { DAYS } from "@/lib/days";
-import { getSiteOrigin } from "@/lib/site-url";
-import { adminNewRegistrationMessage, offerOutcomeMessage } from "@/lib/enrollment";
+import { offerOutcomeMessage } from "@/lib/enrollment";
 import { notifyOfferOutcome } from "@/lib/enrollment-server";
-import { ACK_VERSION, preferenceSummary } from "@/lib/registration-input";
+import { parseEnrollmentRequest } from "@/lib/registration-input";
+import { submitEnrollmentRequest } from "@/lib/enrollment-register";
 
-// A logged-in participant (adult, or a parent registering themselves) asks to
-// join a program. This only creates a `pending_review` enrollment: no
-// schedule and no class access until admin has offered a slot and it was
-// approved.
+// A signed-in account asks to enrol somebody in a program -- itself ("Saya
+// sendiri") or a spouse / family member. Only creates a `pending_review`
+// enrollment: no schedule and no class access until admin has offered a slot
+// and it was approved.
 async function requestEnrollmentActionImpl(formData: FormData) {
   const session = await getUserWithRole();
   if (!session || session.role !== "ortu") {
     redirect("/login");
   }
 
-  const program_id = String(formData.get("program_id") ?? "");
-  if (!program_id) {
-    redirect(`/ortu?error=${encodeURIComponent("Program wajib dipilih.")}`);
+  const request = parseEnrollmentRequest({
+    for: formData.get("for"),
+    program_id: formData.get("program_id"),
+    participant_name: formData.get("participant_name"),
+    participant_phone: formData.get("participant_phone"),
+    birth_date: formData.get("birth_date"),
+    gender: formData.get("gender"),
+    relationship: formData.get("relationship"),
+    preferred_schedule: formData.get("preferred_schedule"),
+    preferred_location: formData.get("preferred_location"),
+    acknowledged: formData.get("acknowledged"),
+  });
+  if (!request.ok) {
+    redirect(`/ortu?error=${encodeURIComponent(request.error)}`);
   }
 
   const supabase = await createClient();
-  const { data: program } = await supabase
-    .from("programs")
-    .select("id, name, requires_acknowledgement")
-    .eq("id", program_id)
-    .maybeSingle();
-  if (!program) {
-    redirect(`/ortu?error=${encodeURIComponent("Program tidak ditemukan.")}`);
-  }
-  const acknowledged = formData.get("acknowledged") === "on";
-  if (program.requires_acknowledgement && !acknowledged) {
-    redirect(`/ortu?error=${encodeURIComponent("Mohon setujui pernyataan konfirmasi terlebih dahulu.")}`);
-  }
-
-  const preferred_schedule = String(formData.get("preferred_schedule") ?? "");
-  const preferred_location = String(formData.get("preferred_location") ?? "");
-
-  const { data: enrollmentId, error } = await supabase.rpc("register_participant_enrollment", {
-    p_program_id: program_id,
-    p_preferred_schedule: preferred_schedule,
-    p_preferred_location: preferred_location,
-    p_ack_version: program.requires_acknowledgement ? ACK_VERSION : "",
-  });
-
-  if (error || !enrollmentId) {
-    redirect(
-      `/ortu?error=${encodeURIComponent(
-        error?.message.includes("already enrolled")
-          ? `Anda sudah terdaftar di ${program.name}.`
-          : error?.message.includes("not open")
-            ? "Program ini belum dibuka untuk pendaftaran mandiri."
-            : "Pendaftaran belum dapat disimpan. Coba lagi."
-      )}`
-    );
-  }
-
-  const [{ data: phoneSetting }, { data: me }] = await Promise.all([
-    supabase.from("site_settings").select("value").eq("key", "phone").single(),
-    supabase.from("users").select("phone").eq("id", session.user.id).maybeSingle(),
-  ]);
-  const origin = await getSiteOrigin();
-  await sendWhatsApp(
-    phoneSetting?.value,
-    adminNewRegistrationMessage({
-      program: program.name,
-      name: session.fullName ?? session.user.email ?? "Peserta",
-      phone: me?.phone ?? null,
-      preferred: preferenceSummary(preferred_schedule, preferred_location),
-      link: `${origin}/admin/pendaftar/kelas/${enrollmentId}`,
-    })
+  const result = await submitEnrollmentRequest(
+    supabase,
+    { id: session.user.id, fullName: session.fullName ?? session.user.email ?? "Pendaftar" },
+    request.value
   );
+  if (!result.ok) {
+    redirect(`/ortu?error=${encodeURIComponent(result.error)}`);
+  }
 
   revalidatePath("/ortu");
   redirect("/ortu");

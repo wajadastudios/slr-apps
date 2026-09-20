@@ -18,6 +18,7 @@ import {
   remainingSeats,
   type EnrollmentStatus,
 } from "@/lib/enrollment";
+import { genderLabel } from "@/lib/registration-input";
 import { DAYS } from "@/lib/days";
 import {
   offerScheduleAction,
@@ -90,18 +91,27 @@ export default async function EnrollmentDetailPage({
   const { data: e } = await supabase
     .from("enrollments")
     .select(
-      "id, status, source, program_id, student_id, slot_id, offered_slot_id, offer_token, offer_expires_at, preferred_schedule, preferred_location, decision_note, acknowledged_at, acknowledgement_version, adjustment_note, created_at, student:student_id(full_name, parent_id), program:program_id(name, requires_acknowledgement)"
+      "id, status, source, program_id, student_id, slot_id, offered_slot_id, offer_token, offer_expires_at, preferred_schedule, preferred_location, decision_note, acknowledged_at, acknowledgement_version, adjustment_note, created_at, report_access_granted_to_requester, student:student_id(full_name, parent_id, gender, phone, birth_date, relationship, kind, user_id), program:program_id(name, requires_acknowledgement)"
     )
     .eq("id", id)
     .maybeSingle();
   if (!e) notFound();
 
-  const student = e.student as unknown as { full_name: string; parent_id: string } | null;
+  const student = e.student as unknown as {
+    full_name: string;
+    parent_id: string;
+    gender: string | null;
+    phone: string | null;
+    birth_date: string | null;
+    relationship: string | null;
+    kind: string;
+    user_id: string | null;
+  } | null;
   const program = e.program as unknown as { name: string; requires_acknowledgement: boolean } | null;
   const status = e.status as EnrollmentStatus;
 
   const [{ data: user }, { data: slots }, { data: availability }, origin] = await Promise.all([
-    supabase.from("users").select("email, phone").eq("id", student?.parent_id ?? "").maybeSingle(),
+    supabase.from("users").select("full_name, email, phone").eq("id", student?.parent_id ?? "").maybeSingle(),
     supabase
       .from("class_slots")
       .select("id, label, location, day_of_week, start_time, capacity")
@@ -125,7 +135,10 @@ export default async function EnrollmentDetailPage({
   const offered = slotList.find((s) => s.id === e.offered_slot_id);
   const locked = slotList.find((s) => s.id === e.slot_id);
   const offerLink = e.offer_token ? `${origin}/jadwal/${e.offer_token}` : null;
-  const phoneDigits = user?.phone?.replace(/[^0-9]/g, "") ?? "";
+  // the participant's own WhatsApp; the account's number only when none was given
+  const contactPhone = student?.phone || user?.phone || null;
+  const phoneDigits = contactPhone?.replace(/[^0-9]/g, "") ?? "";
+  const registeredForOther = student?.kind === "adult_family";
 
   const canOffer = status === "pending_review" || status === "waiting_schedule" || status === "schedule_offered";
 
@@ -156,9 +169,9 @@ export default async function EnrollmentDetailPage({
 
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-xs text-slate-500">WhatsApp</dt>
+            <dt className="text-xs text-slate-500">WhatsApp peserta</dt>
             <dd className="font-medium text-[#17263D]">
-              {user?.phone ?? "-"}
+              {contactPhone ?? "-"}
               {phoneDigits && (
                 <a
                   href={`https://wa.me/${phoneDigits}`}
@@ -172,9 +185,47 @@ export default async function EnrollmentDetailPage({
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-slate-500">Email login</dt>
-            <dd className="font-medium text-[#17263D]">{user?.email ?? "-"}</dd>
+            <dt className="text-xs text-slate-500">Jenis kelamin peserta</dt>
+            <dd className="font-medium text-[#17263D]">{genderLabel(student?.gender)}</dd>
           </div>
+          {student?.birth_date && (
+            <div>
+              <dt className="text-xs text-slate-500">Tanggal lahir</dt>
+              <dd className="font-medium text-[#17263D]">
+                {new Date(student.birth_date).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+              </dd>
+            </div>
+          )}
+          <div>
+            <dt className="text-xs text-slate-500">{registeredForOther ? "Didaftarkan oleh (akun)" : "Akun login"}</dt>
+            <dd className="font-medium text-[#17263D]">
+              {user?.full_name ?? "-"}
+              <span className="block text-xs font-normal text-slate-500">
+                {user?.email ?? "-"}
+                {registeredForOther && user?.phone ? ` · ${user.phone}` : ""}
+              </span>
+            </dd>
+          </div>
+          {registeredForOther && (
+            <>
+              <div>
+                <dt className="text-xs text-slate-500">Hubungan dengan pendaftar</dt>
+                <dd className="font-medium text-[#17263D]">{student?.relationship ?? "-"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500">Akun peserta</dt>
+                <dd className="font-medium text-[#17263D]">
+                  {student?.user_id ? "Sudah dibuat oleh peserta" : "Belum dibuat (undangan dikirim ke WhatsApp peserta)"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-slate-500">Pendaftar boleh melihat jadwal &amp; laporan</dt>
+                <dd className="font-medium text-[#17263D]">
+                  {e.report_access_granted_to_requester ? "Diizinkan peserta" : "Tidak (pribadi)"}
+                </dd>
+              </div>
+            </>
+          )}
           <div>
             <dt className="text-xs text-slate-500">Pilihan jadwal / lokasi</dt>
             <dd className="font-medium text-[#17263D]">

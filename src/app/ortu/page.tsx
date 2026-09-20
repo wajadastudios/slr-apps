@@ -6,7 +6,10 @@ import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { ParentChildCard } from "@/components/parent-child-card";
 import { EnrollmentStatusCard } from "@/components/enrollment-status-card";
-import { RequestEnrollmentForm } from "@/components/request-enrollment-form";
+import { EnrollmentRequestFields } from "@/components/enrollment-request-fields";
+import { loadRegistrationPrograms } from "@/lib/registration-data";
+import { requestEnrollmentAction } from "./actions";
+import type { Gender } from "@/lib/registration-input";
 import { GroupAccordion } from "@/components/group-accordion";
 import {
   computeNextSession,
@@ -29,28 +32,23 @@ import { ToastForm } from "@/components/ui/toast-form";
 export default async function OrtuDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; child_added?: string; terdaftar?: string }>;
+  searchParams: Promise<{ error?: string; child_added?: string; terdaftar?: string; terhubung?: string }>;
 }) {
-  const { error, child_added, terdaftar } = await searchParams;
+  const { error, child_added, terdaftar, terhubung } = await searchParams;
   const supabase = await createClient();
   const session = await getUserWithRole();
 
   const [
     { data: children },
-    { data: programs },
     { data: invoices },
     { data: reports },
     { data: scheduleRows },
     { data: pelatihNames },
     { data: classSlots },
     { data: availability },
+    registration,
   ] = await Promise.all([
-    supabase.from("students").select("id, full_name, nickname, is_self").order("full_name"),
-    supabase
-      .from("programs")
-      .select("id, name, self_registration, requires_acknowledgement")
-      .eq("active", true)
-      .order("name"),
+    supabase.from("students").select("id, full_name, nickname, is_self, kind, user_id, gender").order("full_name"),
     supabase
       .from("invoices")
       .select("student_id, status, sessions_count, created_at")
@@ -69,6 +67,7 @@ export default async function OrtuDashboardPage({
       .order("day_of_week")
       .order("start_time"),
     supabase.rpc("get_slot_availability"),
+    loadRegistrationPrograms(),
   ]);
 
   const childList = children ?? [];
@@ -164,7 +163,8 @@ export default async function OrtuDashboardPage({
     (e) =>
       hasClassAccess(e.status) &&
       e.program.records_mode === "medals" &&
-      childList.find((c) => c.id === e.student_id)?.is_self
+      (childList.find((c) => c.id === e.student_id)?.is_self ||
+        childList.find((c) => c.id === e.student_id)?.user_id === session?.user.id)
   );
   const recordSummaryByEnrollment = new Map<string, ReturnType<typeof summarizeRecordUnlock>>();
   if (recordEnrollments.length > 0) {
@@ -196,9 +196,7 @@ export default async function OrtuDashboardPage({
     }
   }
 
-  const selfRegPrograms = (programs ?? []).filter((p) => p.self_registration);
   const mySelf = childList.find((c) => c.is_self);
-  const takenProgramIds = enrollments.filter((e) => mySelf && e.student_id === mySelf.id).map((e) => e.program_id);
   const hasEnrollments = enrollments.length > 0;
 
   return (
@@ -215,6 +213,15 @@ export default async function OrtuDashboardPage({
         </GlassCard>
       )}
 
+      {terhubung && (
+        <GlassCard className="!border-[#55D6A6]/50 !bg-[#55D6A6]/10">
+          <p className="text-sm text-[#0f6b52]">
+            Akun Anda sudah terhubung. Jadwal dan laporan kelas Anda pribadi; atur apakah pendaftar boleh ikut melihatnya
+            di Pengaturan.
+          </p>
+        </GlassCard>
+      )}
+
       {!hasEnrollments && (
         <GlassCard>
           <p className="text-sm text-slate-600">Belum ada kelas terdaftar.</p>
@@ -227,8 +234,16 @@ export default async function OrtuDashboardPage({
           if (!child) return null;
           const name = child.nickname || child.full_name;
           const key = `${enrollment.student_id}|${enrollment.program_id}`;
+          const me = session?.user.id;
+          // the participant themselves (own account, or an adult who registered
+          // themselves) -- as opposed to a parent or someone registering another adult
+          const isParticipant = child.is_self === true || child.user_id === me;
+          // an adult registered by someone else: the registering account only
+          // sees the status unless the participant allowed more
+          const restricted =
+            child.kind === "adult_family" && !isParticipant && !enrollment.report_access_granted_to_requester;
 
-          if (!hasClassAccess(enrollment.status)) {
+          if (!hasClassAccess(enrollment.status) || restricted) {
             const offered = enrollment.offered_slot_id ? offeredById.get(enrollment.offered_slot_id) : undefined;
             return (
               <EnrollmentStatusCard
@@ -239,6 +254,7 @@ export default async function OrtuDashboardPage({
                 status={enrollment.status}
                 preferred={[enrollment.preferred_schedule, enrollment.preferred_location].filter(Boolean).join(" · ") || null}
                 offeredSlot={offered ?? null}
+                restrictedFor={restricted && hasClassAccess(enrollment.status) ? child.full_name : null}
               />
             );
           }
@@ -269,7 +285,7 @@ export default async function OrtuDashboardPage({
               name={name}
               program={enrollment.program.name}
               links={cardLinks(enrollment.program, {
-                isSelf: child.is_self === true,
+                isSelf: isParticipant,
                 firstName: firstNameOf(name),
               })}
               nextSessionLabel={nextSessionLabel}
@@ -287,28 +303,25 @@ export default async function OrtuDashboardPage({
           Daftar Kelas
         </h2>
 
-        {selfRegPrograms.length > 0 && (
-          <GroupAccordion
-            defaultOpen={!hasEnrollments}
-            header={
-              <span className="flex flex-col">
-                <span className="text-sm font-semibold text-[#17263D]">Daftarkan Diri ke Kelas</span>
-                <span className="text-xs text-slate-500">Remaja/dewasa &amp; Aquanatal — admin akan mencarikan jadwal</span>
-              </span>
-            }
-          >
-            <div className="px-4 pb-4 pt-1">
-              <RequestEnrollmentForm
-                programs={selfRegPrograms.map((p) => ({
-                  id: p.id,
-                  name: p.name,
-                  requires_acknowledgement: p.requires_acknowledgement === true,
-                }))}
-                takenProgramIds={takenProgramIds}
+        <GroupAccordion
+          defaultOpen={!hasEnrollments}
+          header={
+            <span className="flex flex-col">
+              <span className="text-sm font-semibold text-[#17263D]">Daftarkan Diri ke Kelas</span>
+              <span className="text-xs text-slate-500">Remaja/dewasa &amp; Aquanatal — admin akan mencarikan jadwal</span>
+            </span>
+          }
+        >
+          <div className="px-4 pb-4 pt-1">
+            <ToastForm action={requestEnrollmentAction} resetOnSuccess>
+              <EnrollmentRequestFields
+                programs={registration.programs}
+                loadError={registration.error}
+                initialGender={(mySelf?.gender as Gender | null | undefined) ?? null}
               />
-            </div>
-          </GroupAccordion>
-        )}
+            </ToastForm>
+          </div>
+        </GroupAccordion>
 
         <GroupAccordion
           header={

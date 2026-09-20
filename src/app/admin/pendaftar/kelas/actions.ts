@@ -29,7 +29,7 @@ async function loadEnrollment(id: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("enrollments")
-    .select("id, status, program_id, student_id, slot_id, student:student_id(full_name, parent_id), program:program_id(name)")
+    .select("id, status, program_id, student_id, slot_id, student:student_id(full_name, parent_id, phone), program:program_id(name)")
     .eq("id", id)
     .maybeSingle();
   return { supabase, enrollment: data };
@@ -119,7 +119,7 @@ async function offerScheduleImpl(formData: FormData) {
     .eq("id", id);
   if (error) fail(id, "Penawaran belum dapat disimpan.");
 
-  const student = enrollment.student as unknown as { full_name: string; parent_id: string } | null;
+  const student = enrollment.student as unknown as { full_name: string; parent_id: string; phone: string | null } | null;
   const program = enrollment.program as unknown as { name: string } | null;
   const { data: user } = await supabase
     .from("users")
@@ -128,8 +128,10 @@ async function offerScheduleImpl(formData: FormData) {
     .maybeSingle();
 
   const origin = await getSiteOrigin();
+  // the offer goes to the PARTICIPANT's own WhatsApp (a spouse registered by
+  // someone else answers for themselves); the account's number is the fallback
   await sendWhatsApp(
-    user?.phone,
+    student?.phone || user?.phone,
     scheduleOfferMessage({
       name: (student?.full_name ?? "").split(" ")[0] || "Peserta",
       program: program?.name ?? "Kelas",

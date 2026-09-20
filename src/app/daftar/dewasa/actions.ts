@@ -3,102 +3,106 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSiteOrigin } from "@/lib/site-url";
-import { sendWhatsApp } from "@/lib/whatsapp";
-import { adminNewRegistrationMessage } from "@/lib/enrollment";
-import { ACK_VERSION, parseAdultRegistration, preferenceSummary } from "@/lib/registration-input";
+import { submitEnrollmentRequest } from "@/lib/enrollment-register";
+import {
+  checkRequestAgainstProgram,
+  parseAccountInput,
+  parseEnrollmentRequest,
+} from "@/lib/registration-input";
 
-function fail(message: string): never {
-  redirect(`/daftar/dewasa?error=${encodeURIComponent(message)}`);
+function fail(message: string, programId = ""): never {
+  redirect(
+    `/daftar/dewasa?error=${encodeURIComponent(message)}${programId ? `&program=${encodeURIComponent(programId)}` : ""}`
+  );
 }
 
-// Public registration for adult / regular participants: creates the login
-// account, then an enrollment in `pending_review` (no schedule, no class
-// access), then tells the admin on WhatsApp.
+// Public registration: creates the ACCOUNT (the person filling in the form),
+// then a participant + an enrollment in `pending_review` -- for the account
+// holder ("Saya sendiri") or for someone else ("Pasangan / anggota keluarga").
+// No schedule and no class access until the admin has offered a slot and it
+// was approved. Everything that can be wrong is checked before the account is
+// created.
 export async function submitAdultRegistrationAction(formData: FormData) {
-  const parsed = parseAdultRegistration({
+  const account = parseAccountInput({
     full_name: formData.get("full_name"),
     email: formData.get("email"),
     password: formData.get("password"),
     phone: formData.get("phone"),
+    website: formData.get("website"),
+  });
+  const programId = String(formData.get("program_id") ?? "");
+  if (!account.ok) fail(account.error, programId);
+
+  const request = parseEnrollmentRequest({
+    for: formData.get("for"),
     program_id: formData.get("program_id"),
+    participant_name: formData.get("participant_name"),
+    participant_phone: formData.get("participant_phone"),
+    birth_date: formData.get("birth_date"),
+    gender: formData.get("gender"),
+    relationship: formData.get("relationship"),
     preferred_schedule: formData.get("preferred_schedule"),
     preferred_location: formData.get("preferred_location"),
     acknowledged: formData.get("acknowledged"),
-    website: formData.get("website"),
   });
-  if (!parsed.ok) fail(parsed.error);
-  const input = parsed.value;
+  if (!request.ok) fail(request.error, programId);
 
   const admin = createAdminClient();
 
   const { data: settings } = await admin
     .from("site_settings")
     .select("key, value")
-    .in("key", ["registrasi_dewasa_aktif", "phone"]);
+    .eq("key", "registrasi_dewasa_aktif");
   if (settings?.find((s) => s.key === "registrasi_dewasa_aktif")?.value !== "true") {
-    fail("Pendaftaran peserta dewasa belum dibuka.");
+    fail("Pendaftaran kelas dewasa belum dibuka.", programId);
   }
 
   const { data: program } = await admin
     .from("programs")
-    .select("id, name, active, self_registration, requires_acknowledgement")
-    .eq("id", input.program_id)
+    .select("id, name, active, self_registration, requires_acknowledgement, intended_gender")
+    .eq("id", request.value.program_id)
     .maybeSingle();
-  if (!program || !program.active || !program.self_registration) {
-    fail("Program ini belum dibuka untuk pendaftaran mandiri.");
-  }
-  if (program.requires_acknowledgement && !input.acknowledged) {
-    fail("Mohon setujui pernyataan konfirmasi terlebih dahulu.");
-  }
+  const problem = checkRequestAgainstProgram(
+    program ? { ...program, intended_gender: program.intended_gender ?? null } : null,
+    request.value
+  );
+  if (problem) fail(problem, programId);
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({
-    email: input.email,
-    password: input.password,
+    email: account.value.email,
+    password: account.value.password,
     email_confirm: true,
-    user_metadata: { full_name: input.full_name, role: "ortu" },
+    user_metadata: { full_name: account.value.full_name, role: "ortu" },
   });
   if (createError || !created?.user) {
     fail(
       /already|registered|exists/i.test(createError?.message ?? "")
         ? "Email ini sudah terdaftar. Silakan masuk, lalu daftar kelas dari halaman Ringkasan."
-        : "Akun belum dapat dibuat. Periksa data Anda lalu coba lagi."
+        : "Akun belum dapat dibuat. Periksa data Anda lalu coba lagi.",
+      programId
     );
   }
 
-  await admin.from("users").update({ phone: input.phone }).eq("id", created.user.id);
+  await admin.from("users").update({ phone: account.value.phone }).eq("id", created.user.id);
 
-  // Sign the new account in so the enrollment is created as the participant.
+  // Sign the new account in so the registration is made as that account.
   const supabase = await createClient();
   const { error: signInError } = await supabase.auth.signInWithPassword({
-    email: input.email,
-    password: input.password,
+    email: account.value.email,
+    password: account.value.password,
   });
   if (signInError) {
     redirect("/login?dibuat=1");
   }
 
-  const { data: enrollmentId, error: enrollError } = await supabase.rpc("register_participant_enrollment", {
-    p_program_id: program.id,
-    p_preferred_schedule: input.preferred_schedule,
-    p_preferred_location: input.preferred_location,
-    p_ack_version: program.requires_acknowledgement ? ACK_VERSION : "",
-  });
-  if (enrollError || !enrollmentId) {
-    redirect(`/ortu?error=${encodeURIComponent("Akun sudah dibuat, tetapi pendaftaran kelas belum tersimpan. Silakan daftar ulang dari halaman ini.")}`);
-  }
-
-  const origin = await getSiteOrigin();
-  await sendWhatsApp(
-    settings?.find((s) => s.key === "phone")?.value,
-    adminNewRegistrationMessage({
-      program: program.name,
-      name: input.full_name,
-      phone: input.phone,
-      preferred: preferenceSummary(input.preferred_schedule, input.preferred_location),
-      link: `${origin}/admin/pendaftar/kelas/${enrollmentId}`,
-    })
+  const result = await submitEnrollmentRequest(
+    supabase,
+    { id: created.user.id, fullName: account.value.full_name },
+    request.value
   );
+  if (!result.ok) {
+    redirect(`/ortu?error=${encodeURIComponent(`Akun sudah dibuat, tetapi pendaftaran kelas belum tersimpan. ${result.error}`)}`);
+  }
 
   redirect("/ortu?terdaftar=1");
 }

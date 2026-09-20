@@ -168,10 +168,13 @@ export function slotDescription(slot: { day_of_week: number; start_time: string 
 
 export function adminNewRegistrationMessage(input: {
   program: string;
+  // the participant, never the account that registered them
   name: string;
   phone: string | null;
   preferred: string | null;
   link: string;
+  // set when someone registered another person (spouse / family member)
+  registeredBy?: { name: string; relationship: string | null } | null;
 }): string {
   return [
     `Pendaftar baru — ${input.program}`,
@@ -180,8 +183,32 @@ export function adminNewRegistrationMessage(input: {
     `WhatsApp: ${input.phone || "-"}`,
     `Program: ${input.program}`,
     ...(input.preferred ? [`Pilihan jadwal/lokasi: ${input.preferred}`] : []),
+    ...(input.registeredBy
+      ? [
+          `Didaftarkan oleh: ${input.registeredBy.name}${
+            input.registeredBy.relationship ? ` (${input.registeredBy.relationship})` : ""
+          }`,
+        ]
+      : []),
     "",
     `Lihat Pendaftar: ${input.link}`,
+  ].join("\n");
+}
+
+// Sent to the participant when somebody else registered them.
+export function participantInviteMessage(input: {
+  name: string;
+  registeredBy: string;
+  program: string;
+  link: string;
+}): string {
+  return [
+    `Halo ${input.name}, ${input.registeredBy} mendaftarkan Anda ke kelas ${input.program} di Sari Les Renang.`,
+    "",
+    "Buat atau hubungkan akun Anda sendiri untuk melihat status pendaftaran, jadwal, dan laporan kelas:",
+    input.link,
+    "",
+    "Laporan kelas hanya dilihat oleh Anda, kecuali Anda mengizinkan orang yang mendaftarkan.",
   ].join("\n");
 }
 

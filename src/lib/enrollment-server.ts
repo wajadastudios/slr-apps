@@ -18,6 +18,8 @@ export type EnrollmentRow = {
   offer_expires_at: string | null;
   preferred_schedule: string | null;
   preferred_location: string | null;
+  // the participant allowed the registering account to see schedule + reports
+  report_access_granted_to_requester: boolean;
   created_at: string;
   program: ProgramMeta;
 };
@@ -32,7 +34,7 @@ export async function loadEnrollments(
   const { data } = await supabase
     .from("enrollments")
     .select(
-      `id, student_id, program_id, status, source, slot_id, offered_slot_id, offer_token, offer_expires_at, preferred_schedule, preferred_location, created_at, program:program_id(${PROGRAM_SELECT})`
+      `id, student_id, program_id, status, source, slot_id, offered_slot_id, offer_token, offer_expires_at, preferred_schedule, preferred_location, report_access_granted_to_requester, created_at, program:program_id(${PROGRAM_SELECT})`
     )
     .in("student_id", studentIds)
     .order("created_at", { ascending: true });
@@ -57,12 +59,12 @@ export async function notifyOfferOutcome(outcome: string, enrollmentId: string) 
   const admin = createAdminClient();
   const { data: enrollment } = await admin
     .from("enrollments")
-    .select("id, slot_id, student:student_id(full_name, parent_id), program:program_id(name)")
+    .select("id, slot_id, student:student_id(full_name, parent_id, phone), program:program_id(name)")
     .eq("id", enrollmentId)
     .maybeSingle();
   if (!enrollment) return;
 
-  const student = enrollment.student as unknown as { full_name: string; parent_id: string } | null;
+  const student = enrollment.student as unknown as { full_name: string; parent_id: string; phone: string | null } | null;
   const program = enrollment.program as unknown as { name: string } | null;
   const programName = program?.name ?? "kelas";
 
@@ -77,7 +79,7 @@ export async function notifyOfferOutcome(outcome: string, enrollmentId: string) 
     ]);
     if (slot) {
       await sendWhatsApp(
-        user?.phone,
+        student?.phone || user?.phone,
         scheduleConfirmedMessage({ program: programName, slot: slot as SlotInfo })
       );
     }

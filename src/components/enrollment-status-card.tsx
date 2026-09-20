@@ -24,6 +24,7 @@ export function EnrollmentStatusCard({
   preferred,
   offeredSlot,
   full = false,
+  restrictedFor = null,
 }: {
   enrollmentId: string;
   name: string;
@@ -33,6 +34,9 @@ export function EnrollmentStatusCard({
   offeredSlot: { day_of_week: number; start_time: string; location: string | null; label: string | null } | null;
   // the detail-page version has a slightly larger heading
   full?: boolean;
+  // set when the class is running but this viewer registered someone else and
+  // was not given access: only the status is shown
+  restrictedFor?: string | null;
 }) {
   const copy = participantStatusCopy(status, programName);
 
@@ -62,6 +66,13 @@ export function EnrollmentStatusCard({
           <p className="mt-2 text-xs text-slate-500">Pilihan Anda: {preferred}</p>
         )}
       </div>
+
+      {restrictedFor && (
+        <p className="rounded-2xl bg-[#EEF9FB] px-4 py-3 text-sm text-slate-700">
+          Jadwal dan laporan kelas hanya dapat dilihat oleh {restrictedFor}. Jika {restrictedFor} mengizinkan, Anda
+          akan dapat melihatnya di sini.
+        </p>
+      )}
 
       {status === "schedule_offered" && offeredSlot && (
         <div className="rounded-2xl border border-[#35C5D0]/40 bg-[#EEF9FB] px-4 py-3">

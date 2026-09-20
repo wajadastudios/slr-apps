@@ -28,9 +28,13 @@ import {
 } from "../src/lib/programs";
 import {
   ACK_VERSION,
+  checkRequestAgainstProgram,
   normalizePhone,
-  parseAdultRegistration,
+  parseAccountInput,
+  parseEnrollmentRequest,
   preferenceSummary,
+  programSuitsGender,
+  unsuitableProgramMessage,
 } from "../src/lib/registration-input";
 import { parseScoresPayload, sessionAllowsAssessment } from "../src/lib/report-scores";
 import { goalProgress, type GoalEntry } from "../src/lib/personal-goals";
@@ -129,6 +133,7 @@ test("admin notification matches the agreed format", () => {
   const lines = msg.split("\n");
   assert.equal(lines[0], "Pendaftar baru — Aquanatal");
   assert.ok(lines.includes("Nama: Sari"));
+  assert.ok(!msg.includes("Didaftarkan oleh"));
   assert.ok(lines.includes("WhatsApp: 6281234567890"));
   assert.ok(lines.includes("Program: Aquanatal"));
   assert.ok(lines.includes("Pilihan jadwal/lokasi: Sabtu pagi · Kolam CDR"));
@@ -154,26 +159,90 @@ test("offer and confirmation messages carry program, day, time and location", ()
 });
 
 // ---------- registration input ----------
-const base = {
+const account = {
   full_name: "Andi Wijaya",
   email: "Andi@Example.com ",
   password: "rahasia123",
   phone: "0812-3456-7890",
-  program_id: "p1",
 };
 
-test("adult registration is validated and normalised", () => {
-  const ok = parseAdultRegistration({ ...base, acknowledged: "on" });
+test("the account (the person filling the form) is validated and normalised", () => {
+  const ok = parseAccountInput(account);
   assert.ok(ok.ok);
   if (!ok.ok) return;
   assert.equal(ok.value.email, "andi@example.com");
   assert.equal(ok.value.phone, "6281234567890");
+  assert.ok(!parseAccountInput({ ...account, password: "short" }).ok);
+  assert.ok(!parseAccountInput({ ...account, email: "not-an-email" }).ok);
+  assert.ok(!parseAccountInput({ ...account, phone: "123" }).ok);
+  assert.ok(!parseAccountInput({ ...account, website: "http://spam" }).ok); // honeypot
+});
+
+const self = { for: "self", program_id: "p1" };
+const spouse = {
+  for: "other",
+  program_id: "p-aqua",
+  participant_name: "Sari Wijaya",
+  participant_phone: "0857-1111-2222",
+  gender: "female",
+  relationship: "Pasangan",
+  acknowledged: "on",
+};
+
+test("a request needs someone to take the class and a chosen program", () => {
+  assert.ok(parseEnrollmentRequest(self).ok);
+  assert.ok(!parseEnrollmentRequest({ program_id: "p1" }).ok); // nobody chosen
+  assert.ok(!parseEnrollmentRequest({ for: "self", program_id: "" }).ok); // no program
+  assert.match(String((parseEnrollmentRequest({ for: "self" }) as { error: string }).error), /program/i);
+  assert.ok(!parseEnrollmentRequest({ ...self, gender: "robot" }).ok);
+  assert.ok(!parseEnrollmentRequest({ ...self, birth_date: "31-12-1990" }).ok);
+});
+
+test("registering someone else needs their own name, WhatsApp, gender and relationship", () => {
+  const ok = parseEnrollmentRequest(spouse);
+  assert.ok(ok.ok);
+  if (!ok.ok) return;
+  assert.equal(ok.value.participant_name, "Sari Wijaya");
+  assert.equal(ok.value.participant_phone, "6285711112222");
+  assert.equal(ok.value.gender, "female");
   assert.equal(ok.value.acknowledged, true);
-  assert.ok(!parseAdultRegistration({ ...base, password: "short" }).ok);
-  assert.ok(!parseAdultRegistration({ ...base, email: "not-an-email" }).ok);
-  assert.ok(!parseAdultRegistration({ ...base, phone: "123" }).ok);
-  assert.ok(!parseAdultRegistration({ ...base, program_id: "" }).ok);
-  assert.ok(!parseAdultRegistration({ ...base, website: "http://spam" }).ok); // honeypot
+  assert.ok(!parseEnrollmentRequest({ ...spouse, participant_name: "" }).ok);
+  assert.ok(!parseEnrollmentRequest({ ...spouse, participant_phone: "12" }).ok);
+  assert.ok(!parseEnrollmentRequest({ ...spouse, relationship: "" }).ok);
+  assert.ok(!parseEnrollmentRequest({ ...spouse, gender: "" }).ok);
+});
+
+test("gender is a hint for the program, never the only eligibility rule", () => {
+  assert.equal(programSuitsGender("female", "female"), true);
+  assert.equal(programSuitsGender("female", "male"), false);
+  assert.equal(programSuitsGender("female", "undisclosed"), true); // goes to admin review
+  assert.equal(programSuitsGender("female", null), true);
+  assert.equal(programSuitsGender(null, "male"), true); // programs without a target accept anyone
+});
+
+test("Aquanatal for a man registering himself is refused with guidance", () => {
+  const aqua = {
+    name: "Aquanatal",
+    active: true,
+    self_registration: true,
+    requires_acknowledgement: true,
+    intended_gender: "female" as const,
+  };
+  const msg = checkRequestAgainstProgram(aqua, { for: "self", gender: "male", acknowledged: true });
+  assert.equal(
+    msg,
+    "Aquanatal ditujukan untuk peserta hamil. Jika Anda mendaftarkan pasangan, pilih “Pasangan / anggota keluarga”."
+  );
+  assert.equal(msg, unsuitableProgramMessage("Aquanatal", "self"));
+  // the husband registering his wife is fine, but needs the acknowledgement
+  assert.equal(checkRequestAgainstProgram(aqua, { for: "other", gender: "female", acknowledged: true }), null);
+  assert.match(
+    String(checkRequestAgainstProgram(aqua, { for: "other", gender: "female", acknowledged: false })),
+    /setujui/
+  );
+  // a program that is closed or unknown is never accepted
+  assert.ok(checkRequestAgainstProgram(null, { for: "self", gender: null, acknowledged: true }));
+  assert.ok(checkRequestAgainstProgram({ ...aqua, active: false }, { for: "other", gender: "female", acknowledged: true }));
 });
 
 test("phone numbers become international digits", () => {

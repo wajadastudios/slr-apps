@@ -35,6 +35,7 @@ import { loadMilestones } from "@/lib/milestone-loader";
 import { loadEnrollments } from "@/lib/enrollment-server";
 import { computeMilestoneStatuses } from "@/lib/milestones";
 import { hasClassAccess, isLive, pickEnrollment } from "@/lib/enrollment";
+import { getUserWithRole } from "@/lib/auth";
 import { parseTab, tabsFor, usesStars, type ProgramMeta } from "@/lib/programs";
 import type { GoalEntry, PersonalGoal } from "@/lib/personal-goals";
 import { DAYS } from "@/lib/days";
@@ -58,7 +59,7 @@ export default async function AnakDetailPage({
   // children — an empty result means access denied.
   const { data: student } = await supabase
     .from("students")
-    .select("id, full_name, nickname, birth_date, next_package_preference_id")
+    .select("id, full_name, nickname, birth_date, next_package_preference_id, is_self, kind, user_id")
     .eq("id", studentId)
     .single();
 
@@ -119,8 +120,16 @@ export default async function AnakDetailPage({
     </Link>
   );
 
+  // An adult registered by someone else is theirs to share: the registering
+  // account sees the registration status only, until the participant allows
+  // more (the database enforces the same rule).
+  const session = await getUserWithRole();
+  const isParticipant = student.is_self === true || student.user_id === session?.user.id;
+  const restricted =
+    student.kind === "adult_family" && !isParticipant && !enrollment.report_access_granted_to_requester;
+
   // Before the class is scheduled/active: only the registration status.
-  if (!hasClassAccess(enrollment.status)) {
+  if (!hasClassAccess(enrollment.status) || restricted) {
     let offered = null;
     if (enrollment.offered_slot_id) {
       const { data } = await supabase
@@ -142,6 +151,7 @@ export default async function AnakDetailPage({
           status={enrollment.status}
           preferred={[enrollment.preferred_schedule, enrollment.preferred_location].filter(Boolean).join(" · ") || null}
           offeredSlot={offered}
+          restrictedFor={restricted && hasClassAccess(enrollment.status) ? student.full_name : null}
         />
       </div>
     );

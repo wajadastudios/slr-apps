@@ -92,6 +92,7 @@ export function GlassSelect({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const selectRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
     function handlePointerDown(e: MouseEvent) {
@@ -154,8 +155,19 @@ export function GlassSelect({
   const selectedIndex = options.findIndex((o) => o.value === currentValue);
   const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : undefined;
 
+  // Picking an option must reach the parent. The visible listbox is only a
+  // skin over the hidden <select>, so the choice is written to that select and
+  // announced with a real "change" event: React then calls the caller's
+  // onChange with e.target.value, exactly as a native select would. (Before,
+  // a controlled select -- value + onChange -- silently ignored every click,
+  // so its value could never change.)
   function commitValue(next: string) {
     if (!isControlled) setInternalValue(next);
+    const el = selectRef.current;
+    if (el && el.value !== next) {
+      el.value = next;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }
     setOpen(false);
     triggerRef.current?.focus();
   }
@@ -195,6 +207,7 @@ export function GlassSelect({
   return (
     <div ref={rootRef} className="relative">
       <select
+        ref={selectRef}
         name={name}
         required={required}
         disabled={disabled}

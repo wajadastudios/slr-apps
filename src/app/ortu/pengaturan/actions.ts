@@ -5,6 +5,7 @@ import { safeAction } from "@/lib/safe-action";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { deleteStorageFileFromUrl } from "@/lib/storage";
+import { GENDER_OPTIONS, normalizePhone } from "@/lib/registration-input";
 
 async function uploadAvatar(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -115,5 +116,75 @@ async function updateChildProfileActionImpl(formData: FormData) {
   revalidatePath("/ortu");
 }
 
+// The participant's own details (gender, WhatsApp, birth date). These belong
+// to the participant, not to the login account; the database only lets the
+// participant (or an adult who registered themselves) change them.
+async function updateParticipantProfileActionImpl(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const student_id = String(formData.get("student_id") ?? "");
+  const gender = String(formData.get("gender") ?? "").trim();
+  const phoneRaw = String(formData.get("phone") ?? "").trim();
+  const birth = String(formData.get("birth_date") ?? "").trim();
+  if (!student_id) return;
+
+  if (gender && !GENDER_OPTIONS.some((g) => g.value === gender)) {
+    redirect(`/ortu/pengaturan?error=${encodeURIComponent("Jenis kelamin tidak valid.")}`);
+  }
+  const phone = phoneRaw ? normalizePhone(phoneRaw) : null;
+  if (phoneRaw && !phone) {
+    redirect(`/ortu/pengaturan?error=${encodeURIComponent("Nomor WhatsApp tidak valid.")}`);
+  }
+  if (birth && (!/^\d{4}-\d{2}-\d{2}$/.test(birth) || Number.isNaN(Date.parse(birth)))) {
+    redirect(`/ortu/pengaturan?error=${encodeURIComponent("Tanggal lahir tidak valid.")}`);
+  }
+
+  const { data, error } = await supabase.rpc("update_participant_profile", {
+    p_student_id: student_id,
+    p_gender: gender,
+    p_phone: phone ?? "",
+    p_birth_date: birth || null,
+  });
+  if (error || data !== "ok") {
+    redirect(
+      `/ortu/pengaturan?error=${encodeURIComponent(
+        data === "invalid_gender" ? "Jenis kelamin tidak valid." : "Profil peserta belum dapat disimpan."
+      )}`
+    );
+  }
+  revalidatePath("/ortu/pengaturan");
+  revalidatePath("/ortu");
+}
+
+// "Izinkan pendaftar melihat jadwal dan laporan kelas saya" -- only the
+// participant can turn this on or off, per enrollment.
+async function setReportAccessActionImpl(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const enrollment_id = String(formData.get("enrollment_id") ?? "");
+  if (!enrollment_id) return;
+  const allow = formData.get("allow") === "on";
+
+  const { data, error } = await supabase.rpc("set_report_access", {
+    p_enrollment_id: enrollment_id,
+    p_allow: allow,
+  });
+  if (error || data !== "ok") {
+    redirect(`/ortu/pengaturan?error=${encodeURIComponent("Izin belum dapat disimpan. Hanya peserta yang dapat mengubahnya.")}`);
+  }
+  revalidatePath("/ortu/pengaturan");
+  revalidatePath("/ortu");
+}
+
 export const updateOwnProfileAction = safeAction(updateOwnProfileActionImpl, "Profil berhasil disimpan");
 export const updateChildProfileAction = safeAction(updateChildProfileActionImpl, "Profil anak berhasil disimpan");
+export const updateParticipantProfileAction = safeAction(updateParticipantProfileActionImpl, "Profil peserta berhasil disimpan");
+export const setReportAccessAction = safeAction(setReportAccessActionImpl, "Pengaturan akses berhasil disimpan");

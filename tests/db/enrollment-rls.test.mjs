@@ -9,7 +9,7 @@ const check = (name, ok, extra = "") => {
 };
 
 const uid = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
-const ADMIN = uid(1), PA = uid(2), PB = uid(3), P1 = uid(4), P2 = uid(5), ANDI = uid(6);
+const ADMIN = uid(1), PA = uid(2), PB = uid(3), P1 = uid(4), P2 = uid(5), ANDI = uid(6), HUS = uid(7), WIFE = uid(8);
 
 // boot up to 0029 (pre-feature state), add legacy data, then apply 0030..0033
 const { pg: db, failures } = await boot({ upTo: "0029" });
@@ -28,7 +28,9 @@ await db.exec(`
    ('${PB}','pb@t.co','{"role":"pelatih","full_name":"Pelatih B"}'),
    ('${P1}','p1@t.co','{"role":"ortu","full_name":"Mama Rara"}'),
    ('${P2}','p2@t.co','{"role":"ortu","full_name":"Mama Lain"}'),
-   ('${ANDI}','andi@t.co','{"role":"ortu","full_name":"Andi Wijaya"}');
+   ('${ANDI}','andi@t.co','{"role":"ortu","full_name":"Andi Wijaya"}'),
+   ('${HUS}','hus@t.co','{"role":"ortu","full_name":"Budi Suami"}'),
+   ('${WIFE}','wife@t.co','{"role":"ortu","full_name":"Sari Istri"}');
 `);
 const prog = async (name) => (await db.query("select id from public.programs where name=$1", [name])).rows[0].id;
 const KIDS = await prog("Kids Swim"), ADULT = await prog("Teen & Adult Swim"), AQUA = await prog("Aquanatal"), ADAPT = await prog("Adaptive Swim");
@@ -59,6 +61,8 @@ for (const f of fs.readdirSync(dir).filter((f) => f >= "0030" && f.endsWith(".sq
 // re-run 0033 to prove idempotence
 await db.exec(fs.readFileSync(path.join(dir, "0033_enrollments_and_program_assessment.sql"), "utf8"));
 check("0033 is safe to re-run", true);
+await db.exec(fs.readFileSync(path.join(dir, "0034_participants_and_consent.sql"), "utf8"));
+check("0034 is safe to re-run", true);
 
 const q = async (sql, params) => (await db.query(sql, params)).rows;
 const as = async (id) => {
@@ -105,7 +109,13 @@ check("old report got an indicator snapshot from the 0030 backfill", snap && sna
 
 // ---------- adult registration ----------
 await as(ANDI);
-const reg = (pid, ack) => db.query("select public.register_participant_enrollment($1,$2,$3,$4) id", [pid, "Sabtu pagi", "Kolam CDR", ack]);
+// register_enrollment(program, for, name, phone, birth, gender, relationship, schedule, location, ack)
+const regFull = (pid, ack, who = "self", o = {}) =>
+  db.query(
+    "select out_enrollment_id id, out_student_id student_id, out_claim_token token from public.register_enrollment($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+    [pid, who, o.name ?? null, o.phone ?? null, o.birth ?? null, o.gender ?? null, o.rel ?? null, "Sabtu pagi", "Kolam CDR", ack]
+  );
+const reg = (pid, ack) => regFull(pid, ack);
 const adultId = (await reg(ADULT, "")).rows[0].id;
 check("adult registration creates a pending_review enrollment", !!adultId);
 let e = (await q("select status, source, acknowledged_at from public.enrollments where id=$1", [adultId]))[0];
@@ -184,6 +194,8 @@ check("assigning a schedule the old way moves a waiting enrollment to scheduled"
 // ---------- reports: assignment + program separation ----------
 const insertReport = (id, enrollment, scores = "{}") =>
   db.query("insert into public.progress_reports (id, student_id, enrollment_id, pelatih_id, session_date, attendance, scores) values ($1,$2,$3,current_setting('request.jwt.claim.sub')::uuid,'2026-09-20','hadir',$4::jsonb)", [id, andiStudent, enrollment, scores]);
+const insertReportFor = (student, enrollment, id) =>
+  db.query("insert into public.progress_reports (id, student_id, enrollment_id, pelatih_id, session_date, attendance, scores) values ($1,$2,$3,current_setting('request.jwt.claim.sub')::uuid,'2026-09-22','hadir','{}'::jsonb)", [id, student, enrollment]);
 await as(PA);
 await insertReport(uid(310), adultId, '{"tpl_ta_tk_kaki":3}');
 check("assigned pelatih can write the Adult Swim report", true);
@@ -261,6 +273,130 @@ check("a cancelled class can be registered again (new enrollment)", !!(await reg
 await su();
 await db.exec(`insert into public.students (id, full_name, parent_id, program_id) values ('${uid(103)}','Baru','${P1}','${KIDS}')`);
 check("adding a student the old way creates an active legacy enrollment", (await q("select status, source from public.enrollments where student_id=$1", [uid(103)]))[0]?.status === "active");
+
+// ---------- participant vs account (0034) ----------
+const HUSBAND_AQUA = "aquanatal-2026-09b";
+await as(HUS);
+const maleAqua = await fails(() => regFull(AQUA, HUSBAND_AQUA, "self", { gender: "male" }));
+check("a man registering himself for Aquanatal is refused", /not suitable/.test(maleAqua ?? ""), String(maleAqua));
+await su();
+check("...and nothing was created (no participant, no enrollment)",
+  (await q("select count(*)::int c from public.students where parent_id=$1", [HUS]))[0].c === 0 &&
+  (await q("select count(*)::int c from public.enrollments where requested_by_user_id=$1", [HUS]))[0].c === 0);
+await as(HUS);
+check("for=other without the participant's name is refused", /name required/.test((await fails(() => regFull(AQUA, HUSBAND_AQUA, "other", { phone: "085711112222", gender: "female" }))) ?? ""));
+check("for=other without the participant's WhatsApp is refused", /phone required/.test((await fails(() => regFull(AQUA, HUSBAND_AQUA, "other", { name: "Sari Wijaya", gender: "female" }))) ?? ""));
+check("Aquanatal for the spouse still needs the acknowledgement", /acknowledgement required/.test((await fails(() => regFull(AQUA, "", "other", { name: "Sari Wijaya", phone: "085711112222", gender: "female" }))) ?? ""));
+check("an unknown gender value is refused", /invalid gender/.test((await fails(() => regFull(AQUA, HUSBAND_AQUA, "other", { name: "Sari Wijaya", phone: "085711112222", gender: "robot" }))) ?? ""));
+
+const wifeReg = (await regFull(AQUA, HUSBAND_AQUA, "other", { name: "Sari Wijaya", phone: "0857-1111-2222", gender: "female", rel: "Pasangan", birth: "1994-05-01" })).rows[0];
+check("husband registers his wife for Aquanatal", !!wifeReg.id && !!wifeReg.student_id);
+check("an invitation token is returned for the wife", !!wifeReg.token && wifeReg.token.length >= 32);
+await su();
+const wifeStudent = (await q("select * from public.students where id=$1", [wifeReg.student_id]))[0];
+check("participant is the wife, not the husband's account", wifeStudent.full_name === "Sari Wijaya" && wifeStudent.parent_id === HUS && wifeStudent.user_id === null && wifeStudent.kind === "adult_family" && !wifeStudent.is_self);
+check("gender, phone, birth date and relationship live on the PARTICIPANT", wifeStudent.gender === "female" && wifeStudent.phone === "085711112222" && new Date(wifeStudent.birth_date).toISOString().startsWith("1994-05-01") && wifeStudent.relationship === "Pasangan", JSON.stringify(wifeStudent));
+check("the husband's own account has no participant row of its own", (await q("select count(*)::int c from public.students where user_id=$1 or (parent_id=$1 and is_self)", [HUS]))[0].c === 0);
+const wifeEnr = (await q("select * from public.enrollments where id=$1", [wifeReg.id]))[0];
+check("enrollment is pending_review, no slot, requested/billed by the husband, no report access",
+  wifeEnr.status === "pending_review" && !wifeEnr.slot_id && wifeEnr.requested_by_user_id === HUS && wifeEnr.billing_contact_user_id === HUS && wifeEnr.report_access_granted_to_requester === false && !!wifeEnr.acknowledged_at, JSON.stringify(wifeEnr));
+check("no schedule row exists for the wife yet", (await q("select count(*)::int c from public.schedules where student_id=$1", [wifeReg.student_id]))[0].c === 0);
+
+// the same person for a second program is the same participant
+await as(HUS);
+const wifeAdult = (await regFull(ADULT, "", "other", { name: "sari wijaya", phone: "085711112222", gender: "female", rel: "Pasangan" })).rows[0];
+check("registering the wife for Adult Swim reuses the same participant", wifeAdult.student_id === wifeReg.student_id);
+check("...with a separate enrollment", wifeAdult.id !== wifeReg.id);
+check("a second live enrollment for the same program is refused", /already enrolled/.test((await fails(() => regFull(AQUA, HUSBAND_AQUA, "other", { name: "Sari Wijaya", phone: "085711112222", gender: "female", rel: "Pasangan" }))) ?? ""));
+check("choosing 'memilih tidak menyebutkan' passes to admin review", !!(await regFull(ADULT, "", "self", { gender: "undisclosed" })).rows[0].id);
+
+// the registrant sees the registration, not the class
+await su();
+await db.exec(`update public.enrollments set status='waiting_schedule' where id='${wifeReg.id}'`);
+await db.exec(`insert into public.schedules (student_id, slot_id) values ('${wifeReg.student_id}','${uid(203)}')`);
+await as(PB);
+await insertReportFor(wifeReg.student_id, wifeReg.id, uid(320));
+await as(HUS);
+check("the husband sees the participant row and enrollments (administrative)", (await q("select id from public.students where id=$1", [wifeReg.student_id])).length === 1 && (await q("select id from public.enrollments where student_id=$1", [wifeReg.student_id])).length === 2);
+check("the husband does NOT see the wife's schedule", (await q("select id from public.schedules where student_id=$1", [wifeReg.student_id])).length === 0);
+check("the husband does NOT see the wife's report", (await q("select id from public.progress_reports where student_id=$1", [wifeReg.student_id])).length === 0);
+check("the husband cannot grant himself access", (await q("select public.set_report_access($1,true) r", [wifeReg.id]))[0].r === "not_found");
+check("the husband cannot edit the wife's profile", (await q("select public.update_participant_profile($1,'male','0811111111',null) r", [wifeReg.student_id]))[0].r === "not_found");
+await as(P2);
+check("nobody else sees the wife's participant", (await q("select id from public.students where id=$1", [wifeReg.student_id])).length === 0);
+
+// the invitation
+await anon();
+const info = await q("select * from public.get_claim_info($1)", [wifeReg.token]);
+check("the invitation page can show who registered whom (no reports)", info.length === 1 && info[0].participant_name === "Sari Wijaya" && info[0].registered_by === "Budi Suami" && info[0].program_names.includes("Aquanatal"), JSON.stringify(info));
+check("a wrong token shows nothing", (await q("select * from public.get_claim_info('nope')")).length === 0);
+check("anon cannot claim", (await q("select public.claim_participant($1) r", [wifeReg.token]))[0].r === "not_authenticated");
+await as(HUS);
+check("the registering account cannot claim the participant it registered", (await q("select public.claim_participant($1) r", [wifeReg.token]))[0].r === "same_account");
+await su();
+await db.exec(`update public.students set claim_expires_at = now() - interval '1 day' where id='${wifeReg.student_id}'`);
+await as(WIFE);
+check("an expired invitation is refused", (await q("select public.claim_participant($1) r", [wifeReg.token]))[0].r === "invalid");
+await su();
+await db.exec(`update public.students set claim_expires_at = now() + interval '5 days' where id='${wifeReg.student_id}'`);
+await as(WIFE);
+check("the wife claims her own participant", (await q("select public.claim_participant($1) r", [wifeReg.token]))[0].r === "claimed");
+check("the invitation is single-use", (await q("select public.claim_participant($1) r", [wifeReg.token]))[0].r === "invalid");
+await su();
+const claimed = (await q("select user_id, parent_id, claim_token from public.students where id=$1", [wifeReg.student_id]))[0];
+check("claimed: linked to her account, token gone, registrant unchanged", claimed.user_id === WIFE && claimed.parent_id === HUS && claimed.claim_token === null, JSON.stringify(claimed));
+
+await as(WIFE);
+check("the wife sees her own participant, schedule and report", (await q("select id from public.students where id=$1", [wifeReg.student_id])).length === 1 && (await q("select id from public.schedules where student_id=$1", [wifeReg.student_id])).length === 1 && (await q("select id from public.progress_reports where student_id=$1", [wifeReg.student_id])).length === 1);
+check("...and the enrollments (both programs)", (await q("select id from public.enrollments where student_id=$1", [wifeReg.student_id])).length === 2);
+await as(HUS);
+check("after the claim the husband still has no access to schedule/reports", (await q("select id from public.schedules where student_id=$1", [wifeReg.student_id])).length === 0 && (await q("select id from public.progress_reports where student_id=$1", [wifeReg.student_id])).length === 0);
+
+// consent
+await as(P2);
+check("an unrelated account cannot change consent", (await q("select public.set_report_access($1,true) r", [wifeReg.id]))[0].r === "not_found");
+await as(WIFE);
+check("the wife allows the husband to see her Aquanatal schedule and reports", (await q("select public.set_report_access($1,true) r", [wifeReg.id]))[0].r === "ok");
+await as(HUS);
+check("now the husband sees the Aquanatal report", (await q("select id from public.progress_reports where student_id=$1", [wifeReg.student_id])).length === 1);
+check("...and the schedule", (await q("select id from public.schedules where student_id=$1", [wifeReg.student_id])).length === 1);
+await su();
+check("consent is per enrollment: Adult Swim stays private", (await q("select report_access_granted_to_requester g from public.enrollments where id=$1", [wifeAdult.id]))[0].g === false);
+await as(WIFE);
+await q("select public.set_report_access($1,false) r", [wifeReg.id]);
+await as(HUS);
+check("the wife can take the permission back", (await q("select id from public.progress_reports where student_id=$1", [wifeReg.student_id])).length === 0);
+
+// profile
+await as(WIFE);
+check("the participant edits her own profile (gender, phone, birth date)", (await q("select public.update_participant_profile($1,'undisclosed','0812 999 000 11','1993-01-02') r", [wifeReg.student_id]))[0].r === "ok");
+await su();
+const prof = (await q("select gender, phone, birth_date from public.students where id=$1", [wifeReg.student_id]))[0];
+check("the profile change is stored on the participant", prof.gender === "undisclosed" && prof.phone === "081299900011", JSON.stringify(prof));
+await as(WIFE);
+check("an invalid gender is rejected", (await q("select public.update_participant_profile($1,'robot','0812',null) r", [wifeReg.student_id]))[0].r === "invalid_gender");
+await as(ANDI);
+check("an adult who registered themselves can edit their own profile", (await q("select public.update_participant_profile($1,'male','0813 1111 2222','1990-01-01') r", [andiStudent]))[0].r === "ok");
+check("...but not somebody else's", (await q("select public.update_participant_profile($1,'male','0813',null) r", [wifeReg.student_id]))[0].r === "not_found");
+
+await as(HUS);
+check("the husband cannot rename or re-photograph the wife's participant", /not authorized/.test((await fails(() => db.query("select public.update_own_child_profile($1,'Hacked',null,null)", [wifeReg.student_id]))) ?? ""));
+await as(WIFE);
+check("the wife can update her own display name/photo", (await fails(() => db.query("select public.update_own_child_profile($1,'Sari W',null,null)", [wifeReg.student_id]))) === null);
+await as(P1);
+check("a parent can still update their child's profile", (await fails(() => db.query("select public.update_own_child_profile($1,'Rara',null,null)", [uid(100)]))) === null);
+
+// administrative actions stay with the registering account
+await as(HUS);
+check("the husband can still withdraw the registration he made", (await q("select public.cancel_my_enrollment($1) r", [wifeAdult.id]))[0].r === "cancelled");
+await as(P2);
+check("an unrelated account cannot cancel it", (await q("select public.cancel_my_enrollment($1) r", [wifeReg.id]))[0].r === "not_found");
+
+// children keep working exactly as before
+await su();
+check("legacy children are kind 'child'", (await q("select kind from public.students where id=$1", [uid(100)]))[0].kind === "child");
+await as(P1);
+check("a parent still sees their child's reports", (await q("select id from public.progress_reports where student_id=$1", [uid(100)])).length === 1);
 
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
