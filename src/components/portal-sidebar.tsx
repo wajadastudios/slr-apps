@@ -9,7 +9,8 @@ import { LogoutButton } from "@/components/logout-button";
 
 type NavGroup = {
   label: string | null;
-  items: { href: string; label: string }[];
+  // `also`: other path prefixes that should keep this item highlighted
+  items: { href: string; label: string; also?: string[] }[];
 };
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -44,7 +45,9 @@ function NavLinks({
   return (
     <nav className="flex flex-1 flex-col gap-2 overflow-y-auto">
       {navGroups.map((group, i) => {
-        const hasActiveItem = group.items.some((item) => item.href === pathname);
+        const isActiveItem = (item: NavGroup["items"][number]) =>
+          pathname === item.href || !!item.also?.some((p) => pathname.startsWith(p));
+        const hasActiveItem = group.items.some(isActiveItem);
         const isOpen = group.label
           ? overrides[group.label] ?? hasActiveItem
           : true;
@@ -67,7 +70,7 @@ function NavLinks({
             )}
             {isOpen &&
               group.items.map((item) => {
-                const active = pathname === item.href;
+                const active = isActiveItem(item);
                 return (
                   <Link
                     key={item.href}

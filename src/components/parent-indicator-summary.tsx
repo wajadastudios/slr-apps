@@ -12,14 +12,20 @@ const STATUS_TEXT = {
 
 // Read-only result of one report, grouped like the pengajar's form: every
 // group starts closed and shows its average; nothing here can be edited.
-export function ParentIndicatorSummary({ groups }: { groups: GroupSummary[] }) {
+export function ParentIndicatorSummary({
+  groups,
+  title = "Penilaian indikator",
+}: {
+  groups: GroupSummary[];
+  title?: string | null;
+}) {
   const [openName, setOpenName] = useState<string | null>(null);
 
   if (groups.length === 0) return null;
 
   return (
     <div className="mt-4">
-      <p className="mb-2 text-sm font-semibold text-[#17263D]">Penilaian indikator</p>
+      {title && <p className="mb-2 text-sm font-semibold text-[#17263D]">{title}</p>}
       <div className="flex flex-col gap-2">
         {groups.map((group) => {
           if (group.status !== "dinilai") {

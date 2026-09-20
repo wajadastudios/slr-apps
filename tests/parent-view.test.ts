@@ -213,3 +213,34 @@ test("a report with no scores at all lists every group as Belum dinilai", () => 
   assert.equal(summary.length, 4);
   assert.ok(summary.every((g) => g.status === "belum_dinilai"));
 });
+
+// ---------- parent navigation ----------
+import { childHref, latestReportPreview, parseChildTab, CHILD_TABS } from "../src/lib/report-preview";
+
+test("child tab comes from the URL and falls back to laporan", () => {
+  assert.equal(parseChildTab(undefined), "laporan");
+  assert.equal(parseChildTab("perkembangan"), "perkembangan");
+  assert.equal(parseChildTab("record"), "record");
+  assert.equal(parseChildTab("nonsense"), "laporan");
+  assert.equal(parseChildTab(["record", "laporan"]), "record");
+  assert.deepEqual(CHILD_TABS.map((t) => t.id), ["laporan", "perkembangan", "record"]);
+});
+
+test("deep links point at the right tab and anchor", () => {
+  assert.equal(childHref("abc", "laporan", "laporan-terbaru"), "/ortu/anak/abc?tab=laporan#laporan-terbaru");
+  assert.equal(childHref("abc", "laporan", "riwayat-laporan"), "/ortu/anak/abc?tab=laporan#riwayat-laporan");
+  assert.equal(childHref("abc", "perkembangan"), "/ortu/anak/abc?tab=perkembangan");
+});
+
+test("latest report preview: newest report, note trimmed, null when none", () => {
+  assert.equal(latestReportPreview([]), null);
+  const p = latestReportPreview([
+    { session_date: "2026-09-15", session_number: 4, attendance: "hadir", notes: "  Makin berani meluncur  " },
+    { session_date: "2026-09-08", session_number: 3, attendance: "izin", notes: "lama" },
+  ])!;
+  assert.equal(p.sessionNumber, 4);
+  assert.equal(p.attendance, "hadir");
+  assert.equal(p.note, "Makin berani meluncur");
+  const noNote = latestReportPreview([{ session_date: "2026-09-15", attendance: "izin", notes: "   " }])!;
+  assert.equal(noNote.note, null);
+});

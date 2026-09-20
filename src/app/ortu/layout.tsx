@@ -7,7 +7,7 @@ const NAV_GROUPS = [
   {
     label: null,
     items: [
-      { href: "/ortu", label: "Ringkasan" },
+      { href: "/ortu", label: "Ringkasan", also: ["/ortu/anak"] },
       { href: "/ortu/tagihan", label: "Tagihan" },
       { href: "/ortu/pengaturan", label: "Pengaturan" },
     ],

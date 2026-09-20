@@ -1,28 +1,32 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getUserWithRole } from "@/lib/auth";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { ProgressTrend } from "@/components/progress-trend";
-import { ReportHistoryCard } from "@/components/report-history-card";
+import { LatestReportCard, ReportHistoryCard, type ReportRow } from "@/components/report-history-card";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
 import { RecordUnlockCard } from "@/components/record-unlock-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { StarScoreLegend } from "@/components/star-score-legend";
-import { ChildSummaryWidget } from "@/components/child-summary-widget";
+import { ChildTabs } from "@/components/child-tabs";
+import { ParentIndicatorSummary } from "@/components/parent-indicator-summary";
+import { AttendanceConsistencyCard } from "@/components/attendance-consistency-card";
 import {
   computeLatestAchievement,
   computeNextSession,
   computeSessionQuota,
   formatSessionQuota,
-  getGreeting,
-  latestNextFocus,
+  latestAttendedReport,
 } from "@/lib/progress";
-import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-classes";
-import { AttendanceConsistencyCard } from "@/components/attendance-consistency-card";
-import { formatAge } from "@/lib/performance";
+import { summarizeReportGroups } from "@/lib/report-summary";
+import { parseChildTab } from "@/lib/report-preview";
+import { formatShortDate } from "@/lib/format-date";
+import { PRIMARY_BUTTON, SECONDARY_BUTTON, GHOST_BUTTON } from "@/lib/ui-classes";
+import { formatAge, type PerformanceRecordRow } from "@/lib/performance";
 import { loadIndicatorConfig } from "@/lib/indicator-loader";
+import type { IndicatorConfig } from "@/lib/indicators";
 import { loadMilestones } from "@/lib/milestone-loader";
 import { computeMilestoneStatuses } from "@/lib/milestones";
 import { DAYS } from "@/lib/days";
@@ -31,12 +35,14 @@ import { ToastForm } from "@/components/ui/toast-form";
 
 export default async function AnakDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ studentId: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
 }) {
   const { studentId } = await params;
+  const tab = parseChildTab((await searchParams).tab);
   const supabase = await createClient();
-  const session = await getUserWithRole();
 
   // RLS (parent_owns_student) already scopes this to the caller's own
   // children — an empty result means access denied.
@@ -53,29 +59,32 @@ export default async function AnakDetailPage({
   }
 
   const program = student.program as unknown as { name: string } | null;
-  const [indicatorConfig, milestones] = await Promise.all([
-    loadIndicatorConfig(supabase, student.program_id),
-    loadMilestones(supabase),
-  ]);
   const age = formatAge(student.birth_date);
 
+  // Only the record tab needs records and milestones.
+  const recordsPromise =
+    tab === "record"
+      ? Promise.all([
+          supabase.from("performance_records").select("*").eq("student_id", studentId),
+          loadMilestones(supabase),
+        ])
+      : Promise.resolve(null);
+
   const [
+    indicatorConfig,
     { data: reports },
-    { data: performanceRecords },
     { data: invoices },
     { data: availablePackages },
     { data: scheduleRows },
     { data: pelatihNames },
+    recordsData,
   ] = await Promise.all([
+    loadIndicatorConfig(supabase, student.program_id),
     supabase
       .from("progress_reports")
       .select("*")
       .eq("student_id", studentId)
       .order("session_date", { ascending: false }),
-    supabase
-      .from("performance_records")
-      .select("*")
-      .eq("student_id", studentId),
     supabase
       .from("invoices")
       .select("sessions_count, status, created_at")
@@ -92,22 +101,20 @@ export default async function AnakDetailPage({
       .select("slot:slot_id(day_of_week, start_time, label, pelatih_id)")
       .eq("student_id", studentId),
     supabase.rpc("get_public_pelatih_names"),
+    recordsPromise,
   ]);
 
-  const quota = computeSessionQuota(invoices ?? [], reports ?? []);
+  const allReports = reports ?? [];
+  const quota = computeSessionQuota(invoices ?? [], allReports);
+  const quotaText = formatSessionQuota(quota);
   const currentPackageSessions =
     (invoices ?? []).find((i) => i.status === "paid")?.sessions_count ?? 0;
-  const totalAllSessions = (invoices ?? []).reduce(
-    (sum, i) => sum + i.sessions_count,
-    0
-  );
+  const totalAllSessions = (invoices ?? []).reduce((sum, i) => sum + i.sessions_count, 0);
 
   // Nudge to pick the next package only when the current paid one is down to
   // its last session and no further invoice (sent/processing) already exists.
   const showRenewalBanner =
-    currentPackageSessions > 4 &&
-    quota.remaining === 1 &&
-    totalAllSessions === quota.total;
+    currentPackageSessions > 4 && quota.remaining === 1 && totalAllSessions === quota.total;
 
   const pelatihNameById = new Map<string, string>();
   for (const p of pelatihNames ?? []) {
@@ -115,12 +122,15 @@ export default async function AnakDetailPage({
   }
 
   const slotInfos = (scheduleRows ?? [])
-    .map((row) => row.slot as unknown as {
-      day_of_week: number;
-      start_time: string;
-      label: string | null;
-      pelatih_id: string;
-    } | null)
+    .map(
+      (row) =>
+        row.slot as unknown as {
+          day_of_week: number;
+          start_time: string;
+          label: string | null;
+          pelatih_id: string;
+        } | null
+    )
     .filter((s): s is NonNullable<typeof s> => s !== null)
     .map((s) => ({
       day_of_week: s.day_of_week,
@@ -136,29 +146,51 @@ export default async function AnakDetailPage({
       }`
     : null;
 
-  const latestInvoice = invoices?.[0];
-  const tagihanOk = latestInvoice?.status === "paid";
-  const tagihanLabel = !latestInvoice
-    ? "Belum Ada Tagihan"
-    : latestInvoice.status === "paid"
-      ? "Lunas"
-      : latestInvoice.status === "processing"
-        ? "Menunggu Verifikasi"
-        : "Belum Bayar";
+  const displayName = student.nickname || student.full_name;
+  const [latestReport, ...olderReports] = allReports;
 
   return (
-    <div className="flex flex-col gap-6">
-      <ChildSummaryWidget
-        greeting={`${getGreeting()}, ${session?.fullName ?? "Orang Tua"}`}
-        childLabel={`${student.nickname || student.full_name} · ${program?.name ?? "Belum ada program"}${age ? ` · ${age}` : ""}`}
-        kehadiran={formatSessionQuota(quota)}
-        tagihanLabel={tagihanLabel}
-        tagihanOk={tagihanOk}
-        nextFocus={latestNextFocus(reports ?? [])}
-        achievement={computeLatestAchievement(reports ?? [], indicatorConfig)}
-        laporanTersedia={(reports?.length ?? 0) > 0}
-        nextSessionLabel={nextSessionLabel}
-      />
+    <div className="flex flex-col gap-4">
+      <GlassCard className="flex flex-col gap-3 !bg-white/85">
+        <Link
+          href={`/ortu#anak-${studentId}`}
+          className={`-ml-2 inline-flex min-h-11 w-fit items-center gap-1 rounded-xl px-2 text-sm font-medium text-[#1597A3] ${GHOST_BUTTON}`}
+        >
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            className="h-4 w-4"
+            aria-hidden="true"
+          >
+            <path d="M12.5 5.5L8 10l4.5 4.5" />
+          </svg>
+          Ringkasan
+        </Link>
+        <h1 className="font-[family-name:var(--font-quicksand)] text-xl font-bold leading-tight text-[#17263D]">
+          {displayName}
+          <span className="text-base font-medium text-slate-500">
+            {" "}
+            · {program?.name ?? "Belum ada program"}
+            {age ? ` · ${age}` : ""}
+          </span>
+        </h1>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="rounded-2xl border border-[#FFC800]/45 bg-gradient-to-br from-[#FFF3C4] to-[#FFF8E1] px-3.5 py-2.5">
+            <p className="text-[11px] font-medium text-[#8a6900]">Sesi berikutnya</p>
+            <p className="text-sm font-semibold leading-snug text-[#17263D]">
+              {nextSessionLabel ?? "Belum ada jadwal"}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-[#EEF9FB] px-3.5 py-2.5">
+            <p className="text-[11px] font-medium text-slate-500">Kuota sesi</p>
+            <p className="text-sm font-semibold leading-snug text-[#17263D]">{quotaText.note}</p>
+            <p className="text-[11px] text-slate-500">{quotaText.value}</p>
+          </div>
+        </div>
+      </GlassCard>
 
       {showRenewalBanner && availablePackages && availablePackages.length > 0 && (
         <GlassCard className="border-[#FFC800]/40 bg-[#FFF8E1]">
@@ -166,10 +198,9 @@ export default async function AnakDetailPage({
             Sesi Terakhir di Paket Ini
           </h2>
           <p className="mb-4 text-sm text-slate-700">
-            Tinggal 1 sesi lagi di paket {student.full_name} saat ini. Pilih
-            paket untuk sesi berikutnya — pilihan Anda akan dilihat admin
-            saat menyiapkan tagihan berikutnya (admin tetap yang
-            mengonfirmasi & mengirim tagihannya).
+            Tinggal 1 sesi lagi di paket {student.full_name} saat ini. Pilih paket untuk sesi
+            berikutnya — pilihan Anda akan dilihat admin saat menyiapkan tagihan berikutnya (admin
+            tetap yang mengonfirmasi & mengirim tagihannya).
           </p>
           <div className="flex flex-col gap-2">
             {availablePackages.map((pkg) => {
@@ -177,30 +208,22 @@ export default async function AnakDetailPage({
               return (
                 <ToastForm key={pkg.id} action={setPackagePreferenceAction}>
                   <input type="hidden" name="student_id" value={studentId} />
-                  <input
-                    type="hidden"
-                    name="program_package_id"
-                    value={pkg.id}
-                  />
+                  <input type="hidden" name="program_package_id" value={pkg.id} />
                   <DataRow
                     className={selected ? "border-[#35C5D0]/60 bg-[#EEF9FB]" : undefined}
                     primary={
                       <>
-                        {pkg.name} &middot; {pkg.sessions_count} sesi
-                        &middot; Rp{Number(pkg.price).toLocaleString("id-ID")}
+                        {pkg.name} &middot; {pkg.sessions_count} sesi &middot; Rp
+                        {Number(pkg.price).toLocaleString("id-ID")}
                       </>
                     }
                     secondary={
-                      pkg.benefits && pkg.benefits.length > 0
-                        ? pkg.benefits.join(" · ")
-                        : undefined
+                      pkg.benefits && pkg.benefits.length > 0 ? pkg.benefits.join(" · ") : undefined
                     }
                     action={
                       <GlassButton
                         type="submit"
-                        className={`px-4 py-2 text-sm ${
-                          selected ? PRIMARY_BUTTON : SECONDARY_BUTTON
-                        }`}
+                        className={`px-4 py-2 text-sm ${selected ? PRIMARY_BUTTON : SECONDARY_BUTTON}`}
                       >
                         {selected ? "Dipilih" : "Pilih Paket Ini"}
                       </GlassButton>
@@ -213,23 +236,101 @@ export default async function AnakDetailPage({
         </GlassCard>
       )}
 
-      <AttendanceConsistencyCard reports={reports ?? []} />
+      <ChildTabs studentId={studentId} active={tab} />
 
-      <ProgressTrend indicatorConfig={indicatorConfig} reports={reports ?? []} />
+      {tab === "laporan" && (
+        <>
+          {!latestReport ? (
+            <GlassCard>
+              <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
+                Belum ada laporan latihan
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Laporan dari pelatih akan muncul di sini setelah sesi latihan pertama {displayName}.
+              </p>
+            </GlassCard>
+          ) : (
+            <>
+              <LatestReportCard report={latestReport} indicatorConfig={indicatorConfig} />
+              {olderReports.length > 0 && (
+                <ReportHistoryCard
+                  id="riwayat-laporan"
+                  reports={olderReports}
+                  indicatorConfig={indicatorConfig}
+                  parentView
+                />
+              )}
+            </>
+          )}
+        </>
+      )}
 
-      <RecordUnlockCard statuses={computeMilestoneStatuses(performanceRecords ?? [], milestones)} />
+      {tab === "perkembangan" && (
+        <PerkembanganTab
+          reports={allReports}
+          indicatorConfig={indicatorConfig}
+        />
+      )}
 
-      <PerformanceRecordsCard records={performanceRecords ?? []} />
+      {tab === "record" && (
+        <>
+          <RecordUnlockCard
+            statuses={computeMilestoneStatuses(
+              (recordsData?.[0].data ?? []) as PerformanceRecordRow[],
+              recordsData?.[1] ?? []
+            )}
+          />
+          <PerformanceRecordsCard records={(recordsData?.[0].data ?? []) as PerformanceRecordRow[]} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function PerkembanganTab({
+  reports,
+  indicatorConfig,
+}: {
+  reports: (ReportRow & { scores: Record<string, number> | null })[];
+  indicatorConfig: IndicatorConfig;
+}) {
+  const achievement = computeLatestAchievement(reports, indicatorConfig);
+  const latestAttended = latestAttendedReport(reports);
+  const groups = latestAttended
+    ? summarizeReportGroups(
+        (latestAttended.scores ?? {}) as Record<string, number>,
+        latestAttended.indicator_snapshot,
+        indicatorConfig
+      )
+    : [];
+
+  return (
+    <>
+      {achievement && (
+        <GlassCard className="!bg-gradient-to-br !from-[#E9FBF3] !to-white">
+          <p className="text-xs font-medium text-slate-600">Pencapaian terakhir</p>
+          <p className="mt-0.5 text-sm font-medium leading-snug text-[#17263D]">{achievement}</p>
+        </GlassCard>
+      )}
+
+      <ProgressTrend indicatorConfig={indicatorConfig} reports={reports} />
+
+      {latestAttended && groups.length > 0 && (
+        <GlassCard>
+          <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
+            Ringkasan Indikator
+          </h2>
+          <p className="text-xs text-slate-500">
+            Dari sesi terakhir yang diikuti &middot; {formatShortDate(latestAttended.session_date)}
+          </p>
+          <ParentIndicatorSummary groups={groups} title={null} />
+        </GlassCard>
+      )}
+
+      <AttendanceConsistencyCard reports={reports} />
 
       <AssessmentGuideCard indicatorConfig={indicatorConfig} />
-
       <StarScoreLegend />
-
-      <ReportHistoryCard
-        reports={reports ?? []}
-        indicatorConfig={indicatorConfig}
-        parentView
-      />
-    </div>
+    </>
   );
 }

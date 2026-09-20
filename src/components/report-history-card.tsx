@@ -332,9 +332,14 @@ export function ReportHistoryCard({
   studentId = "",
   updateAction,
   deleteAction,
+  id,
+  title = "Riwayat Laporan",
 }: {
   reports: ReportRow[];
   indicatorConfig: IndicatorConfig;
+  // anchor for deep links (e.g. #riwayat-laporan) and the card heading
+  id?: string;
+  title?: string;
   // Orang tua: read-only summary per indicator group (collapsed, with
   // averages) instead of the flat indicator list pelatih/admin see.
   parentView?: boolean;
@@ -360,12 +365,12 @@ export function ReportHistoryCard({
   }
 
   return (
-    <GlassCard>
+    <GlassCard id={id} className={id ? "scroll-mt-20" : undefined}>
       <h2
         ref={headingRef}
         className="mb-4 scroll-mt-6 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]"
       >
-        Riwayat Laporan
+        {title}
       </h2>
       <div className="flex flex-col gap-3">
         {reports.length === 0 && (
@@ -453,5 +458,30 @@ function Pagination({
         Selanjutnya
       </button>
     </nav>
+  );
+}
+
+// The newest report, shown on its own at the top of the parent's report tab.
+// `#laporan-terbaru` deep links land here.
+export function LatestReportCard({
+  report,
+  indicatorConfig,
+}: {
+  report: ReportRow;
+  indicatorConfig: IndicatorConfig;
+}) {
+  return (
+    <GlassCard id="laporan-terbaru" className="scroll-mt-20">
+      <h2 className="mb-3 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
+        Laporan Terbaru
+      </h2>
+      <ReportEntry
+        report={report}
+        studentId=""
+        indicatorConfig={indicatorConfig}
+        parentView
+        editable={false}
+      />
+    </GlassCard>
   );
 }

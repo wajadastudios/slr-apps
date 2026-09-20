@@ -1,23 +1,20 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getUserWithRole } from "@/lib/auth";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
-import { ChildSummaryWidget } from "@/components/child-summary-widget";
+import { ParentChildCard } from "@/components/parent-child-card";
+import { GroupAccordion } from "@/components/group-accordion";
 import {
-  computeLatestAchievement,
   computeNextSession,
   computeSessionQuota,
   formatSessionQuota,
   getGreeting,
-  latestNextFocus,
 } from "@/lib/progress";
+import { latestReportPreview } from "@/lib/report-preview";
 import { PRIMARY_BUTTON } from "@/lib/ui-classes";
 import { DAYS } from "@/lib/days";
-import { loadIndicatorConfigs } from "@/lib/indicator-loader";
-import { EMPTY_INDICATOR_CONFIG } from "@/lib/indicators";
 import { selfRegisterAction, addChildAndRegisterAction } from "./actions";
 import { ToastForm } from "@/components/ui/toast-form";
 
@@ -43,7 +40,7 @@ export default async function OrtuDashboardPage({
     supabase
       .from("students")
       .select(
-        "id, full_name, nickname, birth_date, program_id, program:program_id(name)"
+        "id, full_name, nickname, birth_date, program:program_id(name)"
       )
       .order("full_name"),
     supabase
@@ -57,7 +54,7 @@ export default async function OrtuDashboardPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("progress_reports")
-      .select("student_id, session_date, attendance, scores, next_focus")
+      .select("student_id, session_date, session_number, attendance, notes")
       .order("session_date", { ascending: false }),
     supabase
       .from("schedules")
@@ -136,29 +133,23 @@ export default async function OrtuDashboardPage({
     slotsByStudent.set(row.student_id, list);
   }
 
-  const indicatorConfigs = await loadIndicatorConfigs(
-    supabase,
-    [...new Set((children ?? []).map((c) => c.program_id).filter(Boolean))] as string[]
-  );
+  const childList = children ?? [];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <h1 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">
         {getGreeting()}, {session?.fullName ?? "Orang Tua"} 👋
       </h1>
 
-      {(!children || children.length === 0) && (
+      {childList.length === 0 && (
         <GlassCard>
-          <p className="text-sm text-slate-600">
-            Belum ada data anak terdaftar.
-          </p>
+          <p className="text-sm text-slate-600">Belum ada data anak terdaftar.</p>
         </GlassCard>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {children?.map((child) => {
+      <div className={`grid gap-4 ${childList.length > 1 ? "lg:grid-cols-2" : ""}`}>
+        {childList.map((child) => {
           const program = child.program as unknown as { name: string } | null;
-          const status = latestInvoiceStatus.get(child.id);
           const childReports = reportsByStudent.get(child.id) ?? [];
           const quota = formatSessionQuota(
             computeSessionQuota(invoicesByStudent.get(child.id) ?? [], childReports)
@@ -172,123 +163,129 @@ export default async function OrtuDashboardPage({
             : null;
 
           return (
-            <Link key={child.id} href={`/ortu/anak/${child.id}`}>
-              <ChildSummaryWidget
-                className="h-full transition-transform duration-200 hover:scale-[1.01] hover:border-[#35C5D0]/50"
-                childLabel={`${child.nickname || child.full_name} · ${program?.name ?? "Belum ada program"}`}
-                kehadiran={quota}
-                tagihanLabel={
-                  !status
-                    ? "Belum Ada Tagihan"
-                    : status === "paid"
-                      ? "Lunas"
-                      : status === "processing"
-                        ? "Menunggu Verifikasi"
-                        : "Belum Bayar"
-                }
-                tagihanOk={status === "paid"}
-                nextFocus={latestNextFocus(childReports)}
-                achievement={computeLatestAchievement(
-                  childReports,
-                  indicatorConfigs[child.program_id] ?? EMPTY_INDICATOR_CONFIG
-                )}
-                laporanTersedia={childReports.length > 0}
-                nextSessionLabel={nextSessionLabel}
-              />
-            </Link>
+            <ParentChildCard
+              key={child.id}
+              studentId={child.id}
+              name={child.nickname || child.full_name}
+              program={program?.name ?? null}
+              nextSessionLabel={nextSessionLabel}
+              quota={quota}
+              preview={latestReportPreview(childReports)}
+            />
           );
         })}
       </div>
 
-      <GlassCard>
-        <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
-          Tambah Anak &amp; Daftar Jadwal
+      {/* Registration stays available but folded away so the children come first. */}
+      <GlassCard tone="soft" className="flex flex-col gap-2">
+        <h2 className="font-[family-name:var(--font-quicksand)] text-base font-bold text-[#17263D]">
+          Daftar Kelas
         </h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Daftarkan anak baru dan pilih jadwal kelas yang masih tersedia.
-          Admin akan langsung dihubungi untuk follow up setelah Anda daftar.
-        </p>
-        <ToastForm
-          action={addChildAndRegisterAction} resetOnSuccess
-          className="mt-3 grid gap-3 sm:grid-cols-3"
+
+        <GroupAccordion
+          defaultOpen={childList.length === 0}
+          header={
+            <span className="flex flex-col">
+              <span className="text-sm font-semibold text-[#17263D]">Tambah anak &amp; daftar jadwal</span>
+              <span className="text-xs text-slate-500">Untuk anak yang belum terdaftar</span>
+            </span>
+          }
         >
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">Nama Anak</label>
-            <GlassInput name="full_name" required />
+          <div className="px-4 pb-4 pt-1">
+            <p className="text-sm text-slate-600">
+              Daftarkan anak baru dan pilih jadwal kelas yang masih tersedia. Admin akan langsung
+              dihubungi untuk follow up setelah Anda daftar.
+            </p>
+            <ToastForm
+              action={addChildAndRegisterAction}
+              resetOnSuccess
+              className="mt-3 grid gap-3 sm:grid-cols-3"
+            >
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm text-slate-800">Nama Anak</label>
+                <GlassInput name="full_name" required />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm text-slate-800">Tanggal Lahir</label>
+                <GlassInput name="birth_date" type="date" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm text-slate-800">Jadwal Kelas</label>
+                <GlassSelect name="slot_id" required defaultValue="" glassChevron>
+                  <option value="" disabled>
+                    Pilih jadwal
+                  </option>
+                  {availableSlots.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                    </option>
+                  ))}
+                </GlassSelect>
+              </div>
+              <GlassButton
+                type="submit"
+                disabled={availableSlots.length === 0}
+                className={`${PRIMARY_BUTTON} px-4 py-2 text-sm sm:col-span-3 sm:w-fit`}
+              >
+                Daftar
+              </GlassButton>
+            </ToastForm>
+            {availableSlots.length === 0 && (
+              <p className="mt-2 text-sm text-slate-600">Belum ada jadwal yang tersedia saat ini.</p>
+            )}
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">Tanggal Lahir</label>
-            <GlassInput name="birth_date" type="date" />
+        </GroupAccordion>
+
+        <GroupAccordion
+          header={
+            <span className="flex flex-col">
+              <span className="text-sm font-semibold text-[#17263D]">Daftarkan diri sendiri</span>
+              <span className="text-xs text-slate-500">Untuk remaja/dewasa, bukan untuk anak</span>
+            </span>
+          }
+        >
+          <div className="px-4 pb-4 pt-1">
+            <ToastForm
+              action={selfRegisterAction}
+              resetOnSuccess
+              className="flex flex-wrap items-end gap-3"
+            >
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm text-slate-800">Program</label>
+                <GlassSelect
+                  name="program_id"
+                  required
+                  defaultValue=""
+                  className="min-w-[220px]"
+                  glassChevron
+                >
+                  <option value="" disabled>
+                    Pilih program
+                  </option>
+                  {programs?.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </GlassSelect>
+              </div>
+              <GlassButton
+                type="submit"
+                disabled={!programs || programs.length === 0}
+                className={`${PRIMARY_BUTTON} px-4 py-2 text-sm`}
+              >
+                Daftarkan
+              </GlassButton>
+            </ToastForm>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">Jadwal Kelas</label>
-            <GlassSelect name="slot_id" required defaultValue="" glassChevron>
-              <option value="" disabled>
-                Pilih jadwal
-              </option>
-              {availableSlots.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </GlassSelect>
-          </div>
-          <GlassButton
-            type="submit"
-            disabled={availableSlots.length === 0}
-            className={`${PRIMARY_BUTTON} px-4 py-2 text-sm sm:col-span-3 sm:w-fit`}
-          >
-            Daftar
-          </GlassButton>
-        </ToastForm>
-        {availableSlots.length === 0 && (
-          <p className="mt-2 text-sm text-slate-600">
-            Belum ada jadwal yang tersedia saat ini.
-          </p>
-        )}
+        </GroupAccordion>
+
         {child_added && (
-          <p className="mt-2 text-sm text-[#1a8f6f]">
+          <p className="text-sm text-[#1a8f6f]">
             Pendaftaran berhasil! Admin akan segera menghubungi Anda.
           </p>
         )}
-        {error && (
-          <p className="mt-2 text-sm text-red-700">{decodeURIComponent(error)}</p>
-        )}
-      </GlassCard>
-
-      <GlassCard>
-        <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
-          Daftarkan Diri Sendiri ke Kelas
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Untuk Anda sendiri (remaja/dewasa) yang ingin ikut kelas renang,
-          bukan untuk anak.
-        </p>
-        <ToastForm
-          action={selfRegisterAction} resetOnSuccess
-          className="mt-3 flex flex-wrap items-end gap-3"
-        >
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm text-slate-800">Program</label>
-            <GlassSelect name="program_id" required defaultValue="" className="min-w-[220px]" glassChevron>
-              <option value="" disabled>
-                Pilih program
-              </option>
-              {programs?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </GlassSelect>
-          </div>
-          <GlassButton
-            type="submit"
-            disabled={!programs || programs.length === 0}
-            className={`${PRIMARY_BUTTON} px-4 py-2 text-sm`}
-          >
-            Daftarkan
-          </GlassButton>
-        </ToastForm>
+        {error && <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>}
       </GlassCard>
     </div>
   );
