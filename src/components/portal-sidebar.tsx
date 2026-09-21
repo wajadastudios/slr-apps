@@ -9,6 +9,9 @@ import { LogoutButton } from "@/components/logout-button";
 
 type NavGroup = {
   label: string | null;
+  // open on first render even without an active item; groups without it stay
+  // folded until one of their pages is open
+  defaultOpen?: boolean;
   // `also`: other path prefixes that should keep this item highlighted
   items: { href: string; label: string; also?: string[] }[];
 };
@@ -49,7 +52,7 @@ function NavLinks({
           pathname === item.href || !!item.also?.some((p) => pathname.startsWith(p));
         const hasActiveItem = group.items.some(isActiveItem);
         const isOpen = group.label
-          ? overrides[group.label] ?? hasActiveItem
+          ? overrides[group.label] ?? (hasActiveItem || group.defaultOpen === true)
           : true;
         return (
           <div key={i} className="flex flex-col gap-1">

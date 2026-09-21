@@ -4,7 +4,7 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import { DeleteConfirm } from "@/components/admin/impact-confirm";
 import { AccountEditor } from "@/components/account-editor";
 import { resolveRateForDate } from "@/lib/payroll";
 import {
@@ -211,12 +211,11 @@ export default async function PelatihPage({
                   </ToastForm>
                   <ToastForm action={deletePelatihAction} pendingLabel="Menghapus...">
                     <input type="hidden" name="id" value={p.id} />
-                    <ConfirmSubmitButton
+                    <DeleteConfirm
                       message="Hapus akun pengajar ini? Hanya bisa untuk pengajar yang belum pernah menulis laporan. Untuk pengajar yang mengundurkan diri, gunakan Nonaktifkan agar riwayat laporan siswa tetap utuh."
-                      className="!border-red-300 !bg-red-500/10 px-3 py-1.5 text-xs !text-red-700 hover:!bg-red-500/20"
                     >
                       Hapus
-                    </ConfirmSubmitButton>
+                    </DeleteConfirm>
                   </ToastForm>
                 </>
               }

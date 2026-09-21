@@ -7,7 +7,7 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { AccordionItem } from "@/components/ui/accordion";
 import { ToastForm } from "@/components/ui/toast-form";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import { DeleteConfirm } from "@/components/admin/impact-confirm";
 import { MoveButtons } from "@/components/move-buttons";
 import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-classes";
 import {
@@ -168,7 +168,18 @@ export function IndicatorWorkspace({
   const [selected, setSelected] = useState<Selection>(focus ?? null);
   const [lastFocus, setLastFocus] = useState(focus);
   const [search, setSearch] = useState("");
-  const [closed, setClosed] = useState<string[]>([]);
+  // Only one group is open at first (the one being edited, else the first);
+  // the rest stay folded so a long list never starts as a wall of indicators.
+  const [closed, setClosed] = useState<string[]>(() => {
+    const focusGroup = focus?.startsWith("g:")
+      ? focus.slice(2)
+      : focus?.startsWith("i:")
+        ? groups.find((g) => g.indicators.some((i) => i.id === focus.slice(2)))?.id
+        : undefined;
+    const first = [...groups].sort((x, y) => x.sort_order - y.sort_order)[0]?.id;
+    const open = focusGroup ?? first;
+    return groups.filter((g) => g.id !== open).map((g) => g.id);
+  });
   const [dirtyState, setDirtyState] = useState<{ key: string; dirty: boolean }>({ key: "", dirty: false });
   const [resetCount, setResetCount] = useState(0);
   const [warn, setWarn] = useState(false);
@@ -516,12 +527,11 @@ export function IndicatorWorkspace({
                       <ToastForm action={deleteIndicatorAction} pendingLabel="Menghapus...">
                         <input type="hidden" name="program_id" value={programId} />
                         <input type="hidden" name="id" value={selInd.item.id} />
-                        <ConfirmSubmitButton
+                        <DeleteConfirm
                           message={`Hapus indikator "${selInd.item.label}"? Tindakan ini tidak bisa dibatalkan.`}
-                          className="!border-red-300 !bg-red-500/10 px-3 py-1.5 text-sm !text-red-700 hover:!bg-red-500/20"
                         >
                           Hapus
-                        </ConfirmSubmitButton>
+                        </DeleteConfirm>
                       </ToastForm>
                     )}
                   </div>

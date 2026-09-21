@@ -62,11 +62,13 @@ export async function submitAdultRegistrationAction(formData: FormData) {
 
   const { data: program } = await admin
     .from("programs")
-    .select("id, name, active, self_registration, requires_acknowledgement, intended_gender, audience")
+    .select("id, name, active, self_registration, requires_acknowledgement, intended_gender, audience, registration_open")
     .eq("id", request.value.program_id)
     .maybeSingle();
   const problem = checkRequestAgainstProgram(
-    program ? { ...program, intended_gender: program.intended_gender ?? null, audience: program.audience } : null,
+    program
+      ? { ...program, intended_gender: program.intended_gender ?? null, audience: program.audience, registration_open: program.registration_open }
+      : null,
     request.value
   );
   if (problem) fail(problem, programId);

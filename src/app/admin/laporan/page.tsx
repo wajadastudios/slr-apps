@@ -174,6 +174,18 @@ export default async function AdminLaporanPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <GlassCard tone="soft" className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-700">
+          Ada sesi yang laporannya belum diisi pengajar? Lihat daftarnya dan kirim pengingat WhatsApp.
+        </p>
+        <a
+          href="/admin/laporan/pengingat"
+          className="inline-flex min-h-10 items-center rounded-2xl border border-[#0E7C89]/70 bg-[#0E7C89] px-4 text-sm font-semibold text-white hover:bg-[#0A6570]"
+        >
+          Laporan belum diisi
+        </a>
+      </GlassCard>
+
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Laporan Perkembangan Peserta</h2>
         <form className="flex flex-wrap items-end gap-3">

@@ -6,7 +6,7 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { GlassInput } from "@/components/ui/glass-input";
 import { AccordionItem } from "@/components/ui/accordion";
 import { ToastForm } from "@/components/ui/toast-form";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import { DeleteConfirm } from "@/components/admin/impact-confirm";
 import { MoveButtons } from "@/components/move-buttons";
 import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-classes";
 import { METRIC_LABELS } from "@/lib/performance";
@@ -314,12 +314,11 @@ export function MilestoneWorkspace({
                     <ToastForm action={deleteMilestoneAction} pendingLabel="Menghapus...">
                       <input type="hidden" name="id" value={current.id} />
                       <input type="hidden" name="program_id" value={programId} />
-                      <ConfirmSubmitButton
+                      <DeleteConfirm
                         message={`Hapus milestone "${current.label}"? Tindakan ini tidak bisa dibatalkan.`}
-                        className="!border-red-300 !bg-red-500/10 px-3 py-1.5 text-sm !text-red-700 hover:!bg-red-500/20"
                       >
                         Hapus
-                      </ConfirmSubmitButton>
+                      </DeleteConfirm>
                     </ToastForm>
                   ) : (
                     <span className="text-xs text-slate-500">

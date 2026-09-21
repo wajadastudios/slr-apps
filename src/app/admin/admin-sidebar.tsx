@@ -1,54 +1,54 @@
 import { PortalSidebar } from "@/components/portal-sidebar";
 
+// Grouped by how often they are used. Daily work stays open; configuration is
+// folded until one of its pages is opened.
 const NAV_GROUPS = [
-  { label: null, items: [{ href: "/admin", label: "Dashboard" }] },
   {
-    label: "Pengguna",
+    label: "Operasional",
+    defaultOpen: true,
     items: [
-      { href: "/admin/murid", label: "Siswa" },
-      { href: "/admin/laporan", label: "Laporan" },
-      { href: "/admin/pelatih", label: "Pengajar" },
-      { href: "/admin/orang-tua", label: "Orang Tua" },
-      { href: "/admin/pendaftar", label: "Pendaftar" },
-      { href: "/admin/pengganti", label: "Pengajar Pengganti" },
-      { href: "/admin/referral", label: "Kode Referral" },
+      { href: "/admin", label: "Dashboard" },
+      { href: "/admin/pendaftar", label: "Pendaftar", also: ["/admin/pendaftar"] },
+      { href: "/admin/murid", label: "Siswa", also: ["/admin/murid"] },
+      { href: "/admin/jadwal", label: "Jadwal", also: ["/admin/jadwal"] },
+      { href: "/admin/laporan", label: "Laporan", also: ["/admin/laporan"] },
     ],
   },
   {
     label: "Program",
+    defaultOpen: true,
     items: [
-      { href: "/admin/program", label: "Program" },
-      { href: "/admin/penilaian", label: "Penilaian Program" },
-      { href: "/admin/slot-jadwal", label: "Slot Jadwal" },
-      { href: "/admin/jadwal", label: "Jadwal Siswa" },
-      { href: "/admin/paket-harga", label: "Paket Harga" },
-      { href: "/admin/lokasi-kolam", label: "Lokasi Kolam" },
+      { href: "/admin/program/setup", label: "Program", also: ["/admin/program"] },
+      { href: "/admin/penilaian", label: "Penilaian Program", also: ["/admin/penilaian", "/admin/milestone"] },
+      { href: "/admin/paket-harga", label: "Paket" },
+      { href: "/admin/slot-jadwal", label: "Slot" },
+      { href: "/admin/lokasi-kolam", label: "Lokasi" },
     ],
   },
   {
     label: "Keuangan",
+    defaultOpen: true,
     items: [
       { href: "/admin/tagihan", label: "Tagihan" },
       { href: "/admin/gaji", label: "Gaji Pengajar" },
     ],
   },
   {
-    label: "Konten",
+    label: "Konfigurasi",
     items: [
+      { href: "/admin/referral", label: "Referral" },
+      { href: "/admin/pelatih", label: "Pengajar" },
+      { href: "/admin/pengganti", label: "Pengajar Pengganti" },
+      { href: "/admin/orang-tua", label: "Orang Tua" },
       { href: "/admin/testimoni", label: "Testimoni" },
       { href: "/admin/galeri", label: "Galeri" },
       { href: "/admin/media-ads", label: "Media Ads" },
       { href: "/admin/faq", label: "FAQ" },
+      { href: "/admin/pengaturan", label: "Pengaturan" },
     ],
-  },
-  {
-    label: null,
-    items: [{ href: "/admin/pengaturan", label: "Pengaturan" }],
   },
 ];
 
 export function AdminSidebar({ userLabel }: { userLabel: string }) {
-  return (
-    <PortalSidebar navGroups={NAV_GROUPS} homeHref="/admin" userLabel={userLabel} />
-  );
+  return <PortalSidebar navGroups={NAV_GROUPS} homeHref="/admin" userLabel={userLabel} />;
 }

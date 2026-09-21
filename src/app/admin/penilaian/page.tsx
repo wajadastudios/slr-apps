@@ -96,6 +96,14 @@ export default async function PenilaianPage({
           <strong>{RECORDS_LABEL[program.records_mode]}</strong> &middot; versi template {program.template_version}
         </p>
 
+        {program.assessment_type === "support_level" && (
+          <p className="mt-3 rounded-xl bg-[#DDF3F6] px-3 py-2 text-sm text-[#0B6470]">
+            Indikator program ini menggambarkan kemampuan dan tingkat dukungan di air. Ini catatan pembelajaran renang,
+            bukan diagnosis medis: jangan menulis diagnosis atau istilah klinis pada nama indikator, dan orang tua tidak
+            melihatnya sebagai diagnosis.
+          </p>
+        )}
+
         <nav aria-label="Bagian penilaian" className="mt-3 inline-flex gap-1 rounded-2xl border border-white/60 bg-white/70 p-1">
           {tabLink("indikator", "Indikator")}
           {tabLink("rekor", "Rekor & Milestone")}

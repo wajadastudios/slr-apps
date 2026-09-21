@@ -4,7 +4,7 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { EditableListField } from "@/components/ui/editable-list-field";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import { DeleteConfirm } from "@/components/admin/impact-confirm";
 import {
   createProgramAction,
   updateSkillTemplateAction,
@@ -39,6 +39,19 @@ export default async function ProgramPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <GlassCard tone="soft" className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-700">
+          Menyiapkan program baru? Ikuti checklist penilaian, paket, pengajar, lokasi, dan slot sampai program siap
+          menerima pendaftar.
+        </p>
+        <Link
+          href="/admin/program/setup"
+          className="inline-flex min-h-10 items-center rounded-2xl border border-[#0E7C89]/70 bg-[#0E7C89] px-4 text-sm font-semibold text-white hover:bg-[#0A6570]"
+        >
+          Buka Atur Program
+        </Link>
+      </GlassCard>
+
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Tambah Kategori/Program</h2>
         <ToastForm action={createProgramAction} resetOnSuccess className="grid gap-4 sm:grid-cols-2">
@@ -122,12 +135,11 @@ export default async function ProgramPage({
               </ToastForm>
               <ToastForm action={deleteProgramAction} pendingLabel="Menghapus...">
                 <input type="hidden" name="id" value={selected.id} />
-                <ConfirmSubmitButton
+                <DeleteConfirm
                   message="Menghapus program ini juga akan menghapus semua paket harga di bawahnya. Lanjutkan?"
-                  className="!border-red-300 !bg-red-500/10 px-4 py-2 text-sm !text-red-700 hover:!bg-red-500/20"
                 >
                   Hapus
-                </ConfirmSubmitButton>
+                </DeleteConfirm>
               </ToastForm>
             </div>
           </div>

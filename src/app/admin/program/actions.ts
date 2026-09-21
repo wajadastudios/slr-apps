@@ -29,7 +29,8 @@ async function createProgramActionImpl(formData: FormData) {
   }
 
   revalidatePath("/admin/program");
-  redirect(`/admin/program${data ? `?id=${data.id}` : ""}`);
+  // a new program starts at the setup checklist, not on an empty edit form
+  redirect(data ? `/admin/program/setup/${data.id}` : "/admin/program");
 }
 
 async function updateSkillTemplateActionImpl(formData: FormData) {

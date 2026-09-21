@@ -8,6 +8,9 @@ import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 import { getSiteOrigin } from "@/lib/site-url";
 import { sendWhatsApp } from "@/lib/whatsapp";
+import { DAYS } from "@/lib/days";
+import { formatClock } from "@/lib/admin/format";
+import { overlaps } from "@/lib/admin/schedule-rules";
 import {
   adminCanMove,
   remainingSeats,
@@ -23,6 +26,10 @@ function back(id: string) {
 
 function fail(id: string, message: string): never {
   redirect(`${back(id)}?error=${encodeURIComponent(message)}`);
+}
+
+function failList(message: string): never {
+  redirect(`/admin/pendaftar?error=${encodeURIComponent(message)}`);
 }
 
 async function loadEnrollment(id: string) {
@@ -46,6 +53,23 @@ async function setStatusImpl(formData: FormData) {
   const from = enrollment.status as EnrollmentStatus;
   if (!adminCanMove(from, to)) fail(id, "Perubahan status ini tidak diperbolehkan.");
 
+  // A participant becomes active once the class is scheduled AND a package is
+  // paid. Without a paid invoice the admin has to say so explicitly.
+  let activationNote: string | null = null;
+  if (to === "active") {
+    const { count: paid } = await supabase
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("enrollment_id", id)
+      .eq("status", "paid");
+    if ((paid ?? 0) === 0) {
+      if (formData.get("override_unpaid") !== "on") {
+        fail(id, "Belum ada paket lunas untuk pendaftaran ini. Buat dan konfirmasi tagihan dulu, atau centang \"Aktifkan tetap\".");
+      }
+      activationNote = "Diaktifkan tanpa paket lunas oleh admin";
+    }
+  }
+
   // Ending a scheduled enrollment frees its seat.
   if (to === "cancelled" && enrollment.slot_id) {
     await supabase
@@ -68,6 +92,18 @@ async function setStatusImpl(formData: FormData) {
     .eq("id", id);
   if (error) fail(id, "Status belum dapat disimpan.");
 
+  if (activationNote) {
+    await supabase.from("activity_log").insert({
+      entity_type: "enrollments",
+      entity_id: id,
+      enrollment_id: id,
+      student_id: enrollment.student_id,
+      action: "note",
+      note: activationNote,
+      actor_id: (await supabase.auth.getUser()).data.user?.id ?? null,
+    });
+  }
+
   revalidatePath(back(id));
   revalidatePath("/admin/pendaftar");
   redirect(back(id));
@@ -88,11 +124,34 @@ async function offerScheduleImpl(formData: FormData) {
 
   const { data: slot } = await supabase
     .from("class_slots")
-    .select("id, program_id, capacity, day_of_week, start_time, location")
+    .select("id, program_id, capacity, day_of_week, start_time, duration_minutes, location")
     .eq("id", slotId)
     .maybeSingle();
   if (!slot || slot.program_id !== enrollment.program_id) {
     fail(id, "Jadwal ini bukan untuk program pendaftar.");
+  }
+
+  // The participant must be free at that time: an offer that overlaps a class
+  // they already attend could never be approved.
+  const { data: theirs } = await supabase
+    .from("schedules")
+    .select("slot:slot_id(id, day_of_week, start_time, duration_minutes, program:program_id(name))")
+    .eq("student_id", enrollment.student_id);
+  const asSlot = (x: { day_of_week: number; start_time: string; duration_minutes: number | null }) => ({
+    program_id: "",
+    pelatih_id: "",
+    location: null,
+    capacity: 1,
+    day_of_week: x.day_of_week,
+    start_time: x.start_time,
+    duration_minutes: x.duration_minutes ?? 60,
+  });
+  for (const row of theirs ?? []) {
+    const other = row.slot as unknown as { id: string; day_of_week: number; start_time: string; duration_minutes: number | null; program: { name: string } | null } | null;
+    if (!other || other.id === slotId) continue;
+    if (overlaps(asSlot(slot), asSlot(other))) {
+      fail(id, `Jadwal ini bentrok dengan kelas ${other.program?.name ?? "lain"} peserta pada ${DAYS[other.day_of_week]} pukul ${formatClock(other.start_time)}.`);
+    }
   }
 
   // A soft check so the admin does not offer a full slot; the real, atomic
@@ -210,6 +269,57 @@ async function setBillingPayerImpl(formData: FormData) {
   redirect(back(id));
 }
 
+// ---- bulk work from the pipeline ----
+// back to the same tab and filters the admin was on
+function returnTo(formData: FormData): string {
+  const to = String(formData.get("return") ?? "");
+  return to.startsWith("/admin/pendaftar") ? to : "/admin/pendaftar";
+}
+
+function ids(formData: FormData): string[] {
+  return formData.getAll("ids").map(String).filter(Boolean);
+}
+
+// "Sudah di-follow-up": a mark for the admin team, not a message to anyone.
+async function bulkFollowUpImpl(formData: FormData) {
+  const session = await requireAdmin();
+  const selected = ids(formData);
+  if (selected.length === 0) failList("Pilih pendaftar terlebih dahulu.");
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("enrollments")
+    .update({ followed_up_at: new Date().toISOString(), followed_up_by: session.user.id })
+    .in("id", selected);
+  if (error) failList("Tanda follow-up belum dapat disimpan.");
+  revalidatePath("/admin/pendaftar");
+  redirect(returnTo(formData));
+}
+
+// Valid data but no slot yet: move to the waiting list (never a rejection).
+async function bulkWaitingImpl(formData: FormData) {
+  await requireAdmin();
+  const selected = ids(formData);
+  if (selected.length === 0) failList("Pilih pendaftar terlebih dahulu.");
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("enrollments")
+    .update({ status: "waiting_schedule", updated_at: new Date().toISOString() })
+    .in("id", selected)
+    .eq("status", "pending_review");
+  if (error) failList("Status belum dapat diperbarui.");
+  revalidatePath("/admin/pendaftar");
+  redirect(returnTo(formData));
+}
+
+// One form, several buttons: the clicked button says which bulk action to run.
+async function bulkPipelineImpl(formData: FormData) {
+  const intent = String(formData.get("intent") ?? "");
+  if (intent === "waiting") return bulkWaitingImpl(formData);
+  if (intent === "followup") return bulkFollowUpImpl(formData);
+  failList("Pilih tindakan yang akan dijalankan.");
+}
+
+export const bulkPipelineAction = safeAction(bulkPipelineImpl, "Perubahan pendaftar disimpan");
 export const setBillingPayerAction = safeAction(setBillingPayerImpl, "Penanggung jawab pembayaran diperbarui");
 export const setEnrollmentStatusAction = safeAction(setStatusImpl, "Status pendaftaran diperbarui");
 export const offerScheduleAction = safeAction(offerScheduleImpl, "Penawaran jadwal dikirim ke peserta");

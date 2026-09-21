@@ -5,7 +5,7 @@ import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { EditableListField } from "@/components/ui/editable-list-field";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import { DeleteConfirm } from "@/components/admin/impact-confirm";
 import {
   createPackageAction,
   updatePackageAction,
@@ -235,12 +235,11 @@ export default async function PaketHargaPage({
                         name="program_id"
                         value={selectedProgram.id}
                       />
-                      <ConfirmSubmitButton
+                      <DeleteConfirm
                         message="Hapus paket ini? Invoice yang sudah ada tidak akan terpengaruh."
-                        className="!border-red-300 !bg-red-500/10 px-4 py-2 text-sm !text-red-700 hover:!bg-red-500/20"
                       >
                         Hapus
-                      </ConfirmSubmitButton>
+                      </DeleteConfirm>
                     </ToastForm>
                   </>
                 }

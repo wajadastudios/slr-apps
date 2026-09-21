@@ -44,7 +44,7 @@ export function ToastForm({
     if (!result) return;
 
     if (result.ok) {
-      toast.success(result.message, undefined, result.id);
+      if (result.message) toast.success(result.message, undefined, result.id);
       if (resetOnSuccess) setResetKey((k) => k + 1);
     } else {
       toast.error("Data belum tersimpan", toUserMessage(result.message), result.id);

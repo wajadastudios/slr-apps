@@ -33,12 +33,16 @@ export async function loadRegistrationPrograms(): Promise<{
   try {
     const admin = createAdminClient();
 
-    const [programsRes, slotsRes, packagesRes, availabilityRes] = await Promise.all([
+    const programsQuery = () =>
       admin
         .from("programs")
         .select("id, name, description, requires_acknowledgement, intended_gender, self_registration, audience")
         .eq("active", true)
-        .order("name"),
+        .order("name");
+
+    const [openPrograms, slotsRes, packagesRes, availabilityRes] = await Promise.all([
+      // only programs the admin marked "ready to accept registrations"
+      programsQuery().eq("registration_open", true),
       admin
         .from("class_slots")
         .select("id, program_id, label, location, day_of_week, start_time, capacity")
@@ -52,6 +56,9 @@ export async function loadRegistrationPrograms(): Promise<{
       admin.rpc("get_slot_availability"),
     ]);
 
+    // before the admin migration exists there is no such switch: every active
+    // program stays open, exactly as before
+    const programsRes = openPrograms.error ? await programsQuery() : openPrograms;
     if (programsRes.error) return { programs: [], error: true };
 
     const filled = new Map<string, number>();

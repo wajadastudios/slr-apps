@@ -4,7 +4,7 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import { DeleteConfirm } from "@/components/admin/impact-confirm";
 import {
   createFaqAction,
   updateFaqAction,
@@ -127,12 +127,11 @@ export default async function FaqPage({
                   </a>
                   <ToastForm action={deleteFaqAction} pendingLabel="Menghapus...">
                     <input type="hidden" name="faq_id" value={item.id} />
-                    <ConfirmSubmitButton
+                    <DeleteConfirm
                       message="Hapus FAQ ini?"
-                      className="!border-red-300 !bg-red-500/10 px-4 py-2 text-sm !text-red-700 hover:!bg-red-500/20"
                     >
                       Hapus
-                    </ConfirmSubmitButton>
+                    </DeleteConfirm>
                   </ToastForm>
                 </>
               }

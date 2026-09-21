@@ -1,306 +1,372 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getSiteOrigin } from "@/lib/site-url";
 import { GlassCard } from "@/components/ui/glass-card";
-import { GlassInput } from "@/components/ui/glass-input";
-import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
-import { DataRow } from "@/components/ui/data-row";
-import { CopyButton } from "@/components/ui/copy-button";
-import {
-  approveRegistrationAction,
-  rejectRegistrationAction,
-  markTrialPaidAction,
-  scheduleTrialAction,
-} from "./actions";
 import { ToastForm } from "@/components/ui/toast-form";
-import Link from "next/link";
-import { STATUS_LABEL as ENROLLMENT_LABEL, STATUS_TONE, type EnrollmentStatus } from "@/lib/enrollment";
+import { Badge, EmptyState, FIELD_CLASS, FilterBar, PageHeader, TabLinks, type Tone } from "@/components/admin/ui";
+import { SelectAll } from "@/components/admin/select-all";
+import { ADMIN_CTA, SECONDARY_BUTTON } from "@/lib/ui-classes";
+import { STATUS_LABEL, type EnrollmentStatus } from "@/lib/enrollment";
+import { selectAll } from "@/lib/admin/load";
+import { formatDate, formatDateTime } from "@/lib/admin/format";
+import { DAYS } from "@/lib/days";
+import { bulkPipelineAction } from "./kelas/actions";
+import { TrialSection, type TrialRegistration } from "./trial-section";
 
-const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
+// The pipeline, one status per tab. Terminal states live in "Riwayat".
+const TABS: { key: string; label: string; statuses: EnrollmentStatus[]; empty: string; hint: string }[] = [
+  { key: "tinjau", label: "Perlu ditinjau", statuses: ["pending_review"], empty: "Tidak ada pendaftar yang perlu ditinjau.", hint: "Pendaftar baru dari akun orang tua atau peserta dewasa akan muncul di sini." },
+  { key: "menunggu", label: "Menunggu jadwal", statuses: ["waiting_schedule"], empty: "Tidak ada pendaftar yang menunggu slot.", hint: "Pendaftar valid yang belum mendapat slot dipindahkan ke sini dari tab Perlu ditinjau." },
+  { key: "ditawarkan", label: "Jadwal ditawarkan", statuses: ["schedule_offered"], empty: "Tidak ada jadwal yang menunggu jawaban peserta.", hint: "Tawarkan slot dari halaman pendaftar; peserta menyetujuinya lewat WhatsApp atau akunnya." },
+  { key: "terjadwal", label: "Terjadwal", statuses: ["scheduled"], empty: "Belum ada pendaftar terjadwal.", hint: "Peserta yang menyetujui jadwal tampil di sini sampai kelasnya diaktifkan." },
+  { key: "aktif", label: "Aktif", statuses: ["active"], empty: "Belum ada peserta aktif.", hint: "Kelas menjadi aktif setelah terjadwal dan paket dibayar." },
+  { key: "riwayat", label: "Riwayat", statuses: ["cancelled", "rejected"], empty: "Belum ada riwayat.", hint: "Pendaftaran yang dibatalkan atau ditolak tersimpan di sini." },
+];
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "Menunggu",
-  approved: "Disetujui",
-  rejected: "Ditolak",
+const TONE: Record<EnrollmentStatus, Tone> = {
+  pending_review: "warn",
+  waiting_schedule: "info",
+  schedule_offered: "info",
+  scheduled: "ok",
+  active: "ok",
+  cancelled: "neutral",
+  rejected: "danger",
 };
 
-export default async function PendaftarPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
+const NEXT_ACTION: Record<EnrollmentStatus, string> = {
+  pending_review: "Tinjau",
+  waiting_schedule: "Atur jadwal",
+  schedule_offered: "Lihat penawaran",
+  scheduled: "Aktifkan kelas",
+  active: "Lihat peserta",
+  cancelled: "Lihat",
+  rejected: "Lihat",
+};
+
+const PERIODS: Record<string, number> = { "7": 7, "30": 30, "90": 90 };
+const TIMES: Record<string, string[]> = { pagi: ["pagi"], siang: ["siang"], sore: ["sore", "malam"] };
+const PAGE = 30;
+
+// the earliest registration time still inside the chosen period
+function periodCutoff(period: string | undefined): number | null {
+  const days = PERIODS[period ?? ""];
+  return days ? Date.now() - days * 86_400_000 : null;
+}
+
+type Row = {
+  id: string;
+  status: EnrollmentStatus;
+  preferred_schedule: string | null;
+  preferred_location: string | null;
+  created_at: string;
+  followed_up_at: string | null;
+  billing_contact_user_id: string | null;
+  student: { id: string; full_name: string; phone: string | null; parent_id: string } | null;
+  program: { id: string; name: string } | null;
+};
+
+type Params = {
+  tab?: string;
+  q?: string;
+  program?: string;
+  periode?: string;
+  fu?: string;
+  hari?: string;
+  lokasi?: string;
+  waktu?: string;
+  limit?: string;
+  error?: string;
+};
+
+function paymentBadge(invoices: { status: string }[]): { label: string; tone: Tone } {
+  if (invoices.some((i) => i.status === "paid")) return { label: "Lunas", tone: "ok" };
+  if (invoices.some((i) => i.status === "sent" || i.status === "processing")) return { label: "Menunggu pembayaran", tone: "warn" };
+  if (invoices.some((i) => i.status === "draft" || i.status === "approved")) return { label: "Draft tagihan", tone: "neutral" };
+  return { label: "Belum ada tagihan", tone: "neutral" };
+}
+
+export default async function PendaftarPage({ searchParams }: { searchParams: Promise<Params> }) {
+  const sp = await searchParams;
+  const tab = sp.tab === "trial" || TABS.some((t) => t.key === sp.tab) ? (sp.tab as string) : "tinjau";
   const supabase = await createClient();
-  const origin = await getSiteOrigin();
 
-  const [{ data: registrations }, { data: pelatihList }, { data: enrollmentQueue }] = await Promise.all([
-    supabase
-      .from("registrations")
-      .select(
-        "id, child_name, parent_name, parent_email, parent_phone, preferred_schedule, status, trial_fee_status, payment_method, trial_pelatih_id, trial_session_date, trial_session_time, trial_location, payment_token, trial_proof_url, created_at, program:program_id(name)"
-      )
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("users")
-      .select("id, full_name, title")
-      .eq("role", "pelatih")
-      .eq("active", true)
-      .order("full_name"),
-    supabase
-      .from("enrollments")
-      .select("id, status, preferred_schedule, preferred_location, created_at, student:student_id(full_name), program:program_id(name)")
-      .in("status", ["pending_review", "waiting_schedule", "schedule_offered", "scheduled"])
-      .order("created_at", { ascending: false }),
-  ]);
+  const [rows, invoices, { data: accounts }, { data: programs }, { data: registrations }, { data: pelatihList }] =
+    await Promise.all([
+      selectAll<Row>(
+        supabase,
+        "enrollments",
+        "id, status, preferred_schedule, preferred_location, created_at, followed_up_at, billing_contact_user_id, student:student_id(id, full_name, phone, parent_id), program:program_id(id, name)"
+      ),
+      selectAll<{ enrollment_id: string | null; status: string }>(supabase, "invoices", "enrollment_id, status"),
+      supabase.from("users").select("id, full_name, phone").eq("role", "ortu"),
+      supabase.from("programs").select("id, name").order("name"),
+      supabase
+        .from("registrations")
+        .select(
+          "id, child_name, parent_name, parent_email, parent_phone, preferred_schedule, status, trial_fee_status, payment_method, trial_pelatih_id, trial_session_date, trial_session_time, trial_location, payment_token, trial_proof_url, created_at, program:program_id(name)"
+        )
+        .order("created_at", { ascending: false }),
+      supabase.from("users").select("id, full_name, title").eq("role", "pelatih").eq("active", true).order("full_name"),
+    ]);
 
-  const pelatihNameById = new Map<string, string>();
-  for (const p of pelatihList ?? []) {
-    pelatihNameById.set(p.id, p.title ? `${p.title} ${p.full_name}` : p.full_name);
+  const accountById = new Map((accounts ?? []).map((a) => [a.id, a]));
+  const invoicesByEnrollment = new Map<string, { status: string }[]>();
+  for (const i of invoices) {
+    if (!i.enrollment_id) continue;
+    const list = invoicesByEnrollment.get(i.enrollment_id) ?? [];
+    list.push(i);
+    invoicesByEnrollment.set(i.enrollment_id, list);
   }
 
-  const pending = (registrations ?? []).filter((r) => r.status === "pending");
-  const others = (registrations ?? []).filter((r) => r.status !== "pending");
+  const trialPending = (registrations ?? []).filter((r) => r.status === "pending").length;
+  const countFor = (statuses: EnrollmentStatus[]) => rows.filter((r) => statuses.includes(r.status)).length;
+  const tabs = [
+    ...TABS.map((t) => ({ key: t.key, label: t.label, count: countFor(t.statuses), href: `/admin/pendaftar?tab=${t.key}` })),
+    { key: "trial", label: "Trial", count: trialPending, href: "/admin/pendaftar?tab=trial" },
+  ];
 
-  return (
-    <div className="flex flex-col gap-6">
-      {(enrollmentQueue ?? []).length > 0 && (
-        <GlassCard>
-          <h2 className={`mb-1 ${HEADING}`}>Pendaftaran Kelas</h2>
-          <p className="mb-3 text-sm text-slate-600">
-            Peserta yang sudah punya akun dan menunggu ditinjau, dijadwalkan, atau dikonfirmasi.
-          </p>
-          <div className="flex flex-col gap-2">
-            {(enrollmentQueue ?? []).map((row) => {
-              const student = row.student as unknown as { full_name: string } | null;
-              const program = row.program as unknown as { name: string } | null;
-              const status = row.status as EnrollmentStatus;
-              return (
-                <Link
-                  key={row.id}
-                  href={`/admin/pendaftar/kelas/${row.id}`}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/55 px-4 py-3 transition-colors hover:bg-[#35C5D0]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C5D0]"
-                >
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-[#17263D]">
-                      {student?.full_name ?? "Peserta"} &middot; {program?.name}
-                    </span>
-                    <span className="block text-xs text-slate-500">
-                      {[row.preferred_schedule, row.preferred_location].filter(Boolean).join(" · ") ||
-                        "Tanpa pilihan jadwal"}
-                    </span>
-                  </span>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_TONE[status]}`}>
-                    {ENROLLMENT_LABEL[status]}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </GlassCard>
-      )}
+  const header = (
+    <PageHeader
+      title="Pendaftar"
+      subtitle="Pipeline pendaftaran: tinjau, cari slot, tawarkan jadwal, lalu aktifkan."
+    />
+  );
 
-      {error && (
-        <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>
-      )}
+  if (tab === "trial") {
+    return (
+      <div className="flex flex-col gap-5">
+        {header}
+        <TabLinks tabs={tabs} active={tab} label="Tahap pendaftaran" />
+        <TrialSection
+          registrations={(registrations ?? []) as unknown as TrialRegistration[]}
+          pelatihList={pelatihList ?? []}
+          origin={await getSiteOrigin()}
+          error={sp.error}
+        />
+      </div>
+    );
+  }
 
-      <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>Menunggu Persetujuan</h2>
-        <div className="flex flex-col gap-3">
-          {pending.length === 0 && (
-            <p className="text-sm text-slate-600">Tidak ada pendaftar baru.</p>
-          )}
-          {pending.map((r) => {
-            const program = r.program as unknown as { name: string } | null;
-            const hasTrial = Boolean(r.trial_session_date);
+  const def = TABS.find((t) => t.key === tab)!;
+  const limit = Math.max(PAGE, Number(sp.limit) || PAGE);
+  const q = (sp.q ?? "").trim().toLowerCase();
+  const cutoff = periodCutoff(sp.periode);
+  const includes = (text: string | null, needle: string) => (text ?? "").toLowerCase().includes(needle.toLowerCase());
 
-            return (
-              <div
-                key={r.id}
-                className="rounded-xl border border-white/30 bg-white/40 p-4"
-              >
-                <p className="font-medium text-[#17263D]">
-                  {r.child_name} &middot; {program?.name ?? "-"}
-                  {hasTrial && (
-                    <span
-                      className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${
-                        r.trial_fee_status === "paid"
-                          ? "bg-[#55D6A6]/20 text-[#1a8f6f]"
-                          : "bg-amber-500/15 text-amber-700"
-                      }`}
+  const filtered = rows
+    .filter((r) => def.statuses.includes(r.status))
+    .filter((r) => !sp.program || r.program?.id === sp.program)
+    .filter((r) => cutoff === null || new Date(r.created_at).getTime() >= cutoff)
+    .filter((r) => (sp.fu === "belum" ? !r.followed_up_at : sp.fu === "sudah" ? !!r.followed_up_at : true))
+    .filter((r) => !sp.hari || includes(r.preferred_schedule, sp.hari))
+    .filter((r) => !sp.lokasi || includes(r.preferred_location, sp.lokasi) || includes(r.preferred_schedule, sp.lokasi))
+    .filter((r) => !sp.waktu || (TIMES[sp.waktu] ?? []).some((w) => includes(r.preferred_schedule, w)))
+    .filter((r) => {
+      if (!q) return true;
+      const account = accountById.get(r.billing_contact_user_id ?? r.student?.parent_id ?? "");
+      return [r.student?.full_name, r.student?.phone, account?.full_name, account?.phone, r.program?.name].some((v) =>
+        (v ?? "").toLowerCase().includes(q)
+      );
+    })
+    // oldest first: whoever has waited longest is on top
+    .sort((a, b) => (tab === "riwayat" || tab === "aktif" ? b.created_at.localeCompare(a.created_at) : a.created_at.localeCompare(b.created_at)));
+
+  const shown = filtered.slice(0, limit);
+  const showSlotFilters = tab === "tinjau" || tab === "menunggu";
+  const bulk = tab === "tinjau" || tab === "menunggu" || tab === "ditawarkan";
+  const keep = new URLSearchParams(Object.entries({ tab, q: sp.q, program: sp.program, periode: sp.periode, fu: sp.fu, hari: sp.hari, lokasi: sp.lokasi, waktu: sp.waktu }).filter(([, v]) => v) as [string, string][]);
+  const returnTo = `/admin/pendaftar?${keep.toString()}`;
+  const filtersActive = !!(q || sp.program || sp.periode || sp.fu || sp.hari || sp.lokasi || sp.waktu);
+
+  const list = (
+    <div className="flex flex-col gap-2">
+      {shown.map((r) => {
+        const account = accountById.get(r.billing_contact_user_id ?? r.student?.parent_id ?? "");
+        const phone = r.student?.phone || account?.phone || null;
+        const digits = phone?.replace(/[^0-9]/g, "") ?? "";
+        const pay = paymentBadge(invoicesByEnrollment.get(r.id) ?? []);
+        const preference = [r.preferred_schedule, r.preferred_location].filter(Boolean).join(" · ");
+        return (
+          <div
+            key={r.id}
+            className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-2 rounded-2xl border border-white/60 bg-white/60 px-4 py-3 md:grid-cols-[auto_minmax(0,1fr)_auto]"
+          >
+            {bulk ? (
+              <input type="checkbox" name="ids" value={r.id} aria-label={`Pilih ${r.student?.full_name}`} className="mt-1 h-4 w-4" />
+            ) : (
+              <span />
+            )}
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-sm font-semibold text-[#17263D]">{r.student?.full_name ?? "Peserta"}</span>
+                <Badge tone={TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+                <Badge tone={pay.tone}>{pay.label}</Badge>
+                {r.followed_up_at && <Badge tone="info">Sudah di-follow-up {formatDate(r.followed_up_at)}</Badge>}
+              </div>
+              <p className="mt-0.5 text-sm text-slate-700">
+                {r.program?.name ?? "Program"} · {preference || "Tanpa pilihan jadwal"}
+              </p>
+              <p className="text-xs text-slate-500">
+                Akun penagih: {account?.full_name ?? "-"} · Mendaftar {formatDateTime(r.created_at)}
+              </p>
+              {phone && (
+                <p className="text-xs text-slate-600">
+                  WhatsApp: {phone}
+                  {digits && (
+                    <a
+                      href={`https://wa.me/${digits}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 font-semibold text-[#0B6470] hover:underline"
                     >
-                      {r.trial_fee_status === "paid"
-                        ? "Sudah Bayar"
-                        : "Belum Bayar"}
-                      {r.payment_method ? ` (${r.payment_method})` : ""}
-                    </span>
+                      Buka chat
+                    </a>
                   )}
                 </p>
-                <p className="text-sm text-slate-600">
-                  Orang tua: {r.parent_name} ({r.parent_email}
-                  {r.parent_phone ? `, ${r.parent_phone}` : ""})
-                </p>
-                {r.preferred_schedule && (
-                  <p className="text-sm text-slate-600">
-                    Jadwal diminati: {r.preferred_schedule}
-                  </p>
+              )}
+            </div>
+            <Link
+              href={`/admin/pendaftar/kelas/${r.id}`}
+              className={`col-span-2 inline-flex min-h-11 items-center justify-center rounded-2xl border px-4 text-sm font-semibold md:col-span-1 ${ADMIN_CTA}`}
+            >
+              {NEXT_ACTION[r.status]}
+            </Link>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-5">
+      {header}
+      <TabLinks tabs={tabs} active={tab} label="Tahap pendaftaran" />
+
+      {sp.error && (
+        <p role="alert" className="text-sm text-red-700">
+          {decodeURIComponent(sp.error)}
+        </p>
+      )}
+
+      <FilterBar action="/admin/pendaftar">
+        <input type="hidden" name="tab" value={tab} />
+        <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs text-slate-600">
+          Cari
+          <input name="q" defaultValue={sp.q ?? ""} placeholder="Nama, WhatsApp, atau akun" className={FIELD_CLASS} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-slate-600">
+          Program
+          <select name="program" defaultValue={sp.program ?? ""} className={FIELD_CLASS}>
+            <option value="">Semua program</option>
+            {(programs ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-slate-600">
+          Periode daftar
+          <select name="periode" defaultValue={sp.periode ?? ""} className={FIELD_CLASS}>
+            <option value="">Semua waktu</option>
+            <option value="7">7 hari terakhir</option>
+            <option value="30">30 hari terakhir</option>
+            <option value="90">90 hari terakhir</option>
+          </select>
+        </label>
+        {bulk && (
+          <label className="flex flex-col gap-1 text-xs text-slate-600">
+            Follow-up
+            <select name="fu" defaultValue={sp.fu ?? ""} className={FIELD_CLASS}>
+              <option value="">Semua</option>
+              <option value="belum">Belum di-follow-up</option>
+              <option value="sudah">Sudah di-follow-up</option>
+            </select>
+          </label>
+        )}
+        {showSlotFilters && (
+          <>
+            <label className="flex flex-col gap-1 text-xs text-slate-600">
+              Hari diminati
+              <select name="hari" defaultValue={sp.hari ?? ""} className={FIELD_CLASS}>
+                <option value="">Semua hari</option>
+                {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                  <option key={d} value={DAYS[d]}>
+                    {DAYS[d]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-slate-600">
+              Waktu
+              <select name="waktu" defaultValue={sp.waktu ?? ""} className={FIELD_CLASS}>
+                <option value="">Semua waktu</option>
+                <option value="pagi">Pagi</option>
+                <option value="siang">Siang</option>
+                <option value="sore">Sore / malam</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-slate-600">
+              Lokasi
+              <input name="lokasi" defaultValue={sp.lokasi ?? ""} placeholder="Nama kolam" className={FIELD_CLASS} />
+            </label>
+          </>
+        )}
+        <GlassButton type="submit" className={`${ADMIN_CTA} px-5 py-2 text-sm`}>
+          Terapkan
+        </GlassButton>
+        {filtersActive && (
+          <Link href={`/admin/pendaftar?tab=${tab}`} className="min-h-10 self-center text-sm font-semibold text-[#0B6470] hover:underline">
+            Reset
+          </Link>
+        )}
+      </FilterBar>
+
+      {shown.length === 0 ? (
+        <EmptyState
+          title={filtersActive ? "Tidak ada pendaftar yang cocok dengan filter." : def.empty}
+          hint={filtersActive ? "Ubah atau reset filter untuk melihat lebih banyak." : def.hint}
+          action={
+            filtersActive ? (
+              <Link href={`/admin/pendaftar?tab=${tab}`} className={`inline-flex min-h-10 items-center rounded-2xl border px-4 text-sm font-semibold ${SECONDARY_BUTTON}`}>
+                Reset filter
+              </Link>
+            ) : undefined
+          }
+        />
+      ) : bulk ? (
+        <GlassCard className="flex flex-col gap-3">
+          <ToastForm action={bulkPipelineAction} className="flex flex-col gap-3">
+            <input type="hidden" name="return" value={returnTo} />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <SelectAll name="ids" />
+              <div className="flex flex-wrap items-center gap-2">
+                <GlassButton type="submit" name="intent" value="followup" className={`${SECONDARY_BUTTON} px-4 py-2 text-sm`}>
+                  Tandai sudah di-follow-up
+                </GlassButton>
+                {tab === "tinjau" && (
+                  <GlassButton type="submit" name="intent" value="waiting" className={`${SECONDARY_BUTTON} px-4 py-2 text-sm`}>
+                    Pindahkan ke Menunggu Jadwal
+                  </GlassButton>
                 )}
-
-                {!hasTrial ? (
-                  <ToastForm
-                    action={scheduleTrialAction}
-                    className="mt-3 grid gap-3 rounded-xl border border-[#35C5D0]/30 bg-[#EEF9FB] p-3 sm:grid-cols-4"
-                  >
-                    <input type="hidden" name="registration_id" value={r.id} />
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-slate-700">Pengajar</label>
-                      <GlassSelect name="trial_pelatih_id" required>
-                        <option value="">Pilih pengajar</option>
-                        {pelatihList?.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.title ? `${p.title} ${p.full_name}` : p.full_name}
-                          </option>
-                        ))}
-                      </GlassSelect>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-slate-700">Tanggal</label>
-                      <GlassInput name="trial_session_date" type="date" required />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-slate-700">Jam</label>
-                      <GlassInput name="trial_session_time" type="time" required />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-slate-700">Lokasi Kolam</label>
-                      <GlassInput
-                        name="trial_location"
-                        placeholder="Kolam A / Cabang Selatan"
-                      />
-                    </div>
-                    <GlassButton
-                      type="submit"
-                      className="!bg-[#35C5D0] px-3 py-1.5 text-xs !text-white hover:!bg-[#2bb0ba] sm:col-span-4 sm:w-fit"
-                    >
-                      Atur Jadwal Trial
-                    </GlassButton>
-                  </ToastForm>
-                ) : (
-                  <div className="mt-3 rounded-xl border border-white/30 bg-white/30 p-3">
-                    <p className="text-sm text-slate-700">
-                      Trial: {r.trial_session_date} pukul{" "}
-                      {String(r.trial_session_time).slice(0, 5)}
-                      {r.trial_location ? ` · ${r.trial_location}` : ""} · Coach{" "}
-                      {r.trial_pelatih_id
-                        ? pelatihNameById.get(r.trial_pelatih_id) ?? "-"
-                        : "-"}
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {r.payment_token && (
-                        <CopyButton
-                          value={`${origin}/trial/${r.payment_token}`}
-                          label="Salin Link Pembayaran"
-                        />
-                      )}
-                      {r.trial_proof_url && (
-                        <a
-                          href={r.trial_proof_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs text-[#35C5D0] underline"
-                        >
-                          Lihat Bukti Bayar
-                        </a>
-                      )}
-                      {r.trial_fee_status !== "paid" && (
-                        <ToastForm action={markTrialPaidAction} pendingLabel="Memproses...">
-                          <input
-                            type="hidden"
-                            name="registration_id"
-                            value={r.id}
-                          />
-                          <GlassButton type="submit" className="px-3 py-1.5 text-xs">
-                            Tandai Sudah Bayar (manual)
-                          </GlassButton>
-                        </ToastForm>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-3 flex flex-wrap items-end gap-3">
-                  <ToastForm
-                    action={approveRegistrationAction} pendingLabel="Memproses..."
-                    className="flex flex-wrap items-end gap-3"
-                  >
-                    <input type="hidden" name="registration_id" value={r.id} />
-                    <input type="hidden" name="full_name" value={r.parent_name} />
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-slate-700">
-                        Email Akun
-                      </label>
-                      <GlassInput
-                        name="email"
-                        type="email"
-                        defaultValue={r.parent_email}
-                        required
-                        className="w-48"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-slate-700">
-                        Password Awal
-                      </label>
-                      <GlassInput
-                        name="password"
-                        type="text"
-                        required
-                        minLength={6}
-                        className="w-40"
-                      />
-                    </div>
-                    <GlassButton
-                      type="submit"
-                      className="!bg-[#35C5D0] px-4 py-2 text-sm !text-white hover:!bg-[#2bb0ba]"
-                    >
-                      Setujui &amp; Buat Akun
-                    </GlassButton>
-                  </ToastForm>
-
-                  <ToastForm action={rejectRegistrationAction} pendingLabel="Memproses...">
-                    <input type="hidden" name="registration_id" value={r.id} />
-                    <GlassButton type="submit" className="px-4 py-2 text-sm">
-                      Tolak
-                    </GlassButton>
-                  </ToastForm>
-                </div>
               </div>
-            );
-          })}
-        </div>
-      </GlassCard>
+            </div>
+            {list}
+          </ToastForm>
+        </GlassCard>
+      ) : (
+        list
+      )}
 
-      <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>Riwayat Pendaftar</h2>
-        <div className="flex flex-col gap-2">
-          {others.length === 0 && (
-            <p className="text-sm text-slate-600">Belum ada.</p>
-          )}
-          {others.map((r) => {
-            const program = r.program as unknown as { name: string } | null;
-            return (
-              <DataRow
-                key={r.id}
-                primary={
-                  <>
-                    {r.child_name} &middot; {program?.name ?? "-"}
-                  </>
-                }
-                secondary={STATUS_LABEL[r.status] ?? r.status}
-              />
-            );
-          })}
-        </div>
-      </GlassCard>
+      {filtered.length > shown.length && (
+        <Link
+          href={`/admin/pendaftar?${new URLSearchParams({ ...Object.fromEntries(keep), limit: String(limit + PAGE) }).toString()}`}
+          className={`inline-flex min-h-11 w-fit items-center rounded-2xl border px-5 text-sm font-semibold ${SECONDARY_BUTTON}`}
+        >
+          Tampilkan lebih banyak ({filtered.length - shown.length} lagi)
+        </Link>
+      )}
     </div>
   );
 }

@@ -90,6 +90,11 @@ export function safeAction(impl: Impl, successMessage: string = DEFAULT_SUCCESS_
       const errorParam = url.searchParams.get("error");
       if (errorParam) return fail(errorParam);
 
+      // a step that only leads to a confirmation page is not a "saved" result
+      if (url.searchParams.get("konfirmasi") === "1") {
+        return { ok: true, message: "", redirectTo: `${url.pathname}${url.search}`, id: newId() };
+      }
+
       for (const key of FLASH_PARAMS) url.searchParams.delete(key);
       const cleaned = `${url.pathname}${url.search}`;
       return ok(successMessage, cleaned);

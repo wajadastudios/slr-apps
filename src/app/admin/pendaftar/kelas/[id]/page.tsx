@@ -9,7 +9,7 @@ import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { CopyButton } from "@/components/ui/copy-button";
 import { ToastForm } from "@/components/ui/toast-form";
-import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
+import { ImpactConfirm } from "@/components/admin/impact-confirm";
 import { PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/lib/ui-classes";
 import {
   STATUS_LABEL,
@@ -43,15 +43,21 @@ function StatusForm({
   to,
   children,
   withNote = false,
-  confirm,
+  confirmTitle,
+  impacts = [],
   primary = false,
+  unpaidOverride = false,
 }: {
   id: string;
   to: EnrollmentStatus;
   children: React.ReactNode;
   withNote?: boolean;
-  confirm?: string;
+  // set for destructive changes: a dialog explains what happens first
+  confirmTitle?: string;
+  impacts?: string[];
   primary?: boolean;
+  // becoming active needs a paid package; without one the admin must say so
+  unpaidOverride?: boolean;
 }) {
   return (
     <ToastForm
@@ -62,13 +68,14 @@ function StatusForm({
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="to" value={to} />
       {withNote && <GlassInput name="note" placeholder="Alasan (opsional)" className="min-w-[180px] text-sm" />}
-      {confirm ? (
-        <ConfirmSubmitButton
-          message={confirm}
-          className="!border-red-300 !bg-red-500/10 px-3 py-1.5 text-sm !text-red-700 hover:!bg-red-500/20"
-        >
-          {children}
-        </ConfirmSubmitButton>
+      {unpaidOverride && (
+        <label className="flex items-start gap-2 text-xs text-slate-700">
+          <input type="checkbox" name="override_unpaid" className="mt-0.5 h-4 w-4" />
+          <span>Belum ada paket lunas. Aktifkan tetap (dicatat di riwayat).</span>
+        </label>
+      )}
+      {confirmTitle ? (
+        <ImpactConfirm label={children} title={confirmTitle} impacts={impacts} destructive confirmLabel="Ya, lanjutkan" />
       ) : (
         <GlassButton type="submit" className={`${primary ? PRIMARY_BUTTON : SECONDARY_BUTTON} px-4 py-2 text-sm`}>
           {children}
@@ -111,7 +118,7 @@ export default async function EnrollmentDetailPage({
   const program = e.program as unknown as { name: string; requires_acknowledgement: boolean } | null;
   const status = e.status as EnrollmentStatus;
 
-  const [{ data: user }, { data: payerUser }, { data: slots }, { data: availability }, origin] = await Promise.all([
+  const [{ data: user }, { data: payerUser }, { data: slots }, { data: availability }, origin, { count: paidCountRaw }] = await Promise.all([
     supabase.from("users").select("full_name, email, phone").eq("id", student?.parent_id ?? "").maybeSingle(),
     supabase
       .from("users")
@@ -126,7 +133,9 @@ export default async function EnrollmentDetailPage({
       .order("start_time"),
     supabase.rpc("get_slot_availability"),
     getSiteOrigin(),
+    supabase.from("invoices").select("id", { count: "exact", head: true }).eq("enrollment_id", id).eq("status", "paid"),
   ]);
+  const paidCount = paidCountRaw ?? 0;
 
   const filled = new Map<string, number>();
   for (const a of (availability ?? []) as { slot_id: string; filled: number }[]) {
@@ -380,7 +389,7 @@ export default async function EnrollmentDetailPage({
             </StatusForm>
           )}
           {adminCanMove(status, "active") && (
-            <StatusForm id={e.id} to="active" primary>
+            <StatusForm id={e.id} to="active" primary unpaidOverride={paidCount === 0}>
               Tandai Kelas Aktif
             </StatusForm>
           )}
@@ -389,7 +398,12 @@ export default async function EnrollmentDetailPage({
               id={e.id}
               to="rejected"
               withNote
-              confirm={`Tolak pendaftaran ${student?.full_name}? Hanya untuk data tidak valid, duplikat, atau pendaftaran yang memang tidak dapat dilanjutkan. Akun peserta tetap ada.`}
+              confirmTitle={`Tolak pendaftaran ${student?.full_name}?`}
+              impacts={[
+                "Pendaftaran ditutup dan tidak dapat dibuka kembali.",
+                "Hanya untuk data tidak valid, duplikat, atau yang memang tidak dapat dilanjutkan.",
+                "Akun peserta tetap ada. Jika hanya belum ada slot, pilih Menunggu Jadwal.",
+              ]}
             >
               Tolak
             </StatusForm>
@@ -399,9 +413,12 @@ export default async function EnrollmentDetailPage({
               id={e.id}
               to="cancelled"
               withNote
-              confirm={`Batalkan pendaftaran ${student?.full_name} di ${program?.name}?${
-                e.slot_id ? " Kursi yang terkunci akan dilepas." : ""
-              }`}
+              confirmTitle={`Batalkan pendaftaran ${student?.full_name} di ${program?.name}?`}
+              impacts={[
+                e.slot_id ? "Kursi yang terkunci di slot akan dilepas." : "Tidak ada kursi yang terkunci.",
+                "Laporan yang sudah ada tetap tersimpan.",
+                "Pendaftaran ditutup dan tidak dapat dibuka kembali.",
+              ]}
             >
               Batalkan
             </StatusForm>

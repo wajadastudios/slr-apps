@@ -221,9 +221,14 @@ export function checkRequestAgainstProgram(
     requires_acknowledgement: boolean;
     intended_gender?: "male" | "female" | null;
     audience?: "child" | "adult" | "all";
+    // false = the admin has not opened this program for registrations yet
+    registration_open?: boolean;
   } | null,
   request: Pick<EnrollmentRequest, "for" | "gender" | "acknowledged">
 ): string | null {
+  if (program && program.registration_open === false) {
+    return "Program ini belum menerima pendaftar. Silakan hubungi admin.";
+  }
   if (
     !program ||
     !program.active ||

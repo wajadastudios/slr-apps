@@ -29,12 +29,14 @@ export async function submitEnrollmentRequest(
 ): Promise<EnrollmentResult> {
   const { data: program } = await supabase
     .from("programs")
-    .select("id, name, active, self_registration, requires_acknowledgement, intended_gender, audience")
+    .select("id, name, active, self_registration, requires_acknowledgement, intended_gender, audience, registration_open")
     .eq("id", request.program_id)
     .maybeSingle();
 
   const problem = checkRequestAgainstProgram(
-    program ? { ...program, intended_gender: program.intended_gender ?? null, audience: program.audience } : null,
+    program
+      ? { ...program, intended_gender: program.intended_gender ?? null, audience: program.audience, registration_open: program.registration_open }
+      : null,
     request
   );
   if (problem || !program) return { ok: false, error: problem ?? "Program tidak ditemukan." };
@@ -131,6 +133,15 @@ export async function submitChildRegistration(
     .maybeSingle();
   if (!slot || slot.program_id !== request.program_id) {
     return { ok: false, error: "Jadwal ini bukan untuk program yang dipilih." };
+  }
+
+  const { data: open } = await supabase
+    .from("programs")
+    .select("registration_open")
+    .eq("id", request.program_id)
+    .maybeSingle();
+  if (open && open.registration_open === false) {
+    return { ok: false, error: "Program ini belum menerima pendaftar. Silakan hubungi admin." };
   }
 
   const { data, error } = await supabase.rpc("register_child_enrollment", {

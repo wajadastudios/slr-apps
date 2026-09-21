@@ -549,6 +549,73 @@ const cards = await q("select e.id, p.name from public.enrollments e join public
 check("one family account shows a separate enrollment (card) per participant and program", cards.length >= 3 && new Set(cards.map((c) => c.id)).size === cards.length, JSON.stringify(cards.map((c) => c.name)));
 check("reports of Rara stay with her Kids Swim enrollment", (await q("select id from public.progress_reports where enrollment_id=$1", [rara2.id])).length === 0 && (await q("select id from public.progress_reports where enrollment_id=$1", [rara.id])).length === 1);
 
+// ---------- admin operations (0036) ----------
+await su();
+const sets = Object.fromEntries((await q("select key, value from public.site_settings where key in ('ambang_penagihan','jatuh_tempo_hari')")).map((r) => [r.key, r.value]));
+check("billing threshold defaults to 2 remaining sessions, overdue after 7 days", sets.ambang_penagihan === "2" && sets.jatuh_tempo_hari === "7", JSON.stringify(sets));
+const open = Object.fromEntries((await q("select name, registration_open from public.programs")).map((r) => [r.name, r.registration_open]));
+check("programs already running keep accepting registrations; an inactive one does not", open["Kids Swim"] === true && open["Aquanatal"] === true && open["Adaptive Swim"] === false, JSON.stringify(open));
+
+// -- slot guards (certain conflicts are blocked in the database too)
+await su();
+await db.exec(`insert into public.class_slots (id, program_id, pelatih_id, label, location, day_of_week, start_time, capacity, duration_minutes)
+  values ('${uid(700)}','${KIDS}','${PA}','Grup','Kolam CDR',2,'16:00',4,60)`);
+check("a coach cannot teach two classes at overlapping times", /slot_conflict_pelatih/.test((await fails(() => db.exec(`insert into public.class_slots (program_id, pelatih_id, label, location, day_of_week, start_time, capacity, duration_minutes) values ('${AQUA}','${PA}','Grup','Kolam Lain',2,'16:30',4,60)`))) ?? ""));
+check("an identical slot is refused as a duplicate", /slot_duplicate/.test((await fails(() => db.exec(`insert into public.class_slots (program_id, pelatih_id, label, location, day_of_week, start_time, capacity, duration_minutes) values ('${KIDS}','${PA}','Grup','Kolam CDR',2,'16:00',4,60)`))) ?? ""));
+check("back-to-back classes of one coach are fine", (await fails(() => db.exec(`insert into public.class_slots (id, program_id, pelatih_id, label, location, day_of_week, start_time, capacity, duration_minutes) values ('${uid(701)}','${KIDS}','${PA}','Grup','Kolam CDR',2,'17:00',4,60)`))) === null);
+check("a shared pool by another coach is only a warning in the app, not blocked by the database", (await fails(() => db.exec(`insert into public.class_slots (id, program_id, pelatih_id, label, location, day_of_week, start_time, capacity, duration_minutes) values ('${uid(702)}','${AQUA}','${PB}','Grup','Kolam CDR',2,'16:00',4,60)`))) === null);
+check("capacity 0 is refused", (await fails(() => db.exec(`insert into public.class_slots (program_id, pelatih_id, day_of_week, start_time, capacity) values ('${KIDS}','${PB}',3,'08:00',0)`))) !== null);
+check("editing only the capacity of a slot never trips the guards", (await fails(() => db.exec(`update public.class_slots set capacity = 6 where id='${uid(700)}'`))) === null);
+
+// -- a participant cannot sit in two overlapping classes
+await db.exec(`insert into public.students (id, full_name, parent_id) values ('${uid(710)}','Dua Kelas','${P1}')`);
+await db.exec(`insert into public.schedules (student_id, slot_id) values ('${uid(710)}','${uid(700)}')`);
+check("a participant cannot be booked into an overlapping class", /participant_conflict/.test((await fails(() => db.exec(`insert into public.schedules (student_id, slot_id) values ('${uid(710)}','${uid(702)}')`))) ?? ""));
+check("...but can attend the next one", (await fails(() => db.exec(`insert into public.schedules (student_id, slot_id) values ('${uid(710)}','${uid(701)}')`))) === null);
+
+// -- activity log
+await as(ADMIN);
+await db.query("update public.class_slots set location = 'Kolam Baru' where id = $1", [uid(700)]);
+await su();
+const slotLog = await q("select actor_name, action, changes from public.activity_log where slot_id = $1 and entity_type = 'class_slots' and action = 'update' order by created_at desc", [uid(700)]);
+check("changing a slot is logged with who and before/after", slotLog.length >= 1 && slotLog[0].actor_name === "Admin" && JSON.stringify(slotLog[0].changes.location) === JSON.stringify(["Kolam CDR", "Kolam Baru"]), JSON.stringify(slotLog[0]));
+const capLog = await q("select changes from public.activity_log where slot_id = $1 and entity_type='class_slots' and action='update' and changes ? 'capacity'", [uid(700)]);
+check("a capacity change (before the admin) is logged as well, with no actor when done by the system", capLog.length === 1 && JSON.stringify(capLog[0].changes.capacity) === JSON.stringify([4, 6]));
+const schedLog = await q("select changes from public.activity_log where entity_type = 'schedules' and action = 'insert' and student_id = $1", [uid(710)]);
+check("putting a participant in a slot is logged with the participant's name", schedLog.length >= 1 && schedLog[0].changes._student === "Dua Kelas", JSON.stringify(schedLog));
+
+// -- invoice + enrollment changes are logged, secrets are not
+await db.exec(`insert into public.invoices (id, student_id, program_package_id, package_name, sessions_count, amount, status) values ('${uid(720)}','${uid(100)}','${uid(501)}','Kids 4',4,500000,'draft')`);
+await as(ADMIN);
+await db.query("update public.invoices set status = 'paid' where id = $1", [uid(720)]);
+await su();
+const invLog = await q("select actor_name, changes from public.activity_log where invoice_id = $1 and entity_type = 'invoices' and action = 'update'", [uid(720)]);
+check("marking an invoice paid is logged (draft -> paid) with the admin", invLog.length === 1 && invLog[0].actor_name === "Admin" && JSON.stringify(invLog[0].changes.status) === JSON.stringify(["draft", "paid"]), JSON.stringify(invLog));
+check("the invoice is reachable from the participant's history", (await q("select count(*)::int c from public.activity_log where student_id = $1", [uid(100)]))[0].c >= 2);
+
+await as(ADMIN);
+await db.query("update public.enrollments set status='schedule_offered', offered_slot_id=$1, offer_token='SECRET-TOKEN', offer_expires_at=now()+interval '3 days' where id=$2", [uid(700), aquaId]).catch(() => null);
+await su();
+const enrLog = await q("select changes from public.activity_log where enrollment_id = $1 and entity_type='enrollments' and action='update' order by created_at desc limit 5", [aquaId]);
+check("no offer token ever reaches the activity log", !JSON.stringify(enrLog).includes("SECRET-TOKEN"));
+
+// -- who can read the log
+await as(ADMIN);
+check("admin reads the activity log", (await q("select id from public.activity_log limit 1")).length === 1);
+await as(P1);
+check("a parent cannot read it", (await q("select id from public.activity_log")).length === 0);
+await as(PA);
+check("a coach cannot read it", (await q("select id from public.activity_log")).length === 0);
+check("a parent cannot write into it", (await fails(() => db.exec("insert into public.activity_log (entity_type, action) values ('x','note')"))) === null ? false : true);
+
+// -- follow-up marks
+await as(ADMIN);
+await db.query("update public.enrollments set followed_up_at = now(), followed_up_by = $1 where id = $2", [ADMIN, wifeAdult.id]);
+await su();
+const fuRow = (await q("select followed_up_by from public.enrollments where id=$1", [wifeAdult.id]))[0];
+const fuLog = await q("select changes from public.activity_log where enrollment_id=$1 and action='update' and changes ? 'followed_up_at'", [wifeAdult.id]);
+check("a follow-up mark is stored and shown in the log", fuRow?.followed_up_by === ADMIN && fuLog.length === 1, JSON.stringify([fuRow, fuLog]));
+
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
 process.exit(failed.length ? 1 : 0);
