@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DAYS } from "@/lib/days";
+import { flowsFor } from "@/lib/program-audience";
 
 export type RegistrationSlot = { id: string; text: string; location: string | null };
 export type RegistrationPackage = { id: string; name: string; sessions_count: number; price: number };
@@ -71,8 +72,8 @@ export async function loadRegistrationPrograms(): Promise<{
       name: p.name,
       description: p.description ?? null,
       requires_acknowledgement: p.requires_acknowledgement === true,
-      open_for_adults: p.self_registration === true && (p.audience === "adult" || p.audience === "all"),
-      open_for_children: p.audience === "child" || p.audience === "all",
+      open_for_adults: flowsFor(p).adults,
+      open_for_children: flowsFor(p).children,
       intended_gender: p.intended_gender === "male" || p.intended_gender === "female" ? p.intended_gender : null,
       slots: (slotsRes.data ?? [])
         .filter((s) => s.program_id === p.id && s.capacity - (filled.get(s.id) ?? 0) > 0)

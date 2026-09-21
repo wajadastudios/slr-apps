@@ -367,3 +367,53 @@ test("activity entries read as one sentence with before and after", () => {
     "Pengingat: Pengingat dikirim"
   );
 });
+
+// ---------- program target group ----------
+import { AUDIENCE_OPTIONS, flowsFor, isAudience, selfRegistrationFor } from "../src/lib/program-audience";
+
+test("each SLR program lists in the right registration flow", () => {
+  const program = (audience: string, self_registration: boolean) => ({ audience, self_registration });
+  const table: [string, string, boolean, { adults: boolean; children: boolean }][] = [
+    ["Kids Swim", "child", false, { adults: false, children: true }],
+    ["Baby Swim", "child", false, { adults: false, children: true }],
+    ["Teen & Adult Swim", "adult", true, { adults: true, children: false }],
+    ["Aquanatal", "adult", true, { adults: true, children: false }],
+    ["Adaptive Swim", "all", true, { adults: true, children: true }],
+  ];
+  for (const [name, audience, self, expected] of table) {
+    assert.deepEqual(flowsFor(program(audience, self)), expected, name);
+    assert.equal(selfRegistrationFor(audience as "child" | "adult" | "all"), self, `${name}: self registration follows the category`);
+  }
+});
+
+test("an adult program that is not open for self registration never lists for adults", () => {
+  assert.deepEqual(flowsFor({ audience: "adult", self_registration: false }), { adults: false, children: false });
+  assert.deepEqual(flowsFor({ audience: null, self_registration: true }), { adults: false, children: false });
+});
+
+test("the three choices carry the agreed wording", () => {
+  assert.deepEqual(AUDIENCE_OPTIONS.map((o) => o.label), [
+    "Anak — didaftarkan oleh orang tua",
+    "Remaja & dewasa — daftar untuk diri sendiri",
+    "Semua usia — anak atau dewasa",
+  ]);
+  assert.equal(AUDIENCE_OPTIONS[0].description, "Program hanya tampil saat akun keluarga mendaftarkan anak.");
+  assert.equal(isAudience("all"), true);
+  assert.equal(isAudience("teen"), false);
+});
+
+test("a category change reads as before and after in the activity log", () => {
+  const d = describeActivity({
+    id: "1",
+    created_at: "2026-09-21T00:00:00Z",
+    actor_name: "Admin SLR",
+    entity_type: "programs",
+    action: "update",
+    changes: { audience: ["child", "all"], self_registration: [false, true] },
+    note: null,
+  });
+  assert.deepEqual(d.detail.sort(), [
+    "jalur pendaftaran: Anak — didaftarkan orang tua → Semua usia",
+    "pendaftaran mandiri: tidak aktif → aktif",
+  ]);
+});

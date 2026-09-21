@@ -1,4 +1,5 @@
 import { dayName, formatClock, rupiah } from "./format";
+import { AUDIENCE_SHORT } from "@/lib/program-audience";
 
 export type ActivityRow = {
   id: string;
@@ -43,6 +44,8 @@ const FIELD: Record<string, string> = {
   name: "nama",
   active: "aktif",
   registration_open: "menerima pendaftar",
+  audience: "jalur pendaftaran",
+  self_registration: "pendaftaran mandiri",
   price: "harga",
   followed_up_at: "follow-up",
   adjustment_note: "catatan penyesuaian",
@@ -76,6 +79,8 @@ function show(field: string, value: unknown, lookup?: NameLookup): string {
     return lookup?.("user", String(value)) ?? "pengguna lain";
   }
   if (field === "slot_id" || field === "offered_slot_id") return lookup?.("slot", String(value)) ?? "slot lain";
+  if (field === "audience") return AUDIENCE_SHORT[String(value) as keyof typeof AUDIENCE_SHORT] ?? String(value);
+  if (field === "self_registration") return value ? "aktif" : "tidak aktif";
   if (field === "followed_up_at") return "ditandai";
   return String(value);
 }

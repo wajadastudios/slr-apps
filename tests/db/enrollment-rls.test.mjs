@@ -616,6 +616,35 @@ const fuRow = (await q("select followed_up_by from public.enrollments where id=$
 const fuLog = await q("select changes from public.activity_log where enrollment_id=$1 and action='update' and changes ? 'followed_up_at'", [wifeAdult.id]);
 check("a follow-up mark is stored and shown in the log", fuRow?.followed_up_by === ADMIN && fuLog.length === 1, JSON.stringify([fuRow, fuLog]));
 
+// ---------- program target group ----------
+await su();
+await db.exec(`insert into public.programs (id, name, skill_template, active, audience, self_registration, registration_open) values ('${uid(800)}','Semua Usia','[]'::jsonb,true,'all',true,true)`);
+await db.exec(`insert into public.class_slots (id, program_id, pelatih_id, label, day_of_week, start_time, capacity) values ('${uid(801)}','${uid(800)}','${PB}','Grup',0,'07:00',5)`);
+await as(P1);
+check("a program for all ages can be booked through the child flow", (await fails(() => db.query("select * from public.register_child_enrollment(null,'Anak Semua',null,$1)", [uid(801)]))) === null);
+await as(ANDI);
+check("...and through the adult flow", (await fails(() => db.query("select * from public.register_enrollment($1,'self',null,null,null,null,null,'','','')", [uid(800)]))) === null);
+await as(P1);
+check("an adult-only program is refused in the child flow", /not open/.test((await fails(() => db.query("select * from public.register_child_enrollment(null,'Anak Salah',null,$1)", [uid(207)]))) ?? ""));
+await as(HUS);
+await su();
+await db.exec(`update public.programs set audience='child', self_registration=false where id='${KIDS}'`);
+await as(ANDI);
+check("a children-only program is refused in the adult flow", /not open/.test((await fails(() => db.query("select * from public.register_enrollment($1,'self',null,null,null,null,null,'','','')", [KIDS]))) ?? ""));
+
+// changing the target group touches nothing but the program row
+await su();
+const beforeCounts = (await q("select (select count(*)::int from public.enrollments) e, (select count(*)::int from public.schedules) s, (select count(*)::int from public.invoices) i, (select count(*)::int from public.class_slots) c, (select count(*)::int from public.progress_reports) r, (select count(*)::int from public.students) st, (select count(*)::int from public.program_packages) pk"))[0];
+await as(ADMIN);
+await db.query("update public.programs set audience='adult', self_registration=true where id=$1", [uid(800)]);
+await su();
+const afterCounts = (await q("select (select count(*)::int from public.enrollments) e, (select count(*)::int from public.schedules) s, (select count(*)::int from public.invoices) i, (select count(*)::int from public.class_slots) c, (select count(*)::int from public.progress_reports) r, (select count(*)::int from public.students) st, (select count(*)::int from public.program_packages) pk"))[0];
+check("changing a program's target group leaves enrollments, schedules, invoices, slots and reports as they were", JSON.stringify(beforeCounts) === JSON.stringify(afterCounts), JSON.stringify([beforeCounts, afterCounts]));
+const audLog = await q("select actor_name, changes from public.activity_log where program_id=$1 and entity_type='programs' and action='update' order by created_at desc limit 1", [uid(800)]);
+check("the change is logged with before, after and the admin", audLog.length === 1 && audLog[0].actor_name === "Admin" && JSON.stringify(audLog[0].changes.audience) === JSON.stringify(["all", "adult"]), JSON.stringify(audLog));
+const stillThere = (await q("select count(*)::int c from public.enrollments where program_id=$1", [uid(800)]))[0].c;
+check("existing registrations of that program stay in place after the change", stillThere === 2, String(stillThere));
+
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
 process.exit(failed.length ? 1 : 0);

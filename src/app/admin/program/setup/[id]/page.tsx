@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
-import { GlassSelect } from "@/components/ui/glass-select";
 import { ToastForm } from "@/components/ui/toast-form";
 import { Badge, PageHeader } from "@/components/admin/ui";
 import { ImpactConfirm } from "@/components/admin/impact-confirm";
 import { ADMIN_CTA, SECONDARY_BUTTON } from "@/lib/ui-classes";
+import { isAudience } from "@/lib/program-audience";
+import { AudienceForm } from "./audience-form";
 import { loadReadiness, PROGRAM_SETUP_COLUMNS, type SetupProgramRow } from "@/lib/admin/readiness-load";
 import { programChecklist, readyBlockers } from "@/lib/admin/readiness";
 import { saveAudienceAction, setRegistrationOpenAction } from "../actions";
@@ -49,6 +50,13 @@ export default async function ProgramSetupPage({
   if (!data) notFound();
   const program = data as SetupProgramRow;
 
+  // registrations and participants that belong to this program
+  const { count: related } = await supabase
+    .from("enrollments")
+    .select("id", { count: "exact", head: true })
+    .eq("program_id", program.id)
+    .not("status", "in", "(cancelled,rejected)");
+
   const input = await loadReadiness(supabase, program);
   const steps = programChecklist(input);
   const blockers = readyBlockers(input);
@@ -75,21 +83,14 @@ export default async function ProgramSetupPage({
       {note && <p className="rounded-xl bg-[#DDF3F6] px-4 py-3 text-sm text-[#0B6470]">{note}</p>}
 
       <GlassCard className="flex flex-col gap-3">
-        <h2 className={HEADING}>Kategori program</h2>
-        <ToastForm action={saveAudienceAction} className="flex flex-wrap items-end gap-2">
-          <input type="hidden" name="id" value={program.id} />
-          <div className="flex min-w-56 flex-col gap-1">
-            <label className="text-xs text-slate-600">Untuk siapa program ini?</label>
-            <GlassSelect name="audience" defaultValue={program.audience ?? "child"} glassChevron>
-              <option value="child">Anak (didaftarkan orang tua)</option>
-              <option value="adult">Remaja &amp; dewasa (pendaftaran mandiri)</option>
-              <option value="all">Semua usia</option>
-            </GlassSelect>
-          </div>
-          <GlassButton type="submit" className={`${SECONDARY_BUTTON} px-4 py-2 text-sm`}>
-            Simpan kategori
-          </GlassButton>
-        </ToastForm>
+        <h2 className={HEADING}>Target Peserta &amp; Jalur Pendaftaran</h2>
+        <AudienceForm
+          key={program.audience ?? "child"}
+          programId={program.id}
+          initial={isAudience(program.audience) ? program.audience : "child"}
+          relatedCount={related ?? 0}
+          action={saveAudienceAction}
+        />
       </GlassCard>
 
       <GlassCard className="flex flex-col gap-1">

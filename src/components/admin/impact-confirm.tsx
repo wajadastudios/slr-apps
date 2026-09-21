@@ -13,6 +13,7 @@ export function ImpactConfirm({
   impacts,
   confirmLabel = "Ya, lanjutkan",
   destructive = false,
+  primary = false,
   name,
   value,
   className,
@@ -24,6 +25,8 @@ export function ImpactConfirm({
   impacts: string[];
   confirmLabel?: string;
   destructive?: boolean;
+  // the screen's main action: the opening button uses the turquoise CTA look
+  primary?: boolean;
   name?: string;
   value?: string;
   className?: string;
@@ -38,7 +41,7 @@ export function ImpactConfirm({
       <button
         type="button"
         onClick={() => ref.current?.showModal()}
-        className={cn(base, destructive ? DESTRUCTIVE_BUTTON : SECONDARY_BUTTON, className)}
+        className={cn(base, destructive ? DESTRUCTIVE_BUTTON : primary ? ADMIN_CTA : SECONDARY_BUTTON, className)}
       >
         {label}
       </button>
