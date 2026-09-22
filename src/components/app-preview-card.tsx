@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { smoothScrollToId } from "@/lib/smooth-scroll";
 
 type Tab = "anak" | "dewasa";
 
@@ -134,6 +135,10 @@ export function AppPreviewCard() {
           </span>
           <a
             href="#contoh-aplikasi"
+            onClick={(e) => {
+              e.preventDefault();
+              smoothScrollToId("contoh-aplikasi");
+            }}
             className="text-[10px] font-semibold text-[#35C5D0] hover:underline active:text-[#0E7C89]"
           >
             Buka contoh laporan &rarr;

@@ -23,7 +23,7 @@ export function SiteNav() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="sticky top-4 z-40 mx-auto w-full max-w-6xl px-4">
+    <div id="site-nav" className="sticky top-4 z-40 mx-auto w-full max-w-6xl px-4">
       <nav className="rounded-2xl border border-white/50 bg-white/60 shadow-[0_8px_32px_rgba(31,38,135,0.12)] backdrop-blur-xl">
         <div className="flex items-center justify-between gap-2 px-4 py-1">
           <Link href="/" className="flex shrink-0 items-center gap-1.5 pl-1">

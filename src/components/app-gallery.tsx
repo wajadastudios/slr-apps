@@ -165,7 +165,7 @@ const CARD_DEFS: { key: string; title: string; icon: string }[] = [
 
 // --- Sub-components (card body content, reused by desktop deck + mobile) ---
 
-function CardRingkasan({ data }: { data: RingkasanData }) {
+function CardRingkasan({ data, compact }: { data: RingkasanData; compact?: boolean }) {
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2.5">
@@ -189,7 +189,7 @@ function CardRingkasan({ data }: { data: RingkasanData }) {
       </div>
       <div className="rounded-xl border border-slate-100 bg-white/60 px-2.5 py-2">
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Catatan coach</p>
-        <p className="text-xs leading-relaxed text-slate-700">{data.coachNote}</p>
+        <p className={`text-xs leading-relaxed text-slate-700 ${compact ? "line-clamp-2" : ""}`}>{data.coachNote}</p>
       </div>
       <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#35C5D0]" aria-hidden="true" />
@@ -199,8 +199,88 @@ function CardRingkasan({ data }: { data: RingkasanData }) {
   );
 }
 
-function CardLaporan({ data }: { data: LaporanData }) {
+/** Picks up to `max` indicators to show as a preview: done items first (max 2), then
+ * the current active one, falling back to earlier items in order if the group is short. */
+function previewIndicators(indicators: Indicator[], max = 3): Indicator[] {
+  const picked = new Set<Indicator>();
+  for (const ind of indicators) {
+    if (picked.size >= max) break;
+    const doneCount = [...picked].filter((p) => p.status === "done").length;
+    if (ind.status === "done" && doneCount < 2) picked.add(ind);
+  }
+  const active = indicators.find((i) => i.status === "active");
+  if (active && picked.size < max) picked.add(active);
+  for (const ind of indicators) {
+    if (picked.size >= max) break;
+    picked.add(ind);
+  }
+  return indicators.filter((i) => picked.has(i));
+}
+
+function CardLaporan({ data, compact }: { data: LaporanData; compact?: boolean }) {
   const [openGroup, setOpenGroup] = useState<string>(data.groups[0].name);
+
+  if (compact) {
+    const main = data.groups[0];
+    const others = data.groups.slice(1);
+    const done = main.indicators.filter((i) => i.status === "done").length;
+    const preview = previewIndicators(main.indicators);
+    const hiddenCount = main.indicators.length - preview.length;
+    return (
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Indikator perkembangan</p>
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-[#DDF7EC] px-2 py-0.5 text-[10px] font-semibold text-[#0E5A43]">
+            <span aria-hidden="true">✓</span> Hadir
+          </span>
+        </div>
+        <div className="rounded-xl border border-white/60 bg-white/40 px-3 py-2.5">
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="text-sm font-semibold text-[#17263D]">{main.name}</span>
+            <span className="rounded-full bg-[#EEF9FB] px-1.5 py-0.5 text-[10px] font-medium text-[#0B6470]">
+              {done}/{main.indicators.length}
+            </span>
+          </div>
+          <ul className="flex flex-col gap-1.5">
+            {preview.map((ind) => (
+              <li key={ind.label} className="flex items-center gap-2">
+                {ind.status === "done" ? (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#DDF7EC] text-[10px] font-bold text-[#0E5A43]" aria-hidden="true">✓</span>
+                ) : ind.status === "active" ? (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#EEF9FB]" aria-hidden="true">
+                    <span className="h-2 w-2 rounded-full bg-[#35C5D0]" />
+                  </span>
+                ) : (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100" aria-hidden="true">
+                    <span className="h-2 w-2 rounded-full bg-slate-300" />
+                  </span>
+                )}
+                <span className={`text-xs ${ind.status === "done" ? "text-slate-700" : ind.status === "active" ? "font-medium text-[#0B6470]" : "text-slate-400"}`}>
+                  {ind.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {hiddenCount > 0 && (
+            <p className="mt-1.5 text-[11px] font-medium text-[#0B6470]">+ {hiddenCount} indikator lainnya</p>
+          )}
+        </div>
+        {others.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            {others.map((g) => {
+              const d = g.indicators.filter((i) => i.status === "done").length;
+              return (
+                <div key={g.name} className="flex items-center justify-between rounded-xl bg-white/25 px-3 py-2">
+                  <span className="text-xs font-medium text-slate-500">{g.name}</span>
+                  <span className="text-[10px] text-slate-400">{d}/{g.indicators.length}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -407,10 +487,10 @@ function CardRekor({ data }: { data: RekorData }) {
   );
 }
 
-function renderCardBody(index: number, persona: Persona) {
+function renderCardBody(index: number, persona: Persona, compact = false) {
   switch (index) {
-    case 0: return <CardRingkasan data={RINGKASAN_DATA[persona]} />;
-    case 1: return <CardLaporan key={persona} data={LAPORAN_DATA[persona]} />;
+    case 0: return <CardRingkasan data={RINGKASAN_DATA[persona]} compact={compact} />;
+    case 1: return <CardLaporan key={persona} data={LAPORAN_DATA[persona]} compact={compact} />;
     case 2: return <CardPerkembangan key={persona} data={PERKEMBANGAN_DATA[persona]} />;
     default: return <CardRekor key={persona} data={REKOR_DATA[persona]} />;
   }
@@ -493,9 +573,32 @@ function deckStyle(offset: number): CSSProperties {
 export function AppGallery() {
   const [persona, setPersona] = useState<Persona>("anak");
   const [activeCard, setActiveCard] = useState(0);
+  const [observedVisible, setObservedVisible] = useState(false);
   const mobileScrollRef = useRef<HTMLDivElement>(null);
   const mobileCardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const sectionRef = useRef<HTMLDivElement>(null);
   const reducedMotion = usePrefersReducedMotion();
+  // With reduced motion, skip the observer entirely and treat the section as revealed.
+  const revealed = reducedMotion || observedVisible;
+
+  // Reveal the section with a soft fade-up + scale-in the first time it enters
+  // the viewport — whether reached by normal scrolling or the hero CTA.
+  useEffect(() => {
+    if (reducedMotion) return;
+    const el = sectionRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setObservedVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.15 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [reducedMotion]);
 
   function goTo(index: number) {
     const clamped = Math.max(0, Math.min(CARD_DEFS.length - 1, index));
@@ -537,7 +640,7 @@ export function AppGallery() {
   const current = CARD_DEFS[activeCard];
 
   return (
-    <div className="relative mx-4 sm:mx-6 lg:mx-auto lg:max-w-6xl">
+    <div ref={sectionRef} className="relative mx-4 sm:mx-6 lg:mx-auto lg:max-w-6xl">
       {/* Dark stage background, clipped separately so cards can bleed past the frame edge */}
       <div className="absolute inset-0 -z-10 overflow-hidden rounded-[2rem] sm:rounded-[2.5rem]">
         <div
@@ -561,7 +664,11 @@ export function AppGallery() {
         />
       </div>
 
-      <div className="relative z-10 flex w-full flex-col gap-6 px-5 py-12 sm:gap-7 sm:px-8 sm:py-16">
+      <div
+        className={`relative z-10 flex w-full flex-col gap-5 px-5 py-9 transition-all duration-500 ease-out sm:gap-7 sm:px-8 sm:py-16 ${
+          revealed ? "translate-y-0 scale-100 opacity-100" : "translate-y-4 scale-[0.98] opacity-0"
+        }`}
+      >
         {/* Heading */}
         <div className="mx-auto max-w-xl text-center">
           <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">
@@ -620,35 +727,39 @@ export function AppGallery() {
           })}
         </div>
 
-        {/* Mobile: single-card focus stage, only one teaser card peeking on the right */}
+        {/* Mobile: one centered card + a single decorative teaser sliver behind-right */}
         <div className="sm:hidden" role="region" aria-label="Contoh tampilan aplikasi">
           <div
             ref={mobileScrollRef}
-            className="relative left-1/2 right-1/2 -mx-[50vw] flex w-screen items-start snap-x snap-mandatory gap-2 overflow-x-auto py-3 pl-4 pr-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="relative left-1/2 right-1/2 -mx-[50vw] flex w-screen snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {CARD_DEFS.map((def, i) => {
-              const offset = i - activeCard;
-              const isActive = offset === 0;
-              const isTeaser = offset === 1;
+              const isActive = i === activeCard;
+              const hasNext = i < CARD_DEFS.length - 1;
               return (
                 <div
                   key={def.key}
                   ref={(el) => { mobileCardRefs.current[i] = el; }}
                   data-index={i}
-                  className="w-[89vw] max-w-[420px] shrink-0 snap-start transition-[transform,opacity] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
-                  style={
-                    isActive
-                      ? undefined
-                      : isTeaser
-                        ? { transform: "translateY(16px) scale(0.96)", opacity: 0.25 }
-                        : { opacity: 0 }
-                  }
+                  className="flex w-screen shrink-0 snap-start justify-center py-3"
                   aria-hidden={!isActive}
                   inert={!isActive ? true : undefined}
                 >
-                  <CardFrame icon={def.icon} title={def.title} active={isActive} flow>
-                    {renderCardBody(i, persona)}
-                  </CardFrame>
+                  <div className="relative w-[88vw] max-w-[400px]">
+                    {/* Teaser: a soft, unreadable card-shaped silhouette peeking out behind-right */}
+                    {isActive && hasNext && (
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 z-0 rounded-[26px] border border-white/25 bg-white/80"
+                        style={{ transform: "translateX(22px) scale(0.95)", opacity: 0.2 }}
+                      />
+                    )}
+                    <div className="relative z-10">
+                      <CardFrame icon={def.icon} title={def.title} active={isActive} flow>
+                        {renderCardBody(i, persona, true)}
+                      </CardFrame>
+                    </div>
+                  </div>
                 </div>
               );
             })}
