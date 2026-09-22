@@ -5,8 +5,19 @@ import type { CSSProperties } from "react";
 import { AccordionItem } from "@/components/ui/accordion";
 import { FocusTargetIcon } from "@/components/icons/focus-target-icon";
 import { APP_GALLERY_MOBILE_WIDTH_CLASS } from "@/lib/card-sizing";
+import type { IndicatorGroup } from "@/lib/indicators";
+import type { PublicProgramTemplate } from "@/lib/landing-template";
 
 type Persona = "anak" | "dewasa";
+
+interface AppGalleryProps {
+  // Real program template (indicator groups/labels, milestone names +
+  // targets), loaded server-side from the same admin-managed tables the
+  // app itself reads. null only when the matching program isn't
+  // configured yet -- never filled with invented data, see EmptyNotice.
+  kidsTemplate: PublicProgramTemplate | null;
+  dewasaTemplate: PublicProgramTemplate | null;
+}
 
 // --- Types ---
 interface RingkasanData {
@@ -14,8 +25,8 @@ interface RingkasanData {
   focus: string; coachNote: string; quota: string;
 }
 interface Indicator { label: string; status: "done" | "active" | "upcoming"; }
-interface IndicatorGroup { name: string; indicators: Indicator[]; }
-interface LaporanData { groups: IndicatorGroup[]; }
+interface IndicatorGroupCard { name: string; indicators: Indicator[]; }
+interface LaporanData { groups: IndicatorGroupCard[]; }
 interface TrendPoint { session: string; value: number; label: string; }
 interface PerkembanganData { metric: string; unit: string; points: TrendPoint[]; }
 interface AchievedRecord { medal: MedalKey; title: string; date: string; }
@@ -30,134 +41,101 @@ const MEDAL = {
   gold:   { hex: "#FFD700", bg: "bg-[#FFF8E1]", text: "text-[#5A4200]", label: "text-[#8A6400]", emoji: "🥇" },
 };
 
-// --- Data ---
-const RINGKASAN_DATA: Record<Persona, RingkasanData> = {
-  anak: {
-    name: "Nabil", program: "Kids Swim",
-    date: "Jumat, 18 Sep 2026", coach: "Coach Sari",
-    focus: "Mengambil napas ke samping",
-    coachNote: "Nabil mulai lebih nyaman memutar kepala saat bernapas. Latihan berikutnya melanjutkan ritme napas sambil menjaga posisi tubuh tetap stabil.",
+const PERSONA_NAME: Record<Persona, string> = { anak: "Nabil", dewasa: "Nabila" };
+const SESSION_LABELS = ["14 Agu", "21 Agu", "28 Agu", "4 Sep", "11 Sep", "18 Sep"];
+const ACHIEVED_DATES = ["21 Agu 2026", "4 Sep 2026", "15 Sep 2026"];
+const ACHIEVED_TIER_CYCLE: MedalKey[] = ["bronze", "silver", "bronze"];
+const FUTURE_TIER_CYCLE: MedalKey[] = ["silver", "gold", "gold"];
+
+// --- Derive display data from the real template, adding only dummy
+// STATUS/VALUES on top (never new indicator/milestone names). Any card
+// whose template data is missing renders an EmptyNotice instead of
+// fabricated content -- see the "fallback aman" rule in the task brief.
+
+/** The indicator the example session is currently focused on: the 3rd
+ * indicator of the first active group (or the last one, if the group is
+ * shorter), so the dummy story stays consistent across ringkasan/laporan/
+ * perkembangan without inventing a name of its own. */
+function findFocusIndicator(groups: IndicatorGroup[]): { label: string; groupName: string } | null {
+  const first = groups[0];
+  if (!first || first.indicators.length === 0) return null;
+  const idx = Math.min(2, first.indicators.length - 1);
+  const ind = first.indicators[idx];
+  return { label: ind.label, groupName: first.name };
+}
+
+function buildRingkasanData(persona: Persona, template: PublicProgramTemplate | null): RingkasanData {
+  const name = PERSONA_NAME[persona];
+  const programName = template?.program.name ?? "Template program sedang disiapkan";
+  const focus = template ? findFocusIndicator(template.groups) : null;
+  return {
+    name,
+    program: programName,
+    date: "Jumat, 18 Sep 2026",
+    coach: "Coach Sari",
+    focus: focus ? focus.label : "Sesi orientasi kelas",
+    coachNote: focus
+      ? `${name} berlatih indikator "${focus.label}" (kelompok ${focus.groupName}) pada sesi ini. Latihan berikutnya melanjutkan sampai indikator ini dikuasai.`
+      : "Catatan latihan akan tampil di sini setelah template penilaian program aktif.",
     quota: "Paket aktif · Sisa 4 dari 8 sesi",
-  },
-  dewasa: {
-    name: "Nabila", program: "Teen & Adult Swim",
-    date: "Jumat, 18 Sep 2026", coach: "Coach Sari",
-    focus: "Latihan pernapasan bilateral",
-    coachNote: "Nabila semakin stabil saat mengambil napas ke sisi kiri. Sesi berikutnya berfokus pada menjaga ritme napas saat jarak renang bertambah.",
-    quota: "Paket aktif · Sisa 4 dari 8 sesi",
-  },
-};
+  };
+}
 
-const LAPORAN_DATA: Record<Persona, LaporanData> = {
-  anak: {
-    groups: [
-      { name: "Dasar", indicators: [
-        { label: "Masuk air tanpa takut", status: "done" },
-        { label: "Menahan napas dalam air", status: "done" },
-        { label: "Meluncur dengan papan", status: "done" },
-        { label: "Meluncur tanpa papan", status: "done" },
-        { label: "Mengambil napas ke samping", status: "active" },
-        { label: "Koordinasi lengan & kaki", status: "upcoming" },
-      ]},
-      { name: "Menengah", indicators: [
-        { label: "Gaya crawl 10 meter", status: "upcoming" },
-        { label: "Gaya punggung dasar", status: "upcoming" },
-        { label: "Pernapasan ritmis", status: "upcoming" },
-        { label: "Push off dinding", status: "upcoming" },
-        { label: "Gaya bebas 25 meter", status: "upcoming" },
-        { label: "Koordinasi bilateral", status: "upcoming" },
-      ]},
-      { name: "Mahir", indicators: [
-        { label: "Gaya dada teknik dasar", status: "upcoming" },
-        { label: "Gaya kupu-kupu dasar", status: "upcoming" },
-        { label: "Start dari balok", status: "upcoming" },
-        { label: "Pembalikan flip turn", status: "upcoming" },
-        { label: "Gaya bebas 50 meter", status: "upcoming" },
-        { label: "Medley pendek", status: "upcoming" },
-      ]},
-    ],
-  },
-  dewasa: {
-    groups: [
-      { name: "Teknik Dasar", indicators: [
-        { label: "Posisi badan horizontal", status: "done" },
-        { label: "Koordinasi lengan crawl", status: "done" },
-        { label: "Latihan pernapasan bilateral", status: "active" },
-        { label: "Kick dan pull timing", status: "upcoming" },
-        { label: "Wall turn", status: "upcoming" },
-        { label: "Renang 25 meter tanpa henti", status: "upcoming" },
-      ]},
-      { name: "Teknik Menengah", indicators: [
-        { label: "Efisiensi stroke", status: "upcoming" },
-        { label: "Bilateral breathing stabil", status: "upcoming" },
-        { label: "Renang 50 meter", status: "upcoming" },
-        { label: "Open turn", status: "upcoming" },
-        { label: "Drills teknik lanjutan", status: "upcoming" },
-        { label: "Renang 100 meter", status: "upcoming" },
-      ]},
-      { name: "Teknik Lanjutan", indicators: [
-        { label: "Flip turn", status: "upcoming" },
-        { label: "Gaya punggung", status: "upcoming" },
-        { label: "Interval training", status: "upcoming" },
-        { label: "Renang 200 meter", status: "upcoming" },
-        { label: "Pace control", status: "upcoming" },
-        { label: "Triathlon prep", status: "upcoming" },
-      ]},
-    ],
-  },
-};
+/** Dummy progress on top of real indicators: the first group shows some
+ * "done" + one "active" (the same one findFocusIndicator picks), every
+ * other group is untouched "upcoming" -- nothing here is invented, only
+ * which real indicator is marked as already learned. */
+function buildLaporanData(groups: IndicatorGroup[]): LaporanData | null {
+  if (groups.length === 0) return null;
+  return {
+    groups: groups.map((g, groupIndex) => ({
+      name: g.name,
+      indicators: g.indicators.map((ind, i) => {
+        const status: Indicator["status"] =
+          groupIndex > 0 ? "upcoming" : i < 2 ? "done" : i === 2 ? "active" : "upcoming";
+        return { label: ind.label, status };
+      }),
+    })),
+  };
+}
 
-const PERKEMBANGAN_DATA: Record<Persona, PerkembanganData> = {
-  anak: {
-    metric: "Jarak meluncur", unit: "meter",
-    points: [
-      { session: "14 Agu", value: 2, label: "2 meter" },
-      { session: "21 Agu", value: 3, label: "3 meter" },
-      { session: "28 Agu", value: 3, label: "3 meter" },
-      { session: "4 Sep", value: 5, label: "5 meter" },
-      { session: "11 Sep", value: 6, label: "6 meter" },
-      { session: "18 Sep", value: 8, label: "8 meter" },
-    ],
-  },
-  dewasa: {
-    metric: "Jarak renang", unit: "meter",
-    points: [
-      { session: "14 Agu", value: 10, label: "10 meter" },
-      { session: "21 Agu", value: 12, label: "12 meter" },
-      { session: "28 Agu", value: 15, label: "15 meter" },
-      { session: "4 Sep", value: 18, label: "18 meter" },
-      { session: "11 Sep", value: 20, label: "20 meter" },
-      { session: "18 Sep", value: 25, label: "25 meter" },
-    ],
-  },
-};
+function buildPerkembanganData(groups: IndicatorGroup[], usesStars: boolean): PerkembanganData | null {
+  const focus = findFocusIndicator(groups);
+  if (!focus) return null;
+  const max = usesStars ? 5 : 4;
+  const values = [0.5, 1, 1.5, 2.5, 3, Math.min(3.5, max)];
+  return {
+    metric: focus.label,
+    unit: usesStars ? "dari 5" : "dari 4",
+    points: values.map((v, i) => ({
+      session: SESSION_LABELS[i],
+      value: v,
+      label: `${v} ${usesStars ? "/ 5" : "/ 4"}`,
+    })),
+  };
+}
 
-const REKOR_DATA: Record<Persona, RekorData> = {
-  anak: {
-    achieved: [
-      { medal: "bronze", title: "Mengapung terlentang mandiri", date: "21 Agu 2026" },
-      { medal: "silver", title: "Tahan napas terkontrol", date: "4 Sep 2026" },
-      { medal: "bronze", title: "Meluncur 5 meter", date: "15 Sep 2026" },
-    ],
-    futureTargets: [
-      { medal: "silver", title: "Meluncur 8 meter" },
-      { medal: "gold", title: "Renang crawl 15 meter" },
-      { medal: "gold", title: "Gaya crawl teknik lengkap" },
-    ],
-  },
-  dewasa: {
-    achieved: [
-      { medal: "bronze", title: "Renang 10 meter pertama", date: "21 Agu 2026" },
-      { medal: "silver", title: "Renang 15 meter tanpa henti", date: "4 Sep 2026" },
-      { medal: "gold", title: "Renang 25 meter crawl", date: "15 Sep 2026" },
-    ],
-    futureTargets: [
-      { medal: "gold", title: "Renang 50 meter" },
-      { medal: "gold", title: "Bilateral breathing konsisten" },
-      { medal: "gold", title: "Flip turn teknik baik" },
-    ],
-  },
-};
+/** Dummy achieved/target split over the real, active milestones: earlier
+ * ones (admin order) marked already earned at a dummy tier, the rest kept
+ * as "target berikutnya" -- never a milestone that isn't actually
+ * configured for this program, and never shown at all when the program
+ * doesn't use medals or has no active milestones. */
+function buildRekorData(template: PublicProgramTemplate): RekorData | null {
+  if (template.program.records_mode !== "medals" || template.milestones.length === 0) return null;
+  const achievedCount = Math.min(3, Math.max(0, template.milestones.length - 1));
+  const achieved: AchievedRecord[] = template.milestones.slice(0, achievedCount).map((m, i) => ({
+    medal: ACHIEVED_TIER_CYCLE[i % ACHIEVED_TIER_CYCLE.length],
+    title: m.label,
+    date: ACHIEVED_DATES[i % ACHIEVED_DATES.length],
+  }));
+  const futureTargets: FutureTarget[] = template.milestones
+    .slice(achievedCount, achievedCount + 3)
+    .map((m, i) => ({
+      medal: FUTURE_TIER_CYCLE[i % FUTURE_TIER_CYCLE.length],
+      title: m.label,
+    }));
+  return { achieved, futureTargets };
+}
 
 const CARD_DEFS: { key: string; title: string; icon: string }[] = [
   { key: "ringkasan",    title: "Ringkasan",          icon: "📋" },
@@ -166,7 +144,25 @@ const CARD_DEFS: { key: string; title: string; icon: string }[] = [
   { key: "rekor",        title: "Rekor & Pencapaian", icon: "🏅" },
 ];
 
+/** "Perkembangan Anak" for a parent's view, "Perkembangan Saya" for an
+ * adult tracking their own progress -- same distinction cardLinks() makes
+ * in src/lib/programs.ts for the real app, never "Perkembangan Anak" shown
+ * to a self-registered adult. */
+function titleFor(def: (typeof CARD_DEFS)[number], persona: Persona): string {
+  if (def.key !== "perkembangan") return def.title;
+  return persona === "anak" ? "Perkembangan Anak" : "Perkembangan Saya";
+}
+
 // --- Sub-components (card body content, reused by desktop deck + mobile) ---
+
+function EmptyNotice({ text }: { text: string }) {
+  return (
+    <div className="flex h-full min-h-[140px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 px-4 text-center">
+      <span className="text-xl" aria-hidden="true">🛠️</span>
+      <p className="text-xs text-slate-500">{text}</p>
+    </div>
+  );
+}
 
 function CardRingkasan({ data, compact }: { data: RingkasanData; compact?: boolean }) {
   return (
@@ -223,8 +219,12 @@ function previewIndicators(indicators: Indicator[], max = 3): Indicator[] {
   return indicators.filter((i) => picked.has(i));
 }
 
-function CardLaporan({ data, compact }: { data: LaporanData; compact?: boolean }) {
-  const [openGroup, setOpenGroup] = useState<string>(data.groups[0].name);
+function CardLaporan({ data, compact }: { data: LaporanData | null; compact?: boolean }) {
+  const [openGroup, setOpenGroup] = useState<string>(data?.groups[0]?.name ?? "");
+
+  if (!data) {
+    return <EmptyNotice text="Template latihan sedang disiapkan." />;
+  }
 
   if (compact) {
     const main = data.groups[0];
@@ -419,20 +419,24 @@ function TrendChart({ data }: { data: PerkembanganData }) {
   );
 }
 
-function CardPerkembangan({ data }: { data: PerkembanganData }) {
+function CardPerkembangan({ data }: { data: PerkembanganData | null }) {
+  if (!data) {
+    return <EmptyNotice text="Template latihan sedang disiapkan." />;
+  }
   const vals = data.points.map((p) => p.value);
   const delta = vals[vals.length - 1] - vals[0];
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{data.metric}</p>
-          <p className="mt-0.5 text-2xl font-bold text-[#17263D]">
-            {vals[vals.length - 1]} <span className="text-sm font-normal text-slate-500">{data.unit}</span>
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Indikator dipantau</p>
+          <p className="mt-0.5 truncate text-sm font-bold text-[#17263D]">{data.metric}</p>
+          <p className="text-xs text-slate-500">
+            {vals[vals.length - 1]} <span className="text-slate-400">{data.unit}</span>
           </p>
         </div>
-        <span className="rounded-full bg-[#DDF7EC] px-2 py-0.5 text-[10px] font-semibold text-[#0E5A43]">
-          +{delta} {data.unit} dari awal
+        <span className="shrink-0 rounded-full bg-[#DDF7EC] px-2 py-0.5 text-[10px] font-semibold text-[#0E5A43]">
+          +{delta} sejak sesi awal
         </span>
       </div>
       <div className="rounded-xl bg-white/40 p-2 pt-8">
@@ -443,55 +447,80 @@ function CardPerkembangan({ data }: { data: PerkembanganData }) {
   );
 }
 
-function CardRekor({ data }: { data: RekorData }) {
+function CardRekor({ data }: { data: RekorData | null }) {
   const [showFuture, setShowFuture] = useState(false);
+  if (!data) {
+    return <EmptyNotice text="Program ini belum menggunakan rekor/medali, atau template rekor sedang disiapkan." />;
+  }
   return (
     <div className="flex flex-col gap-2.5">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Pencapaian diraih</p>
-      <div className="flex flex-col gap-2">
-        {data.achieved.map((rec, i) => {
-          const m = MEDAL[rec.medal];
-          return (
-            <div key={i} className={`flex items-start gap-2.5 rounded-xl px-2.5 py-2 ${m.bg}`}>
-              <span className="shrink-0 text-lg leading-none" aria-hidden="true">{m.emoji}</span>
-              <div className="min-w-0">
-                <p className={`text-sm font-semibold ${m.text}`}>{rec.title}</p>
-                <p className="text-[10px] text-slate-500">{rec.date}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <AccordionItem
-        open={showFuture}
-        onToggle={() => setShowFuture((v) => !v)}
-        chevronSize="sm"
-        className="overflow-hidden rounded-xl border border-white/60 bg-white/40"
-        headerClassName="min-h-0 px-3 py-2.5"
-        header={<span className="text-xs font-semibold text-slate-700">Target berikutnya</span>}
-      >
-        <ul className="flex flex-col gap-1.5 border-t border-white/40 px-3 pb-2.5 pt-2">
-          {data.futureTargets.map((t, i) => {
-            const m = MEDAL[t.medal];
+      {data.achieved.length === 0 ? (
+        <p className="rounded-xl bg-white/40 px-2.5 py-2 text-xs text-slate-500">Belum ada rekor yang tercapai pada contoh sesi ini.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {data.achieved.map((rec, i) => {
+            const m = MEDAL[rec.medal];
             return (
-              <li key={i} className="flex items-center gap-2">
-                <span className="shrink-0 text-base leading-none" aria-hidden="true">{m.emoji}</span>
-                <span className={`text-xs ${m.text}`}>{t.title}</span>
-              </li>
+              <div key={i} className={`flex items-start gap-2.5 rounded-xl px-2.5 py-2 ${m.bg}`}>
+                <span className="shrink-0 text-lg leading-none" aria-hidden="true">{m.emoji}</span>
+                <div className="min-w-0">
+                  <p className={`text-sm font-semibold ${m.text}`}>{rec.title}</p>
+                  <p className="text-[10px] text-slate-500">{rec.date}</p>
+                </div>
+              </div>
             );
           })}
-        </ul>
-      </AccordionItem>
+        </div>
+      )}
+      {data.futureTargets.length > 0 && (
+        <AccordionItem
+          open={showFuture}
+          onToggle={() => setShowFuture((v) => !v)}
+          chevronSize="sm"
+          className="overflow-hidden rounded-xl border border-white/60 bg-white/40"
+          headerClassName="min-h-0 px-3 py-2.5"
+          header={<span className="text-xs font-semibold text-slate-700">Target berikutnya</span>}
+        >
+          <ul className="flex flex-col gap-1.5 border-t border-white/40 px-3 pb-2.5 pt-2">
+            {data.futureTargets.map((t, i) => {
+              const m = MEDAL[t.medal];
+              return (
+                <li key={i} className="flex items-center gap-2">
+                  <span className="shrink-0 text-base leading-none" aria-hidden="true">{m.emoji}</span>
+                  <span className={`text-xs ${m.text}`}>{t.title}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </AccordionItem>
+      )}
     </div>
   );
 }
 
-function renderCardBody(index: number, persona: Persona, compact = false) {
+type PersonaDeck = {
+  ringkasan: RingkasanData;
+  laporan: LaporanData | null;
+  perkembangan: PerkembanganData | null;
+  rekor: RekorData | null;
+};
+
+function buildPersonaDeck(persona: Persona, template: PublicProgramTemplate | null): PersonaDeck {
+  return {
+    ringkasan: buildRingkasanData(persona, template),
+    laporan: template ? buildLaporanData(template.groups) : null,
+    perkembangan: template ? buildPerkembanganData(template.groups, template.usesStars) : null,
+    rekor: template ? buildRekorData(template) : null,
+  };
+}
+
+function renderCardBody(index: number, persona: Persona, deck: PersonaDeck, compact = false) {
   switch (index) {
-    case 0: return <CardRingkasan data={RINGKASAN_DATA[persona]} compact={compact} />;
-    case 1: return <CardLaporan key={persona} data={LAPORAN_DATA[persona]} compact={compact} />;
-    case 2: return <CardPerkembangan key={persona} data={PERKEMBANGAN_DATA[persona]} />;
-    default: return <CardRekor key={persona} data={REKOR_DATA[persona]} />;
+    case 0: return <CardRingkasan data={deck.ringkasan} compact={compact} />;
+    case 1: return <CardLaporan key={persona} data={deck.laporan} compact={compact} />;
+    case 2: return <CardPerkembangan key={persona} data={deck.perkembangan} />;
+    default: return <CardRekor key={persona} data={deck.rekor} />;
   }
 }
 
@@ -569,7 +598,7 @@ function deckStyle(offset: number): CSSProperties {
 
 // --- Main gallery ---
 
-export function AppGallery() {
+export function AppGallery({ kidsTemplate, dewasaTemplate }: AppGalleryProps) {
   const [persona, setPersona] = useState<Persona>("anak");
   const [activeCard, setActiveCard] = useState(0);
   const [observedVisible, setObservedVisible] = useState(false);
@@ -579,6 +608,11 @@ export function AppGallery() {
   const reducedMotion = usePrefersReducedMotion();
   // With reduced motion, skip the observer entirely and treat the section as revealed.
   const revealed = reducedMotion || observedVisible;
+
+  const decks: Record<Persona, PersonaDeck> = {
+    anak: buildPersonaDeck("anak", kidsTemplate),
+    dewasa: buildPersonaDeck("dewasa", dewasaTemplate),
+  };
 
   // Reveal the section with a soft fade-up + scale-in the first time it enters
   // the viewport — whether reached by normal scrolling or the hero CTA.
@@ -637,6 +671,7 @@ export function AppGallery() {
   }
 
   const current = CARD_DEFS[activeCard];
+  const activeDeck = decks[persona];
 
   return (
     <div ref={sectionRef} className="relative mx-4 sm:mx-6 lg:mx-auto lg:max-w-6xl">
@@ -708,8 +743,8 @@ export function AppGallery() {
                 aria-hidden={!isActive}
                 inert={!isActive ? true : undefined}
               >
-                <CardFrame icon={def.icon} title={def.title} active={isActive}>
-                  {renderCardBody(i, persona)}
+                <CardFrame icon={def.icon} title={titleFor(def, persona)} active={isActive}>
+                  {renderCardBody(i, persona, activeDeck)}
                 </CardFrame>
               </div>
             );
@@ -744,8 +779,8 @@ export function AppGallery() {
                       />
                     )}
                     <div className="relative z-10">
-                      <CardFrame icon={def.icon} title={def.title} active={isActive} flow>
-                        {renderCardBody(i, persona, true)}
+                      <CardFrame icon={def.icon} title={titleFor(def, persona)} active={isActive} flow>
+                        {renderCardBody(i, persona, activeDeck, true)}
                       </CardFrame>
                     </div>
                   </div>
@@ -767,7 +802,7 @@ export function AppGallery() {
               ‹
             </button>
             <span className="min-w-[130px] text-center text-sm font-semibold text-white sm:min-w-[160px]">
-              <span aria-hidden="true">{current.icon}</span> {current.title} · {activeCard + 1}/{CARD_DEFS.length}
+              <span aria-hidden="true">{current.icon}</span> {titleFor(current, persona)} · {activeCard + 1}/{CARD_DEFS.length}
             </span>
             <button
               onClick={() => goTo(activeCard + 1)}
