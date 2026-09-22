@@ -10,6 +10,7 @@ import { FaqAccordion } from "@/components/faq-accordion";
 import { PriceAccordion, type PriceGroup } from "@/components/price-accordion";
 import { SiteNav } from "@/components/site-nav";
 import { ScheduleList, type ScheduleItem } from "@/components/schedule-list";
+import { AppPreviewCard } from "@/components/app-preview-card";
 import { DAYS } from "@/lib/days";
 
 const HEADING_FONT = "font-[family-name:var(--font-quicksand)]";
@@ -235,8 +236,8 @@ export default async function Home() {
             )}
           </div>
 
-          {/* Photo + dashboard preview column */}
-          <div className="relative mx-auto w-full max-w-md pb-44">
+          {/* Photo + app preview card column */}
+          <div className="relative mx-auto w-full max-w-md pb-72">
             <div className="relative overflow-hidden rounded-3xl border border-white/40 shadow-[0_20px_60px_rgba(23,38,61,0.25)]">
               {mediaAd1Url && mediaAd1Type === "video" ? (
                 <video
@@ -264,47 +265,9 @@ export default async function Home() {
               )}
             </div>
 
-            {/* Floating dashboard mock */}
-            <div className="absolute bottom-0 left-1/2 w-[92%] -translate-x-1/2 rounded-2xl border border-white/50 bg-white/60 p-4 shadow-[0_16px_40px_rgba(23,38,61,0.2)] backdrop-blur-xl">
-              <p className="text-sm font-semibold text-[#17263D]">
-                Selamat pagi, Bunda Riani 👋
-              </p>
-              <p className="mb-3 text-xs text-slate-500">
-                Nabil &middot; Kids Swim
-              </p>
-              <div className="grid grid-cols-2 gap-2 text-left">
-                <div className="rounded-xl bg-white/40 p-2">
-                  <p className="text-[10px] text-slate-500">Kehadiran</p>
-                  <p className="text-sm font-semibold text-[#35C5D0]">8 / 8 sesi</p>
-                </div>
-                <div className="rounded-xl bg-white/40 p-2">
-                  <p className="text-[10px] text-slate-500">Tagihan</p>
-                  <p className="text-sm font-semibold text-[#55D6A6]">Lunas</p>
-                </div>
-                <div className="rounded-xl bg-white/40 p-2">
-                  <p className="text-[10px] text-slate-500">Progress</p>
-                  <p className="text-sm font-semibold text-[#35C5D0]">72%</p>
-                </div>
-                <div className="rounded-xl bg-white/40 p-2">
-                  <p className="text-[10px] text-slate-500">Laporan</p>
-                  <p className="text-sm font-semibold text-[#55D6A6]">Tersedia</p>
-                </div>
-              </div>
-              <div className="mt-3">
-                <div className="mb-1 flex items-center justify-between text-[10px] text-slate-500">
-                  <span>Skill Renang Nabil</span>
-                  <span>72%</span>
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                  <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-[#35C5D0] to-[#55D6A6]" />
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-2 rounded-xl bg-[#FFF8E1] p-2">
-                <span className="text-base">📅</span>
-                <p className="text-[11px] font-medium text-[#17263D]">
-                  Sesi Berikutnya: Rabu &middot; 09.00&ndash;09.45 WIB &middot; Coach Sari
-                </p>
-              </div>
+            {/* Floating app preview card */}
+            <div className="absolute bottom-0 left-1/2 w-[94%] -translate-x-1/2">
+              <AppPreviewCard />
             </div>
           </div>
         </div>
@@ -316,6 +279,54 @@ export default async function Home() {
           <VideoAdsPlayer src={videoAdsUrl} />
         </section>
       )}
+
+      {/* App feature highlight */}
+      <section id="laporan-latihan" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-6 px-6">
+        <div className="text-center">
+          <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D] sm:text-3xl`}>
+            Perkembangan latihan terasa lebih jelas.
+          </h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">
+            Setiap sesi, orang tua dan peserta mendapat gambaran yang nyata — fokus latihan hari itu,
+            target berikutnya, dan sisa kuota sesi — semua dalam satu tampilan.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <GlassCard tone="soft" className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EEF9FB] text-lg">
+              📋
+            </span>
+            <div>
+              <h3 className="font-semibold text-[#17263D]">Laporan setelah latihan</h3>
+              <p className="mt-0.5 text-sm text-slate-600">
+                Ringkasan sesi tersedia langsung setelah latihan selesai, bisa dibuka kapan saja.
+              </p>
+            </div>
+          </GlassCard>
+          <GlassCard tone="soft" className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FFF8E1] text-lg">
+              📅
+            </span>
+            <div>
+              <h3 className="font-semibold text-[#17263D]">Jadwal &amp; kuota sesi transparan</h3>
+              <p className="mt-0.5 text-sm text-slate-600">
+                Pantau jadwal berikutnya, riwayat kehadiran, dan sisa sesi paket aktif.
+              </p>
+            </div>
+          </GlassCard>
+          <GlassCard tone="soft" className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F0F2F5] text-lg">
+              🏅
+            </span>
+            <div>
+              <h3 className="font-semibold text-[#17263D]">Target latihan yang memotivasi</h3>
+              <p className="mt-0.5 text-sm text-slate-600">
+                Milestone yang jelas dari pengenalan air hingga renang mandiri, dengan penanda pencapaian nyata.
+              </p>
+            </div>
+          </GlassCard>
+        </div>
+      </section>
 
       {/* Programs */}
       <section id="kelas" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-4 px-6 text-center">
