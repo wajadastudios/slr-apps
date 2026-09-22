@@ -330,18 +330,7 @@ export default async function Home() {
       </section>
 
       {/* App gallery */}
-      <section id="contoh-aplikasi" className="mx-auto flex w-full max-w-4xl scroll-mt-24 flex-col gap-6 px-6 sm:px-10">
-        <div className="text-center">
-          <span className="mb-2 inline-block rounded-full border border-slate-200/80 bg-white/80 px-3 py-0.5 text-[11px] font-medium text-slate-500">
-            Contoh tampilan aplikasi
-          </span>
-          <h2 className={`${HEADING_FONT} text-2xl font-bold text-[#17263D] sm:text-3xl`}>
-            Pantau setiap langkah perkembangan di air.
-          </h2>
-          <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">
-            Dari ringkasan sesi hingga rekor pribadi — semua tersedia dalam satu platform yang mudah dipahami orang tua dan peserta.
-          </p>
-        </div>
+      <section id="contoh-aplikasi" className="scroll-mt-24">
         <AppGallery />
       </section>
 

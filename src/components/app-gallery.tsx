@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useId } from "react";
+import { useEffect, useRef, useState, useId, useSyncExternalStore } from "react";
+import type { CSSProperties } from "react";
 
 type Persona = "anak" | "dewasa";
 
@@ -131,9 +132,9 @@ const PERKEMBANGAN_DATA: Record<Persona, PerkembanganData> = {
 const REKOR_DATA: Record<Persona, RekorData> = {
   anak: {
     achieved: [
-      { medal: "bronze", title: "Berani masuk kolam mandiri", date: "21 Agu 2024" },
-      { medal: "bronze", title: "Meluncur 2 meter", date: "21 Agu 2024" },
-      { medal: "silver", title: "Meluncur 5 meter", date: "11 Sep 2024" },
+      { medal: "bronze", title: "Mengapung terlentang mandiri", date: "21 Agu 2024" },
+      { medal: "silver", title: "Tahan napas terkontrol", date: "4 Sep 2024" },
+      { medal: "bronze", title: "Meluncur 5 meter", date: "11 Sep 2024" },
     ],
     futureTargets: [
       { medal: "silver", title: "Meluncur 8 meter" },
@@ -157,12 +158,12 @@ const REKOR_DATA: Record<Persona, RekorData> = {
 
 const CARD_DEFS: { key: string; title: string; icon: string }[] = [
   { key: "ringkasan",    title: "Ringkasan",          icon: "📋" },
-  { key: "laporan",      title: "Laporan",             icon: "📝" },
-  { key: "perkembangan", title: "Perkembangan",        icon: "📈" },
-  { key: "rekor",        title: "Rekor & Pencapaian",  icon: "🏅" },
+  { key: "laporan",      title: "Laporan Terbaru",    icon: "📝" },
+  { key: "perkembangan", title: "Perkembangan",       icon: "📈" },
+  { key: "rekor",        title: "Rekor & Pencapaian", icon: "🏅" },
 ];
 
-// --- Sub-components ---
+// --- Sub-components (card body content, reused by desktop deck + mobile) ---
 
 function CardRingkasan({ data }: { data: RingkasanData }) {
   return (
@@ -406,124 +407,261 @@ function CardRekor({ data }: { data: RekorData }) {
   );
 }
 
+function renderCardBody(index: number, persona: Persona) {
+  switch (index) {
+    case 0: return <CardRingkasan data={RINGKASAN_DATA[persona]} />;
+    case 1: return <CardLaporan key={persona} data={LAPORAN_DATA[persona]} />;
+    case 2: return <CardPerkembangan key={persona} data={PERKEMBANGAN_DATA[persona]} />;
+    default: return <CardRekor key={persona} data={REKOR_DATA[persona]} />;
+  }
+}
+
+/** App-page-like frame: faux notch + icon/title header, scrollable body. */
+function CardFrame({
+  icon, title, active, children,
+}: { icon: string; title: string; active?: boolean; children: React.ReactNode }) {
+  return (
+    <div
+      className={`flex h-full flex-col overflow-hidden rounded-[26px] border bg-white/95 backdrop-blur-2xl transition-shadow duration-300 ${
+        active
+          ? "border-white/70 shadow-[0_35px_70px_-15px_rgba(4,15,28,0.65)]"
+          : "border-white/40 shadow-[0_20px_40px_-15px_rgba(4,15,28,0.45)]"
+      }`}
+    >
+      <div className="flex items-center justify-center pt-2.5" aria-hidden="true">
+        <div className="h-1 w-9 rounded-full bg-slate-300/70" />
+      </div>
+      <div className="flex items-center gap-2 px-4 pb-2.5 pt-2 sm:px-5">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#35C5D0]/15 text-sm" aria-hidden="true">
+          {icon}
+        </span>
+        <p className="font-[family-name:var(--font-quicksand)] text-sm font-bold text-[#17263D]">{title}</p>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto border-t border-slate-100 px-4 py-3 sm:px-5">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function subscribeReducedMotion(callback: () => void) {
+  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  mq.addEventListener("change", callback);
+  return () => mq.removeEventListener("change", callback);
+}
+
+function usePrefersReducedMotion() {
+  return useSyncExternalStore(
+    subscribeReducedMotion,
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    () => false,
+  );
+}
+
+/** Positions each deck card relative to the active one: center / side / teaser / hidden. */
+function deckStyle(offset: number): CSSProperties {
+  const abs = Math.abs(offset);
+  if (abs > 2) {
+    return {
+      transform: `translateX(-50%) translateX(${offset > 0 ? 130 : -130}%) scale(0.6)`,
+      opacity: 0,
+      zIndex: 0,
+      pointerEvents: "none",
+    };
+  }
+  const sign = Math.sign(offset);
+  const translateX = abs === 0 ? 0 : abs === 1 ? 60 : 96;
+  const translateY = abs === 0 ? 0 : abs === 1 ? 20 : 36;
+  const scale = abs === 0 ? 1 : abs === 1 ? 0.86 : 0.74;
+  const rotate = abs === 0 ? 0 : sign * (abs === 1 ? 6 : 3);
+  const opacity = abs === 0 ? 1 : abs === 1 ? 0.7 : 0.32;
+  const zIndex = 30 - abs * 10;
+  return {
+    transform: `translateX(-50%) translateX(${translateX * sign}%) translateY(${translateY}px) scale(${scale}) rotate(${rotate}deg)`,
+    opacity,
+    zIndex,
+    pointerEvents: abs === 0 ? "auto" : "none",
+  };
+}
+
 // --- Main gallery ---
 
 export function AppGallery() {
   const [persona, setPersona] = useState<Persona>("anak");
   const [activeCard, setActiveCard] = useState(0);
   const touchStartX = useRef(0);
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
+  const mobileCardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const reducedMotion = usePrefersReducedMotion();
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "ArrowLeft")  { e.preventDefault(); setActiveCard((c) => Math.max(0, c - 1)); }
-    if (e.key === "ArrowRight") { e.preventDefault(); setActiveCard((c) => Math.min(3, c + 1)); }
+  function goTo(index: number) {
+    const clamped = Math.max(0, Math.min(CARD_DEFS.length - 1, index));
+    setActiveCard(clamped);
+    if (typeof window !== "undefined" && window.innerWidth < 640) {
+      mobileCardRefs.current[clamped]?.scrollIntoView({
+        behavior: reducedMotion ? "auto" : "smooth",
+        inline: "start",
+        block: "nearest",
+      });
+    }
   }
 
+  // Sync activeCard when the user swipes the mobile track manually.
+  useEffect(() => {
+    const container = mobileScrollRef.current;
+    if (!container) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const mostVisible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (mostVisible) {
+          const idx = Number((mostVisible.target as HTMLElement).dataset.index);
+          if (!Number.isNaN(idx)) setActiveCard(idx);
+        }
+      },
+      { root: container, threshold: [0.55] },
+    );
+    mobileCardRefs.current.forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [persona]);
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "ArrowLeft") { e.preventDefault(); goTo(activeCard - 1); }
+    if (e.key === "ArrowRight") { e.preventDefault(); goTo(activeCard + 1); }
+  }
+
+  const current = CARD_DEFS[activeCard];
+
   return (
-    <div className="flex flex-col gap-4">
-      {/* Persona switch */}
-      <div className="flex justify-center">
-        <div role="tablist" aria-label="Pilih persona" className="flex rounded-xl border border-white/60 bg-white/40 p-1 shadow-sm">
-          {(["anak", "dewasa"] as Persona[]).map((p) => (
-            <button
-              key={p}
-              role="tab"
-              aria-selected={persona === p}
-              onClick={() => setPersona(p)}
-              className={`rounded-lg px-5 py-1.5 text-sm font-semibold transition-all duration-200 ${
-                persona === p ? "bg-[#35C5D0] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {p === "anak" ? "Untuk Anak" : "Untuk Dewasa"}
-            </button>
-          ))}
-        </div>
+    <div className="relative mx-4 sm:mx-6 lg:mx-auto lg:max-w-6xl">
+      {/* Dark stage background, clipped separately so cards can bleed past the frame edge */}
+      <div className="absolute inset-0 -z-10 overflow-hidden rounded-[2rem] sm:rounded-[2.5rem]">
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 55% at 50% -8%, rgba(53,197,208,0.38), transparent 60%), linear-gradient(180deg, #0A2233 0%, #0D3A48 32%, #12586A 62%, #1C8DA0 100%)",
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-70"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 18% 22%, rgba(255,255,255,0.06), transparent 38%), radial-gradient(circle at 82% 12%, rgba(255,255,255,0.07), transparent 34%), radial-gradient(circle at 65% 82%, rgba(255,255,255,0.05), transparent 42%), radial-gradient(circle at 12% 78%, rgba(255,255,255,0.04), transparent 40%)",
+          }}
+          aria-hidden="true"
+        />
+        <div
+          className="absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#35C5D0] opacity-30 blur-[110px]"
+          aria-hidden="true"
+        />
       </div>
 
-      {/* Gallery */}
-      <div
-        className="relative"
-        onKeyDown={handleKeyDown}
-        tabIndex={-1}
-        role="region"
-        aria-label="Contoh tampilan aplikasi"
-      >
-        {/* Prev arrow (desktop) */}
-        <button
-          onClick={() => setActiveCard((c) => Math.max(0, c - 1))}
-          disabled={activeCard === 0}
-          aria-label="Kartu sebelumnya"
-          className="absolute -left-5 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/60 bg-white/80 text-xl text-slate-600 shadow-sm backdrop-blur-md transition hover:bg-white hover:text-[#17263D] disabled:pointer-events-none disabled:opacity-30 sm:flex"
-        >
-          ‹
-        </button>
+      <div className="relative z-10 flex w-full flex-col gap-6 px-5 py-12 sm:gap-7 sm:px-8 sm:py-16">
+        {/* Heading */}
+        <div className="mx-auto max-w-xl text-center">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">
+            Contoh Tampilan Aplikasi
+          </span>
+          <h2 className="mt-2 font-[family-name:var(--font-quicksand)] text-2xl font-bold text-white sm:text-3xl lg:text-4xl">
+            Pantau perjalanan latihan, satu langkah demi satu langkah.
+          </h2>
+          <p className="mx-auto mt-2.5 max-w-md text-sm text-white/70 sm:text-base">
+            Laporan sesi, arah latihan, dan pencapaian rekor tersimpan dalam satu tempat.
+          </p>
+        </div>
 
-        {/* Carousel track */}
-        <div className="overflow-hidden rounded-2xl">
-          <div
-            className="flex transition-transform duration-300 ease-out"
-            style={{ transform: `translateX(-${activeCard * 100}%)` }}
-            onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
-            onTouchEnd={(e) => {
-              const dx = e.changedTouches[0].clientX - touchStartX.current;
-              if (dx < -40) setActiveCard((c) => Math.min(3, c + 1));
-              else if (dx > 40) setActiveCard((c) => Math.max(0, c - 1));
-            }}
-          >
-            {CARD_DEFS.map((def, i) => (
-              <div
-                key={def.key}
-                className="min-w-full"
-                aria-hidden={i !== activeCard}
-                inert={i !== activeCard ? true : undefined}
+        {/* Persona switch */}
+        <div className="flex justify-center">
+          <div role="tablist" aria-label="Pilih persona" className="flex rounded-full border border-white/15 bg-[#081E2A]/55 p-1 shadow-[0_8px_24px_rgba(2,10,18,0.35)] backdrop-blur-xl">
+            {(["anak", "dewasa"] as Persona[]).map((p) => (
+              <button
+                key={p}
+                role="tab"
+                aria-selected={persona === p}
+                onClick={() => setPersona(p)}
+                className={`rounded-full px-5 py-1.5 text-sm font-semibold transition-all duration-200 ${
+                  persona === p ? "bg-white text-[#0E7C89] shadow-sm" : "text-white/70 hover:text-white"
+                }`}
               >
-                <div className="m-0.5 rounded-2xl border border-white/50 bg-white/60 p-4 shadow-[0_8px_30px_rgba(23,38,61,0.1)] backdrop-blur-xl">
-                  <div className="mb-3 flex items-center gap-2 border-b border-white/40 pb-2.5">
-                    <span className="text-base leading-none" aria-hidden="true">{def.icon}</span>
-                    <h3 className="font-[family-name:var(--font-quicksand)] text-sm font-bold text-[#17263D]">
-                      {def.title}
-                    </h3>
-                  </div>
-                  <div className="min-h-[240px]">
-                    {i === 0 && <CardRingkasan data={RINGKASAN_DATA[persona]} />}
-                    {i === 1 && <CardLaporan key={persona} data={LAPORAN_DATA[persona]} />}
-                    {i === 2 && <CardPerkembangan key={persona} data={PERKEMBANGAN_DATA[persona]} />}
-                    {i === 3 && <CardRekor key={persona} data={REKOR_DATA[persona]} />}
-                  </div>
-                </div>
-              </div>
+                {p === "anak" ? "Untuk Anak" : "Untuk Dewasa"}
+              </button>
             ))}
           </div>
         </div>
 
-        {/* Next arrow (desktop) */}
-        <button
-          onClick={() => setActiveCard((c) => Math.min(3, c + 1))}
-          disabled={activeCard === 3}
-          aria-label="Kartu berikutnya"
-          className="absolute -right-5 top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/60 bg-white/80 text-xl text-slate-600 shadow-sm backdrop-blur-md transition hover:bg-white hover:text-[#17263D] disabled:pointer-events-none disabled:opacity-30 sm:flex"
+        {/* Desktop card-deck stage */}
+        <div
+          className="relative hidden h-[420px] sm:block"
+          onKeyDown={handleKeyDown}
+          role="region"
+          aria-label="Contoh tampilan aplikasi"
         >
-          ›
-        </button>
-      </div>
+          {CARD_DEFS.map((def, i) => {
+            const offset = i - activeCard;
+            const isActive = offset === 0;
+            return (
+              <div
+                key={def.key}
+                className="absolute left-1/2 top-0 h-[420px] w-[290px] transition-[transform,opacity] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[320px] md:w-[350px]"
+                style={deckStyle(offset)}
+                aria-hidden={!isActive}
+                inert={!isActive ? true : undefined}
+              >
+                <CardFrame icon={def.icon} title={def.title} active={isActive}>
+                  {renderCardBody(i, persona)}
+                </CardFrame>
+              </div>
+            );
+          })}
+        </div>
 
-      {/* Position indicator */}
-      <div className="flex flex-col items-center gap-2">
-        <div className="flex items-center gap-2" role="group" aria-label="Navigasi kartu">
+        {/* Mobile: one full card + next card peeking, swipe with scroll-snap */}
+        <div
+          ref={mobileScrollRef}
+          className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:hidden [&::-webkit-scrollbar]:hidden"
+          onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+        >
           {CARD_DEFS.map((def, i) => (
-            <button
+            <div
               key={def.key}
-              onClick={() => setActiveCard(i)}
-              aria-label={def.title}
-              aria-pressed={i === activeCard}
-              className={`h-1.5 rounded-full transition-all duration-200 ${
-                i === activeCard ? "w-6 bg-[#35C5D0]" : "w-1.5 bg-slate-300 hover:bg-slate-400"
-              }`}
-            />
+              ref={(el) => { mobileCardRefs.current[i] = el; }}
+              data-index={i}
+              className="h-[440px] w-[84%] shrink-0 snap-start"
+              aria-hidden={i !== activeCard}
+            >
+              <CardFrame icon={def.icon} title={def.title} active={i === activeCard}>
+                {renderCardBody(i, persona)}
+              </CardFrame>
+            </div>
           ))}
         </div>
-        <p className="text-[11px] font-medium text-slate-500">
-          {CARD_DEFS[activeCard].icon} {CARD_DEFS[activeCard].title}
-        </p>
+
+        {/* Floating glass pill controls */}
+        <div className="flex justify-center">
+          <div className="flex items-center gap-3 rounded-full border border-white/15 bg-[#081E2A]/55 px-2.5 py-2 shadow-[0_8px_24px_rgba(2,10,18,0.35)] backdrop-blur-xl sm:gap-4 sm:px-3">
+            <button
+              onClick={() => goTo(activeCard - 1)}
+              disabled={activeCard === 0}
+              aria-label="Kartu sebelumnya"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg text-white transition hover:bg-white/25 disabled:pointer-events-none disabled:opacity-30"
+            >
+              ‹
+            </button>
+            <span className="min-w-[130px] text-center text-sm font-semibold text-white sm:min-w-[160px]">
+              <span aria-hidden="true">{current.icon}</span> {current.title} · {activeCard + 1}/{CARD_DEFS.length}
+            </span>
+            <button
+              onClick={() => goTo(activeCard + 1)}
+              disabled={activeCard === CARD_DEFS.length - 1}
+              aria-label="Kartu berikutnya"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-lg text-white transition hover:bg-white/25 disabled:pointer-events-none disabled:opacity-30"
+            >
+              ›
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
