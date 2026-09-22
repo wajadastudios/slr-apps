@@ -416,13 +416,17 @@ function renderCardBody(index: number, persona: Persona) {
   }
 }
 
-/** App-page-like frame: faux notch + icon/title header, scrollable body. */
+/**
+ * App-page-like frame: faux notch + icon/title header, scrollable body.
+ * `flow`: mobile mode — height grows with content instead of filling a fixed
+ * box, so long reports/records are never clipped.
+ */
 function CardFrame({
-  icon, title, active, children,
-}: { icon: string; title: string; active?: boolean; children: React.ReactNode }) {
+  icon, title, active, flow, children,
+}: { icon: string; title: string; active?: boolean; flow?: boolean; children: React.ReactNode }) {
   return (
     <div
-      className={`flex h-full flex-col overflow-hidden rounded-[26px] border bg-white/95 backdrop-blur-2xl transition-shadow duration-300 ${
+      className={`flex ${flow ? "h-auto min-h-[420px]" : "h-full"} flex-col overflow-hidden rounded-[26px] border bg-white/95 backdrop-blur-2xl transition-shadow duration-300 ${
         active
           ? "border-white/70 shadow-[0_35px_70px_-15px_rgba(4,15,28,0.65)]"
           : "border-white/40 shadow-[0_20px_40px_-15px_rgba(4,15,28,0.45)]"
@@ -437,7 +441,7 @@ function CardFrame({
         </span>
         <p className="font-[family-name:var(--font-quicksand)] text-sm font-bold text-[#17263D]">{title}</p>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto border-t border-slate-100 px-4 py-3 sm:px-5">
+      <div className={`min-h-0 flex-1 ${flow ? "overflow-visible" : "overflow-y-auto"} border-t border-slate-100 px-4 py-3 sm:px-5`}>
         {children}
       </div>
     </div>
@@ -489,7 +493,6 @@ function deckStyle(offset: number): CSSProperties {
 export function AppGallery() {
   const [persona, setPersona] = useState<Persona>("anak");
   const [activeCard, setActiveCard] = useState(0);
-  const touchStartX = useRef(0);
   const mobileScrollRef = useRef<HTMLDivElement>(null);
   const mobileCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const reducedMotion = usePrefersReducedMotion();
@@ -553,7 +556,7 @@ export function AppGallery() {
           aria-hidden="true"
         />
         <div
-          className="absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#35C5D0] opacity-30 blur-[110px]"
+          className="absolute left-1/2 top-1/2 h-[220px] w-[220px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#35C5D0] opacity-20 blur-[70px] sm:h-[420px] sm:w-[420px] sm:opacity-30 sm:blur-[110px]"
           aria-hidden="true"
         />
       </div>
@@ -581,7 +584,7 @@ export function AppGallery() {
                 role="tab"
                 aria-selected={persona === p}
                 onClick={() => setPersona(p)}
-                className={`rounded-full px-5 py-1.5 text-sm font-semibold transition-all duration-200 ${
+                className={`flex min-h-[44px] items-center justify-center rounded-full px-5 text-sm font-semibold transition-all duration-200 ${
                   persona === p ? "bg-white text-[#0E7C89] shadow-sm" : "text-white/70 hover:text-white"
                 }`}
               >
@@ -617,25 +620,39 @@ export function AppGallery() {
           })}
         </div>
 
-        {/* Mobile: one full card + next card peeking, swipe with scroll-snap */}
-        <div
-          ref={mobileScrollRef}
-          className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-1 [scrollbar-width:none] sm:hidden [&::-webkit-scrollbar]:hidden"
-          onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
-        >
-          {CARD_DEFS.map((def, i) => (
-            <div
-              key={def.key}
-              ref={(el) => { mobileCardRefs.current[i] = el; }}
-              data-index={i}
-              className="h-[440px] w-[84%] shrink-0 snap-start"
-              aria-hidden={i !== activeCard}
-            >
-              <CardFrame icon={def.icon} title={def.title} active={i === activeCard}>
-                {renderCardBody(i, persona)}
-              </CardFrame>
-            </div>
-          ))}
+        {/* Mobile: single-card focus stage, only one teaser card peeking on the right */}
+        <div className="sm:hidden" role="region" aria-label="Contoh tampilan aplikasi">
+          <div
+            ref={mobileScrollRef}
+            className="relative left-1/2 right-1/2 -mx-[50vw] flex w-screen items-start snap-x snap-mandatory gap-2 overflow-x-auto py-3 pl-4 pr-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {CARD_DEFS.map((def, i) => {
+              const offset = i - activeCard;
+              const isActive = offset === 0;
+              const isTeaser = offset === 1;
+              return (
+                <div
+                  key={def.key}
+                  ref={(el) => { mobileCardRefs.current[i] = el; }}
+                  data-index={i}
+                  className="w-[89vw] max-w-[420px] shrink-0 snap-start transition-[transform,opacity] duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+                  style={
+                    isActive
+                      ? undefined
+                      : isTeaser
+                        ? { transform: "translateY(16px) scale(0.96)", opacity: 0.25 }
+                        : { opacity: 0 }
+                  }
+                  aria-hidden={!isActive}
+                  inert={!isActive ? true : undefined}
+                >
+                  <CardFrame icon={def.icon} title={def.title} active={isActive} flow>
+                    {renderCardBody(i, persona)}
+                  </CardFrame>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Floating glass pill controls */}
