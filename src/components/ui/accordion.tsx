@@ -8,12 +8,12 @@ import { cn } from "@/lib/utils";
 type Variant = "landing" | "ortu";
 
 const EASE: Record<Variant, string> = {
-  landing: "ease-[cubic-bezier(0.32,0.72,0,1)]",
+  landing: "ease-[cubic-bezier(0.22,1,0.36,1)]",
   ortu: "ease-[cubic-bezier(0.22,1,0.36,1)]",
 };
 
 const LIFT_CLOSED: Record<Variant, string> = {
-  landing: "-translate-y-1",
+  landing: "-translate-y-[6px]",
   ortu: "-translate-y-2",
 };
 

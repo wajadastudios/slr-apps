@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { GlassButton } from "@/components/ui/glass-button";
+import { smoothScrollToId } from "@/lib/smooth-scroll";
 
 const NAV = [
   { href: "#kelas", label: "Program" },
@@ -22,6 +23,11 @@ const MOBILE_LINK_CLASS =
 export function SiteNav() {
   const [open, setOpen] = useState(false);
 
+  function handleNavClick(e: MouseEvent<HTMLAnchorElement>, href: string) {
+    e.preventDefault();
+    smoothScrollToId(href.slice(1));
+  }
+
   return (
     <div id="site-nav" className="sticky top-4 z-40 mx-auto w-full max-w-6xl px-4">
       <nav className="rounded-2xl border border-white/50 bg-white/60 shadow-[0_8px_32px_rgba(31,38,135,0.12)] backdrop-blur-xl">
@@ -36,7 +42,12 @@ export function SiteNav() {
           {/* Desktop nav */}
           <div className="hidden shrink-0 flex-nowrap items-center gap-1 sm:flex">
             {NAV.map((item) => (
-              <a key={item.href} href={item.href} className={LINK_CLASS}>
+              <a
+                key={item.href}
+                href={item.href}
+                onClick={(e) => handleNavClick(e, item.href)}
+                className={LINK_CLASS}
+              >
                 {item.label}
               </a>
             ))}
@@ -89,7 +100,10 @@ export function SiteNav() {
               <a
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpen(false)}
+                onClick={(e) => {
+                  handleNavClick(e, item.href);
+                  setOpen(false);
+                }}
                 className={MOBILE_LINK_CLASS}
               >
                 {item.label}

@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState, useId, useSyncExternalStore } from "react";
 import type { CSSProperties } from "react";
+import { AccordionItem } from "@/components/ui/accordion";
+import { FocusTargetIcon } from "@/components/icons/focus-target-icon";
+import { APP_CARD_WIDTH_CLASS } from "@/lib/card-sizing";
 
 type Persona = "anak" | "dewasa";
 
@@ -31,14 +34,14 @@ const MEDAL = {
 const RINGKASAN_DATA: Record<Persona, RingkasanData> = {
   anak: {
     name: "Nabil", program: "Kids Swim",
-    date: "Rabu, 11 Sep 2024", coach: "Coach Sari",
+    date: "Jumat, 18 Sep 2026", coach: "Coach Sari",
     focus: "Mengambil napas ke samping",
     coachNote: "Nabil mulai lebih nyaman memutar kepala saat bernapas. Latihan berikutnya melanjutkan ritme napas sambil menjaga posisi tubuh tetap stabil.",
     quota: "Paket aktif · Sisa 4 dari 8 sesi",
   },
   dewasa: {
     name: "Nabila", program: "Teen & Adult Swim",
-    date: "Sabtu, 14 Sep 2024", coach: "Coach Sari",
+    date: "Jumat, 18 Sep 2026", coach: "Coach Sari",
     focus: "Latihan pernapasan bilateral",
     coachNote: "Nabila semakin stabil saat mengambil napas ke sisi kiri. Sesi berikutnya berfokus pada menjaga ritme napas saat jarak renang bertambah.",
     quota: "Paket aktif · Sisa 4 dari 8 sesi",
@@ -108,23 +111,23 @@ const PERKEMBANGAN_DATA: Record<Persona, PerkembanganData> = {
   anak: {
     metric: "Jarak meluncur", unit: "meter",
     points: [
-      { session: "21 Agu", value: 2, label: "2 meter" },
+      { session: "14 Agu", value: 2, label: "2 meter" },
+      { session: "21 Agu", value: 3, label: "3 meter" },
       { session: "28 Agu", value: 3, label: "3 meter" },
-      { session: "4 Sep", value: 3, label: "3 meter" },
-      { session: "11 Sep", value: 5, label: "5 meter" },
-      { session: "18 Sep", value: 6, label: "6 meter" },
-      { session: "25 Sep", value: 8, label: "8 meter" },
+      { session: "4 Sep", value: 5, label: "5 meter" },
+      { session: "11 Sep", value: 6, label: "6 meter" },
+      { session: "18 Sep", value: 8, label: "8 meter" },
     ],
   },
   dewasa: {
     metric: "Jarak renang", unit: "meter",
     points: [
-      { session: "21 Agu", value: 10, label: "10 meter" },
-      { session: "28 Agu", value: 12, label: "12 meter" },
-      { session: "4 Sep", value: 15, label: "15 meter" },
-      { session: "11 Sep", value: 18, label: "18 meter" },
-      { session: "18 Sep", value: 20, label: "20 meter" },
-      { session: "25 Sep", value: 25, label: "25 meter" },
+      { session: "14 Agu", value: 10, label: "10 meter" },
+      { session: "21 Agu", value: 12, label: "12 meter" },
+      { session: "28 Agu", value: 15, label: "15 meter" },
+      { session: "4 Sep", value: 18, label: "18 meter" },
+      { session: "11 Sep", value: 20, label: "20 meter" },
+      { session: "18 Sep", value: 25, label: "25 meter" },
     ],
   },
 };
@@ -132,9 +135,9 @@ const PERKEMBANGAN_DATA: Record<Persona, PerkembanganData> = {
 const REKOR_DATA: Record<Persona, RekorData> = {
   anak: {
     achieved: [
-      { medal: "bronze", title: "Mengapung terlentang mandiri", date: "21 Agu 2024" },
-      { medal: "silver", title: "Tahan napas terkontrol", date: "4 Sep 2024" },
-      { medal: "bronze", title: "Meluncur 5 meter", date: "11 Sep 2024" },
+      { medal: "bronze", title: "Mengapung terlentang mandiri", date: "21 Agu 2026" },
+      { medal: "silver", title: "Tahan napas terkontrol", date: "4 Sep 2026" },
+      { medal: "bronze", title: "Meluncur 5 meter", date: "15 Sep 2026" },
     ],
     futureTargets: [
       { medal: "silver", title: "Meluncur 8 meter" },
@@ -144,9 +147,9 @@ const REKOR_DATA: Record<Persona, RekorData> = {
   },
   dewasa: {
     achieved: [
-      { medal: "bronze", title: "Renang 10 meter pertama", date: "21 Agu 2024" },
-      { medal: "silver", title: "Renang 15 meter tanpa henti", date: "4 Sep 2024" },
-      { medal: "gold", title: "Renang 25 meter crawl", date: "25 Sep 2024" },
+      { medal: "bronze", title: "Renang 10 meter pertama", date: "21 Agu 2026" },
+      { medal: "silver", title: "Renang 15 meter tanpa henti", date: "4 Sep 2026" },
+      { medal: "gold", title: "Renang 25 meter crawl", date: "15 Sep 2026" },
     ],
     futureTargets: [
       { medal: "gold", title: "Renang 50 meter" },
@@ -184,7 +187,10 @@ function CardRingkasan({ data, compact }: { data: RingkasanData; compact?: boole
         <p className="text-[10px] font-semibold text-[#8A6400]">{data.date} · {data.coach}</p>
       </div>
       <div className="rounded-xl bg-[#EEF9FB] px-2.5 py-2">
-        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#0B6470]">Fokus sesi hari ini</p>
+        <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-[#0B6470]">
+          <FocusTargetIcon className="h-3 w-3 shrink-0 text-[#35C5D0]" />
+          Fokus sesi hari ini
+        </p>
         <p className="text-sm font-medium text-[#17263D]">{data.focus}</p>
       </div>
       <div className="rounded-xl border border-slate-100 bg-white/60 px-2.5 py-2">
@@ -289,45 +295,43 @@ function CardLaporan({ data, compact }: { data: LaporanData; compact?: boolean }
         const isOpen = openGroup === group.name;
         const done = group.indicators.filter((i) => i.status === "done").length;
         return (
-          <div key={group.name} className="overflow-hidden rounded-xl border border-white/60 bg-white/40">
-            <button
-              onClick={() => setOpenGroup(isOpen ? "" : group.name)}
-              aria-expanded={isOpen}
-              className="flex w-full items-center justify-between px-3 py-2.5 text-left"
-            >
+          <AccordionItem
+            key={group.name}
+            open={isOpen}
+            onToggle={() => setOpenGroup(isOpen ? "" : group.name)}
+            chevronSize="sm"
+            className="overflow-hidden rounded-xl border border-white/60 bg-white/40"
+            headerClassName="min-h-0 px-3 py-2.5"
+            header={
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-[#17263D]">{group.name}</span>
                 <span className="rounded-full bg-[#EEF9FB] px-1.5 py-0.5 text-[10px] font-medium text-[#0B6470]">
                   {done}/{group.indicators.length}
                 </span>
               </div>
-              <svg viewBox="0 0 16 16" className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            {isOpen && (
-              <ul className="border-t border-white/40 px-3 pb-2 pt-1.5">
-                {group.indicators.map((ind) => (
-                  <li key={ind.label} className="flex items-center gap-2 py-1">
-                    {ind.status === "done" ? (
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#DDF7EC] text-[10px] font-bold text-[#0E5A43]" aria-hidden="true">✓</span>
-                    ) : ind.status === "active" ? (
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#EEF9FB]" aria-hidden="true">
-                        <span className="h-2 w-2 rounded-full bg-[#35C5D0]" />
-                      </span>
-                    ) : (
-                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100" aria-hidden="true">
-                        <span className="h-2 w-2 rounded-full bg-slate-300" />
-                      </span>
-                    )}
-                    <span className={`text-xs ${ind.status === "done" ? "text-slate-700" : ind.status === "active" ? "font-medium text-[#0B6470]" : "text-slate-400"}`}>
-                      {ind.label}
+            }
+          >
+            <ul className="border-t border-white/40 px-3 pb-2 pt-1.5">
+              {group.indicators.map((ind) => (
+                <li key={ind.label} className="flex items-center gap-2 py-1">
+                  {ind.status === "done" ? (
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#DDF7EC] text-[10px] font-bold text-[#0E5A43]" aria-hidden="true">✓</span>
+                  ) : ind.status === "active" ? (
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#EEF9FB]" aria-hidden="true">
+                      <span className="h-2 w-2 rounded-full bg-[#35C5D0]" />
                     </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                  ) : (
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100" aria-hidden="true">
+                      <span className="h-2 w-2 rounded-full bg-slate-300" />
+                    </span>
+                  )}
+                  <span className={`text-xs ${ind.status === "done" ? "text-slate-700" : ind.status === "active" ? "font-medium text-[#0B6470]" : "text-slate-400"}`}>
+                    {ind.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </AccordionItem>
         );
       })}
     </div>
@@ -458,31 +462,26 @@ function CardRekor({ data }: { data: RekorData }) {
           );
         })}
       </div>
-      <div className="overflow-hidden rounded-xl border border-white/60 bg-white/40">
-        <button
-          onClick={() => setShowFuture(!showFuture)}
-          aria-expanded={showFuture}
-          className="flex w-full items-center justify-between px-3 py-2.5 text-left"
-        >
-          <span className="text-xs font-semibold text-slate-700">Target berikutnya</span>
-          <svg viewBox="0 0 16 16" className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${showFuture ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-            <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        {showFuture && (
-          <ul className="flex flex-col gap-1.5 border-t border-white/40 px-3 pb-2.5 pt-2">
-            {data.futureTargets.map((t, i) => {
-              const m = MEDAL[t.medal];
-              return (
-                <li key={i} className="flex items-center gap-2">
-                  <span className="shrink-0 text-base leading-none" aria-hidden="true">{m.emoji}</span>
-                  <span className={`text-xs ${m.text}`}>{t.title}</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      <AccordionItem
+        open={showFuture}
+        onToggle={() => setShowFuture((v) => !v)}
+        chevronSize="sm"
+        className="overflow-hidden rounded-xl border border-white/60 bg-white/40"
+        headerClassName="min-h-0 px-3 py-2.5"
+        header={<span className="text-xs font-semibold text-slate-700">Target berikutnya</span>}
+      >
+        <ul className="flex flex-col gap-1.5 border-t border-white/40 px-3 pb-2.5 pt-2">
+          {data.futureTargets.map((t, i) => {
+            const m = MEDAL[t.medal];
+            return (
+              <li key={i} className="flex items-center gap-2">
+                <span className="shrink-0 text-base leading-none" aria-hidden="true">{m.emoji}</span>
+                <span className={`text-xs ${m.text}`}>{t.title}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </AccordionItem>
     </div>
   );
 }
@@ -641,27 +640,23 @@ export function AppGallery() {
 
   return (
     <div ref={sectionRef} className="relative mx-4 sm:mx-6 lg:mx-auto lg:max-w-6xl">
-      {/* Dark stage background, clipped separately so cards can bleed past the frame edge */}
-      <div className="absolute inset-0 -z-10 overflow-hidden rounded-[2rem] sm:rounded-[2.5rem]">
+      {/* Underwater ambience behind the card stage: a soft, edge-less glow —
+          never a hard-edged dark panel. `overflow-visible` + a mask-image
+          fade let the blur dissolve into the page instead of getting
+          clipped into a visible cut-off line. */}
+      <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
         <div
-          className="absolute inset-0"
+          className="absolute inset-0 rounded-[2rem] sm:rounded-[2.5rem]"
           style={{
             background:
-              "radial-gradient(ellipse 80% 55% at 50% -8%, rgba(53,197,208,0.38), transparent 60%), linear-gradient(180deg, #0A2233 0%, #0D3A48 32%, #12586A 62%, #1C8DA0 100%)",
+              "radial-gradient(ellipse 85% 60% at 50% -8%, rgba(53,197,208,0.32), transparent 62%), linear-gradient(180deg, #0A2233 0%, #0D3A48 34%, #12586A 64%, #1C8DA0 100%)",
+            WebkitMaskImage:
+              "linear-gradient(180deg, transparent 0%, black 5%, black 95%, transparent 100%)",
+            maskImage:
+              "linear-gradient(180deg, transparent 0%, black 5%, black 95%, transparent 100%)",
           }}
         />
-        <div
-          className="absolute inset-0 opacity-70"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 18% 22%, rgba(255,255,255,0.06), transparent 38%), radial-gradient(circle at 82% 12%, rgba(255,255,255,0.07), transparent 34%), radial-gradient(circle at 65% 82%, rgba(255,255,255,0.05), transparent 42%), radial-gradient(circle at 12% 78%, rgba(255,255,255,0.04), transparent 40%)",
-          }}
-          aria-hidden="true"
-        />
-        <div
-          className="absolute left-1/2 top-1/2 h-[220px] w-[220px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#35C5D0] opacity-20 blur-[70px] sm:h-[420px] sm:w-[420px] sm:opacity-30 sm:blur-[110px]"
-          aria-hidden="true"
-        />
+        <div className="absolute left-1/2 top-1/2 h-[260px] w-[260px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#35C5D0] opacity-20 blur-[90px] sm:h-[460px] sm:w-[460px] sm:opacity-25 sm:blur-[130px]" />
       </div>
 
       <div
@@ -671,10 +666,7 @@ export function AppGallery() {
       >
         {/* Heading */}
         <div className="mx-auto max-w-xl text-center">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/60">
-            Contoh Tampilan Aplikasi
-          </span>
-          <h2 className="mt-2 font-[family-name:var(--font-quicksand)] text-2xl font-bold text-white sm:text-3xl lg:text-4xl">
+          <h2 className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-white sm:text-3xl lg:text-4xl">
             Pantau perjalanan latihan, satu langkah demi satu langkah.
           </h2>
           <p className="mx-auto mt-2.5 max-w-md text-sm text-white/70 sm:text-base">
@@ -706,7 +698,7 @@ export function AppGallery() {
           className="relative hidden h-[420px] sm:block"
           onKeyDown={handleKeyDown}
           role="region"
-          aria-label="Contoh tampilan aplikasi"
+          aria-label="Galeri contoh aplikasi"
         >
           {CARD_DEFS.map((def, i) => {
             const offset = i - activeCard;
@@ -728,7 +720,7 @@ export function AppGallery() {
         </div>
 
         {/* Mobile: one centered card + a single decorative teaser sliver behind-right */}
-        <div className="sm:hidden" role="region" aria-label="Contoh tampilan aplikasi">
+        <div className="sm:hidden" role="region" aria-label="Galeri contoh aplikasi">
           <div
             ref={mobileScrollRef}
             className="relative left-1/2 right-1/2 -mx-[50vw] flex w-screen snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -745,7 +737,7 @@ export function AppGallery() {
                   aria-hidden={!isActive}
                   inert={!isActive ? true : undefined}
                 >
-                  <div className="relative w-[88vw] max-w-[400px]">
+                  <div className={`relative ${APP_CARD_WIDTH_CLASS}`}>
                     {/* Teaser: a soft, unreadable card-shaped silhouette peeking out behind-right */}
                     {isActive && hasNext && (
                       <div

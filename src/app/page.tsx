@@ -9,6 +9,7 @@ import { VideoAdsPlayer } from "@/components/video-ads-player";
 import { FaqAccordion } from "@/components/faq-accordion";
 import { PriceAccordion, type PriceGroup } from "@/components/price-accordion";
 import { SiteNav } from "@/components/site-nav";
+import { SmoothScrollLink } from "@/components/smooth-scroll-link";
 import { ScheduleList, type ScheduleItem } from "@/components/schedule-list";
 import { AppPreviewCard } from "@/components/app-preview-card";
 import { AppGallery } from "@/components/app-gallery";
@@ -216,11 +217,11 @@ export default async function Home() {
                   Daftar Kelas Trial &rarr;
                 </GlassButton>
               </Link>
-              <a href="#kelas">
+              <SmoothScrollLink id="kelas">
                 <GlassButton className="px-8 py-3 text-base">
                   Lihat Program
                 </GlassButton>
-              </a>
+              </SmoothScrollLink>
             </div>
 
             {stats.length > 0 && (
@@ -267,7 +268,7 @@ export default async function Home() {
             </div>
 
             {/* Floating app preview card */}
-            <div className="absolute bottom-0 left-1/2 w-[94%] -translate-x-1/2">
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
               <AppPreviewCard />
             </div>
           </div>
@@ -571,12 +572,41 @@ export default async function Home() {
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             {poolLocations.map((loc) => (
-              <GlassCard key={loc.id} className="p-3">
-                <p className="mb-2 px-1 font-semibold text-[#17263D]">
-                  {loc.name}
-                </p>
+              <GlassCard key={loc.id} className="overflow-hidden p-3">
+                {/* Local placeholder thumbnail — no admin-uploaded photo or
+                    Google Places Photo API configured yet, see note below. */}
+                <div className="relative mb-2 aspect-[16/9] w-full overflow-hidden rounded-xl">
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      background:
+                        "radial-gradient(ellipse 90% 70% at 25% 15%, rgba(53,197,208,0.55), transparent 60%), linear-gradient(140deg, #0D3A48 0%, #12586A 55%, #1C8DA0 100%)",
+                    }}
+                    aria-hidden="true"
+                  />
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 text-white/25"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    aria-hidden="true"
+                  >
+                    <circle cx="12" cy="8" r="3.2" />
+                    <path d="M3 16c1.5-1.2 3-1.2 4.5 0s3 1.2 4.5 0 3-1.2 4.5 0 3 1.2 4.5 0" />
+                    <path d="M3 20c1.5-1.2 3-1.2 4.5 0s3 1.2 4.5 0 3-1.2 4.5 0 3 1.2 4.5 0" />
+                  </svg>
+                  <div
+                    className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 via-black/15 to-transparent px-3 pb-2 pt-6"
+                    aria-hidden="true"
+                  />
+                  <p className="absolute inset-x-3 bottom-2 truncate text-sm font-semibold text-white drop-shadow-sm">
+                    {loc.name}
+                  </p>
+                </div>
                 <iframe
                   src={loc.maps_link}
+                  title={`Peta lokasi ${loc.name}`}
                   className="h-64 w-full rounded-xl border-0"
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
@@ -701,12 +731,12 @@ export default async function Home() {
                 Daftar Kelas Trial &rarr;
               </GlassButton>
             </Link>
-            <a
-              href="#kontak"
+            <SmoothScrollLink
+              id="kontak"
               className="text-sm font-semibold text-[#17263D] hover:underline active:text-[#35C5D0]"
             >
               Hubungi Kami
-            </a>
+            </SmoothScrollLink>
           </div>
         </GlassCard>
       </section>
@@ -781,9 +811,9 @@ export default async function Home() {
           <Link href="/syarat" className="hover:underline active:text-[#35C5D0]">
             Syarat &amp; Ketentuan
           </Link>
-          <a href="#kontak" className="hover:underline active:text-[#35C5D0]">
+          <SmoothScrollLink id="kontak" className="hover:underline active:text-[#35C5D0]">
             Kontak
-          </a>
+          </SmoothScrollLink>
         </div>
       </footer>
     </div>

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { smoothScrollToId } from "@/lib/smooth-scroll";
+import { APP_CARD_WIDTH_CLASS } from "@/lib/card-sizing";
+import { FocusTargetIcon } from "@/components/icons/focus-target-icon";
 
 type Tab = "anak" | "dewasa";
 
@@ -56,12 +58,9 @@ export function AppPreviewCard() {
   const m = MEDAL[d.medal];
 
   return (
-    <div className="rounded-2xl border border-white/50 bg-white/60 p-4 shadow-[0_16px_40px_rgba(23,38,61,0.2)] backdrop-blur-xl">
-      {/* Badge + tab switcher */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <span className="rounded-full border border-slate-200/80 bg-white/80 px-2.5 py-0.5 text-[10px] font-medium text-slate-500">
-          Contoh tampilan aplikasi
-        </span>
+    <div className={`${APP_CARD_WIDTH_CLASS} rounded-2xl border border-white/50 bg-white/60 p-4 shadow-[0_16px_40px_rgba(23,38,61,0.2)] backdrop-blur-xl`}>
+      {/* Tab switcher */}
+      <div className="mb-3 flex items-center justify-end gap-2">
         <div role="tablist" aria-label="Pilih persona" className="flex rounded-xl border border-white/60 bg-white/40 p-0.5">
           {([["anak", "Untuk Anak"], ["dewasa", "Untuk Dewasa"]] as [Tab, string][]).map(([t, label]) => (
             <button
@@ -109,7 +108,7 @@ export function AppPreviewCard() {
 
         {/* Block 2: Training focus */}
         <div className="flex items-start gap-2 rounded-xl bg-[#EEF9FB] px-2.5 py-2">
-          <span className="mt-0.5 shrink-0 text-base leading-none" aria-hidden="true">🌊</span>
+          <FocusTargetIcon className="mt-0.5 h-4 w-4 shrink-0 text-[#35C5D0]" />
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-[#0B6470]">Fokus Latihan</p>
             <p className="text-[11px] font-medium text-[#17263D]">{d.focus}</p>
