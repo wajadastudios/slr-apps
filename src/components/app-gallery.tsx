@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useId, useSyncExternalStore } from "react"
 import type { CSSProperties } from "react";
 import { AccordionItem } from "@/components/ui/accordion";
 import { FocusTargetIcon } from "@/components/icons/focus-target-icon";
-import { APP_CARD_WIDTH_CLASS } from "@/lib/card-sizing";
+import { APP_GALLERY_MOBILE_WIDTH_CLASS } from "@/lib/card-sizing";
 
 type Persona = "anak" | "dewasa";
 
@@ -505,22 +505,22 @@ function CardFrame({
 }: { icon: string; title: string; active?: boolean; flow?: boolean; children: React.ReactNode }) {
   return (
     <div
-      className={`flex ${flow ? "h-auto min-h-[420px]" : "h-full"} flex-col overflow-hidden rounded-[26px] border bg-white/95 backdrop-blur-2xl transition-shadow duration-300 ${
+      className={`flex ${flow ? "h-auto min-h-[336px]" : "h-full"} flex-col overflow-hidden rounded-[26px] border bg-white/95 backdrop-blur-2xl transition-shadow duration-300 ${
         active
-          ? "border-white/70 shadow-[0_35px_70px_-15px_rgba(4,15,28,0.65)]"
-          : "border-white/40 shadow-[0_20px_40px_-15px_rgba(4,15,28,0.45)]"
+          ? "border-white/70 shadow-[0_25px_55px_-20px_rgba(4,15,28,0.4)]"
+          : "border-white/40 shadow-[0_15px_35px_-20px_rgba(4,15,28,0.28)]"
       }`}
     >
       <div className="flex items-center justify-center pt-2.5" aria-hidden="true">
         <div className="h-1 w-9 rounded-full bg-slate-300/70" />
       </div>
-      <div className="flex items-center gap-2 px-4 pb-2.5 pt-2 sm:px-5">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#35C5D0]/15 text-sm" aria-hidden="true">
+      <div className={`flex items-center gap-2 ${flow ? "px-3.5 pb-2 pt-1.5" : "px-4 pb-2.5 pt-2 sm:px-5"}`}>
+        <span className={`flex shrink-0 items-center justify-center rounded-full bg-[#35C5D0]/15 ${flow ? "h-6 w-6 text-xs" : "h-7 w-7 text-sm"}`} aria-hidden="true">
           {icon}
         </span>
-        <p className="font-[family-name:var(--font-quicksand)] text-sm font-bold text-[#17263D]">{title}</p>
+        <p className={`font-[family-name:var(--font-quicksand)] font-bold text-[#17263D] ${flow ? "text-xs" : "text-sm"}`}>{title}</p>
       </div>
-      <div className={`min-h-0 flex-1 ${flow ? "overflow-visible" : "overflow-y-auto"} border-t border-slate-100 px-4 py-3 sm:px-5`}>
+      <div className={`min-h-0 flex-1 ${flow ? "overflow-visible px-3.5 py-2.5" : "overflow-y-auto px-4 py-3 sm:px-5"} border-t border-slate-100`}>
         {children}
       </div>
     </div>
@@ -640,20 +640,17 @@ export function AppGallery() {
 
   return (
     <div ref={sectionRef} className="relative mx-4 sm:mx-6 lg:mx-auto lg:max-w-6xl">
-      {/* Underwater ambience behind the card stage: a soft, edge-less glow —
-          never a hard-edged dark panel. `overflow-visible` + a mask-image
-          fade let the blur dissolve into the page instead of getting
-          clipped into a visible cut-off line. */}
-      <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
+      {/* Deep-turquoise stage behind the card deck. `overflow-hidden` clips
+          the gradient + glow to one clean rounded box — no mask-fade edge
+          that can show up as a seam right above the pager. The glow stays
+          soft (blurred, low opacity) so the stage never reads as a
+          hard-edged panel. */}
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-[2rem] sm:rounded-[2.5rem]" aria-hidden="true">
         <div
-          className="absolute inset-0 rounded-[2rem] sm:rounded-[2.5rem]"
+          className="absolute inset-0"
           style={{
             background:
               "radial-gradient(ellipse 85% 60% at 50% -8%, rgba(53,197,208,0.32), transparent 62%), linear-gradient(180deg, #0A2233 0%, #0D3A48 34%, #12586A 64%, #1C8DA0 100%)",
-            WebkitMaskImage:
-              "linear-gradient(180deg, transparent 0%, black 5%, black 95%, transparent 100%)",
-            maskImage:
-              "linear-gradient(180deg, transparent 0%, black 5%, black 95%, transparent 100%)",
           }}
         />
         <div className="absolute left-1/2 top-1/2 h-[260px] w-[260px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#35C5D0] opacity-20 blur-[90px] sm:h-[460px] sm:w-[460px] sm:opacity-25 sm:blur-[130px]" />
@@ -737,7 +734,7 @@ export function AppGallery() {
                   aria-hidden={!isActive}
                   inert={!isActive ? true : undefined}
                 >
-                  <div className={`relative ${APP_CARD_WIDTH_CLASS}`}>
+                  <div className={`relative ${APP_GALLERY_MOBILE_WIDTH_CLASS}`}>
                     {/* Teaser: a soft, unreadable card-shaped silhouette peeking out behind-right */}
                     {isActive && hasNext && (
                       <div
