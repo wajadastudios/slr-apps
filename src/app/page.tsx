@@ -17,6 +17,20 @@ import { DAYS } from "@/lib/days";
 
 const HEADING_FONT = "font-[family-name:var(--font-quicksand)]";
 
+// Real photos for the two known pool locations, matched against the
+// admin-entered `pool_locations.name` by keyword rather than an exact
+// string — the DB doesn't guarantee an exact spelling. Falls back to the
+// generic placeholder thumbnail below when a location doesn't match either.
+const LOCATION_PHOTOS: { keywords: string[]; src: string; alt: string }[] = [
+  { keywords: ["pamulang", "md"], src: "/images/locations/kolam-md-pamulang.webp", alt: "Kolam MD Pamulang" },
+  { keywords: ["cinere", "cdr"], src: "/images/locations/kolam-cdr.webp", alt: "Kolam CDR" },
+];
+
+function getLocationPhoto(name: string) {
+  const lower = name.toLowerCase();
+  return LOCATION_PHOTOS.find((p) => p.keywords.some((k) => lower.includes(k)));
+}
+
 const WHY_SLR = [
   {
     icon: "💧",
@@ -571,31 +585,45 @@ export default async function Home() {
             Lokasi Kolam
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
-            {poolLocations.map((loc) => (
+            {poolLocations.map((loc) => {
+              const photo = getLocationPhoto(loc.name);
+              return (
               <GlassCard key={loc.id} className="overflow-hidden p-3">
-                {/* Local placeholder thumbnail — no admin-uploaded photo or
-                    Google Places Photo API configured yet, see note below. */}
                 <div className="relative mb-2 aspect-[16/9] w-full overflow-hidden rounded-xl">
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      background:
-                        "radial-gradient(ellipse 90% 70% at 25% 15%, rgba(53,197,208,0.55), transparent 60%), linear-gradient(140deg, #0D3A48 0%, #12586A 55%, #1C8DA0 100%)",
-                    }}
-                    aria-hidden="true"
-                  />
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 text-white/25"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    aria-hidden="true"
-                  >
-                    <circle cx="12" cy="8" r="3.2" />
-                    <path d="M3 16c1.5-1.2 3-1.2 4.5 0s3 1.2 4.5 0 3-1.2 4.5 0 3 1.2 4.5 0" />
-                    <path d="M3 20c1.5-1.2 3-1.2 4.5 0s3 1.2 4.5 0 3-1.2 4.5 0 3 1.2 4.5 0" />
-                  </svg>
+                  {photo ? (
+                    <Image
+                      src={photo.src}
+                      alt={photo.alt}
+                      fill
+                      sizes="(min-width: 640px) 50vw, 100vw"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <>
+                      {/* Local placeholder thumbnail — no admin-uploaded photo or
+                          Google Places Photo API configured yet, see note below. */}
+                      <div
+                        className="absolute inset-0"
+                        style={{
+                          background:
+                            "radial-gradient(ellipse 90% 70% at 25% 15%, rgba(53,197,208,0.55), transparent 60%), linear-gradient(140deg, #0D3A48 0%, #12586A 55%, #1C8DA0 100%)",
+                        }}
+                        aria-hidden="true"
+                      />
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 text-white/25"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="8" r="3.2" />
+                        <path d="M3 16c1.5-1.2 3-1.2 4.5 0s3 1.2 4.5 0 3-1.2 4.5 0 3 1.2 4.5 0" />
+                        <path d="M3 20c1.5-1.2 3-1.2 4.5 0s3 1.2 4.5 0 3-1.2 4.5 0 3 1.2 4.5 0" />
+                      </svg>
+                    </>
+                  )}
                   <div
                     className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 via-black/15 to-transparent px-3 pb-2 pt-6"
                     aria-hidden="true"
@@ -612,7 +640,8 @@ export default async function Home() {
                   referrerPolicy="no-referrer-when-downgrade"
                 />
               </GlassCard>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}

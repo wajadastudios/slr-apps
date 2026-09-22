@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { clearRememberCookie } from "@/lib/supabase/remember";
 import { GlassButton } from "@/components/ui/glass-button";
 
 export function LogoutButton() {
@@ -10,6 +11,7 @@ export function LogoutButton() {
   async function handleLogout() {
     const supabase = createClient();
     await supabase.auth.signOut();
+    clearRememberCookie();
     router.replace("/login");
     router.refresh();
   }
