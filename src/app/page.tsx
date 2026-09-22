@@ -14,6 +14,8 @@ import { ScheduleList, type ScheduleItem } from "@/components/schedule-list";
 import { AppPreviewCard } from "@/components/app-preview-card";
 import { AppGallery } from "@/components/app-gallery";
 import { DAYS } from "@/lib/days";
+import { PROGRAM_SELECT } from "@/lib/programs";
+import { findProgramByKeywords, loadPublicProgramTemplate } from "@/lib/landing-template";
 
 const HEADING_FONT = "font-[family-name:var(--font-quicksand)]";
 
@@ -87,7 +89,7 @@ export default async function Home() {
   ] = await Promise.all([
     supabase
       .from("programs")
-      .select("id, name, description, badge")
+      .select(`${PROGRAM_SELECT}, description, badge`)
       .eq("active", true)
       .order("name"),
     supabase
@@ -125,6 +127,17 @@ export default async function Home() {
       .select("id, question, answer")
       .order("sort_order")
       .order("created_at"),
+  ]);
+
+  // #contoh-aplikasi example cards: real program template (indicator
+  // groups/labels, milestone names/targets), matched by admin-entered name
+  // the same way pool-location photos are (see getLocationPhoto below) --
+  // never a hardcoded program id, never a second data source.
+  const kidsProgramRow = findProgramByKeywords(programs ?? [], ["kids", "anak"]);
+  const dewasaProgramRow = findProgramByKeywords(programs ?? [], ["teen", "dewasa", "adult"]);
+  const [kidsTemplate, dewasaTemplate] = await Promise.all([
+    kidsProgramRow ? loadPublicProgramTemplate(supabase, kidsProgramRow) : Promise.resolve(null),
+    dewasaProgramRow ? loadPublicProgramTemplate(supabase, dewasaProgramRow) : Promise.resolve(null),
   ]);
 
   const pelatihNameById = new Map<string, string>();
@@ -346,7 +359,7 @@ export default async function Home() {
 
       {/* App gallery */}
       <section id="contoh-aplikasi" className="scroll-mt-24">
-        <AppGallery />
+        <AppGallery kidsTemplate={kidsTemplate} dewasaTemplate={dewasaTemplate} />
       </section>
 
       {/* Programs */}
