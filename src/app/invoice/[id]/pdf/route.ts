@@ -19,7 +19,7 @@ export async function GET(
     supabase
       .from("invoices")
       .select(
-        "invoice_number, status, sent_at, package_name, package_number, sessions_count, amount, student:student_id(full_name, parent:parent_id(full_name))"
+        "invoice_number, status, sent_at, created_at, package_name, sessions_count, amount, base_price, discount_amount, student:student_id(full_name, parent:parent_id(full_name))"
       )
       .eq("id", id)
       .single(),
@@ -54,9 +54,13 @@ export async function GET(
       studentName: student?.full_name ?? "-",
       parentName: student?.parent?.full_name ?? "-",
       packageName: invoice.package_name,
-      packageNumber: invoice.package_number,
+      createdAt: invoice.created_at
+        ? new Date(invoice.created_at).toLocaleDateString("id-ID")
+        : null,
       sessionsCount: invoice.sessions_count,
       amount: invoice.amount,
+      basePrice: invoice.base_price,
+      discountAmount: invoice.discount_amount,
     })
   );
 

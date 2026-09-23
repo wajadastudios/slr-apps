@@ -18,6 +18,8 @@ const ENTITY: Record<string, string> = {
   invoices: "Tagihan",
   programs: "Program",
   program_packages: "Paket harga",
+  package_price_versions: "Versi harga paket",
+  enrollment_price_locks: "Harga peserta terkunci",
   indicators: "Indikator",
   indicator_groups: "Kelompok indikator",
   milestones: "Milestone",
@@ -47,6 +49,23 @@ const FIELD: Record<string, string> = {
   audience: "jalur pendaftaran",
   self_registration: "pendaftaran mandiri",
   price: "harga",
+  currency: "mata uang",
+  effective_from: "berlaku sejak",
+  effective_until: "berlaku sampai",
+  note: "catatan",
+  reason: "alasan",
+  base_price: "harga dasar",
+  discount_amount: "diskon",
+  discount_type: "jenis diskon",
+  price_source: "sumber harga",
+  override_reason: "alasan override",
+  revision_reason: "alasan revisi",
+  internal_note: "catatan internal",
+  program_package_id: "paket",
+  package_price_version_id: "versi harga",
+  enrollment_price_lock_id: "harga peserta terkunci",
+  supersedes_invoice_id: "merevisi tagihan",
+  superseded_by_invoice_id: "digantikan tagihan",
   followed_up_at: "follow-up",
   adjustment_note: "catatan penyesuaian",
 };
@@ -64,6 +83,8 @@ const STATUS: Record<string, string> = {
   sent: "Menunggu pembayaran",
   processing: "Diverifikasi",
   paid: "Lunas",
+  expired: "Kedaluwarsa",
+  superseded: "Direvisi",
 };
 
 export type NameLookup = (kind: "user" | "slot", id: string) => string | undefined;
@@ -73,7 +94,8 @@ function show(field: string, value: unknown, lookup?: NameLookup): string {
   if (field === "status") return STATUS[String(value)] ?? String(value);
   if (field === "day_of_week") return dayName(Number(value));
   if (field === "start_time") return formatClock(String(value));
-  if (field === "amount" || field === "price") return rupiah(Number(value));
+  if (field === "amount" || field === "price" || field === "base_price" || field === "discount_amount") return rupiah(Number(value));
+  if (field === "price_source") return { package: "Harga terbaru", enrollment_lock: "Harga peserta", override: "Override admin" }[String(value)] ?? String(value);
   if (field === "active" || field === "registration_open") return value ? "ya" : "tidak";
   if (field === "pelatih_id" || field === "billing_contact_user_id") {
     return lookup?.("user", String(value)) ?? "pengguna lain";
@@ -97,7 +119,9 @@ export function describeActivity(row: ActivityRow, lookup?: NameLookup): { title
     const extra =
       row.entity_type === "invoices"
         ? `${String(c.package_name ?? "")} ${c.amount != null ? rupiah(Number(c.amount)) : ""}`.trim()
-        : row.entity_type === "class_slots"
+        : row.entity_type === "enrollment_price_locks" || row.entity_type === "package_price_versions"
+          ? `${c.price != null ? rupiah(Number(c.price)) : ""}${c.reason ? ` · ${String(c.reason)}` : c.note ? ` · ${String(c.note)}` : ""}`.trim()
+          : row.entity_type === "class_slots"
           ? `${dayName(Number(c.day_of_week))} ${formatClock(String(c.start_time ?? ""))}${c.location ? ` · ${String(c.location)}` : ""}`
           : row.entity_type === "schedules" && c.slot_id
             ? (lookup?.("slot", String(c.slot_id)) ?? "")

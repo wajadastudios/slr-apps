@@ -30,7 +30,7 @@ export default async function InvoicePage({
     supabase
       .from("invoices")
       .select(
-        "id, invoice_number, status, package_name, sessions_count, amount, payment_method, payment_proof_url, student:student_id(full_name)"
+        "id, invoice_number, status, package_name, sessions_count, amount, base_price, discount_amount, payment_method, payment_proof_url, superseded_by_invoice_id, student:student_id(full_name)"
       )
       .eq("id", id)
       .single(),
@@ -87,6 +87,25 @@ export default async function InvoicePage({
       {invoice.status === "paid" && (
         <p className="mt-4 text-sm font-medium text-[#1a8f6f]">
           ✅ Pembayaran sudah dikonfirmasi. Terima kasih!
+        </p>
+      )}
+
+      {invoice.status === "superseded" && (
+        <p className="mt-4 rounded-xl bg-[#FFF1CC] px-4 py-3 text-sm font-medium text-[#7A5400]">
+          ✏️ Tagihan ini sudah direvisi dan tidak berlaku lagi. Nominal di atas tidak berubah dari yang pertama kali
+          dikirim -- link pembayaran ini tidak dapat digunakan lagi. Hubungi admin untuk tagihan terbaru Anda.
+        </p>
+      )}
+
+      {invoice.status === "cancelled" && (
+        <p className="mt-4 rounded-xl bg-[#FFE3EA] px-4 py-3 text-sm font-medium text-[#A3183C]">
+          ✕ Tagihan ini sudah dibatalkan dan tidak dapat dibayar. Hubungi admin bila ada pertanyaan.
+        </p>
+      )}
+
+      {invoice.status === "expired" && (
+        <p className="mt-4 rounded-xl bg-[#FFE3EA] px-4 py-3 text-sm font-medium text-[#A3183C]">
+          ⏰ Tagihan ini sudah kedaluwarsa. Hubungi admin untuk tagihan baru.
         </p>
       )}
 
