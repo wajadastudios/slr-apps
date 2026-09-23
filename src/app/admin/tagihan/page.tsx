@@ -15,7 +15,16 @@ import { loadAdminData, selectAll } from "@/lib/admin/load";
 import { enrollmentBilling } from "@/lib/admin/queue";
 import { invoiceProblem, isOverdue, quotaLine, PROBLEM_TEXT, REASON_TEXT } from "@/lib/admin/quota";
 import { formatDate, rupiah } from "@/lib/admin/format";
-import { bulkCreateInvoicesAction, markPaidAction, resendInvoiceAction, saveBillingSettingsAction, sendInvoiceAction } from "./actions";
+import { PRICE_SOURCE_LABEL, DISCOUNT_TYPE_LABEL, type PriceSource } from "@/lib/pricing";
+import {
+  bulkCreateInvoicesAction,
+  markPaidAction,
+  resendInvoiceAction,
+  saveBillingSettingsAction,
+  sendInvoiceAction,
+  updateDraftInvoiceAction,
+  reviseInvoiceAction,
+} from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 const PAGE = 30;
@@ -26,8 +35,20 @@ const STATUS_LABEL: Record<string, string> = {
   sent: "Menunggu pembayaran",
   processing: "Menunggu verifikasi",
   paid: "Lunas",
+  cancelled: "Dibatalkan",
+  expired: "Kedaluwarsa",
+  superseded: "Direvisi",
 };
-const STATUS_TONE: Record<string, Tone> = { draft: "neutral", approved: "neutral", sent: "warn", processing: "info", paid: "ok" };
+const STATUS_TONE: Record<string, Tone> = {
+  draft: "neutral",
+  approved: "neutral",
+  sent: "warn",
+  processing: "info",
+  paid: "ok",
+  cancelled: "neutral",
+  expired: "danger",
+  superseded: "neutral",
+};
 
 type InvoiceRow = {
   id: string;
@@ -36,6 +57,13 @@ type InvoiceRow = {
   package_name: string;
   sessions_count: number;
   amount: number;
+  base_price: number | null;
+  discount_amount: number;
+  discount_type: string | null;
+  price_source: string;
+  override_reason: string | null;
+  supersedes_invoice_id: string | null;
+  superseded_by_invoice_id: string | null;
   status: string;
   payment_method: string | null;
   payment_proof_url: string | null;
@@ -53,20 +81,29 @@ export default async function TagihanPage({ searchParams }: { searchParams: Prom
   const supabase = await createClient();
   const origin = await getSiteOrigin();
 
-  const [data, invoices, { data: packages }, { data: students }, { data: programs }] = await Promise.all([
+  const [data, invoices, { data: packages }, { data: students }, { data: programs }, { data: lockRows }] = await Promise.all([
     loadAdminData(supabase),
     selectAll<InvoiceRow>(
       supabase,
       "invoices",
-      "id, student_id, enrollment_id, package_name, sessions_count, amount, status, payment_method, payment_proof_url, invoice_number, created_at, sent_at, student:student_id(full_name), billing:billing_account_id(full_name, email)"
+      "id, student_id, enrollment_id, package_name, sessions_count, amount, base_price, discount_amount, discount_type, price_source, override_reason, supersedes_invoice_id, superseded_by_invoice_id, status, payment_method, payment_proof_url, invoice_number, created_at, sent_at, student:student_id(full_name), billing:billing_account_id(full_name, email)"
     ),
     supabase.from("program_packages").select("id, program_id, name, sessions_count, price").eq("active", true).order("sessions_count"),
     supabase.from("students").select("id, next_package_preference_id"),
     supabase.from("programs").select("id, name").order("name"),
+    supabase.from("enrollment_price_locks").select("enrollment_id, program_package_id, price").order("effective_from", { ascending: false }),
   ]);
 
   const enrollmentById = new Map(data.enrollments.map((e) => [e.id, e]));
   const preference = new Map((students ?? []).map((s) => [s.id, s.next_package_preference_id as string | null]));
+  // Latest lock per (enrollment, package) -- used only to preview which
+  // price a draft would resolve to; createDraftInvoice re-resolves it for
+  // real when the draft is actually created.
+  const lockPriceByKey = new Map<string, number>();
+  for (const l of lockRows ?? []) {
+    const key = `${l.enrollment_id}:${l.program_package_id}`;
+    if (!lockPriceByKey.has(key)) lockPriceByKey.set(key, Number(l.price));
+  }
   const packagesByProgram = new Map<string, NonNullable<typeof packages>>();
   for (const p of packages ?? []) {
     const list = packagesByProgram.get(p.program_id) ?? [];
@@ -111,67 +148,149 @@ export default async function TagihanPage({ searchParams }: { searchParams: Prom
     const enr = inv.enrollment_id ? enrollmentById.get(inv.enrollment_id) : undefined;
     const info = inv.enrollment_id ? billing.find((b) => b.enrollment.id === inv.enrollment_id) : undefined;
     const problem = invoiceProblem(inv, enr?.status);
+    const isDraft = inv.status === "draft" || inv.status === "approved";
+    const isWaiting = inv.status === "sent" || inv.status === "processing";
     return (
-      <div className="flex flex-col gap-2 rounded-2xl border border-white/60 bg-white/60 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-[#17263D]">
-            <Link href={`/admin/murid/${inv.student_id}?tab=tagihan`} className="hover:underline">
-              {inv.student?.full_name ?? "Peserta"}
-            </Link>{" "}
-            &mdash; {inv.package_name} ({inv.sessions_count} sesi) · {rupiah(inv.amount)}
-          </p>
-          <p className="text-xs text-slate-500">
-            {enr?.programName ?? "Tanpa pendaftaran"} · Penanggung bayar: {inv.billing?.full_name ?? "-"} · {inv.invoice_number ?? "Draft"} · {formatDate(inv.created_at)}
-          </p>
-          {info && <p className="text-xs text-slate-600">{quotaLine(info.quota)}</p>}
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            <Badge tone={STATUS_TONE[inv.status] ?? "neutral"}>{STATUS_LABEL[inv.status] ?? inv.status}</Badge>
-            {isOverdue(inv, data.overdueDays) && <Badge tone="danger">Jatuh tempo</Badge>}
-            {problem && <Badge tone="danger">{PROBLEM_TEXT[problem]}</Badge>}
-            {inv.status !== "paid" && <Badge tone="neutral">Belum menambah kuota</Badge>}
+      <div className="flex flex-col gap-2 rounded-2xl border border-white/60 bg-white/60 px-4 py-3">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[#17263D]">
+              <Link href={`/admin/murid/${inv.student_id}?tab=tagihan`} className="hover:underline">
+                {inv.student?.full_name ?? "Peserta"}
+              </Link>{" "}
+              &mdash; {inv.package_name} ({inv.sessions_count} sesi) · {rupiah(inv.amount)}
+            </p>
+            <p className="text-xs text-slate-500">
+              {enr?.programName ?? "Tanpa pendaftaran"} · Penanggung bayar: {inv.billing?.full_name ?? "-"} · {inv.invoice_number ?? "Draft"} · {formatDate(inv.created_at)}
+            </p>
+            {(inv.base_price != null || inv.discount_amount > 0) && (
+              <p className="text-xs text-slate-500">
+                {PRICE_SOURCE_LABEL[(inv.price_source as PriceSource) ?? "package"]}
+                {inv.base_price != null ? ` · Harga dasar ${rupiah(inv.base_price)}` : ""}
+                {inv.discount_amount > 0 ? ` · Diskon ${DISCOUNT_TYPE_LABEL[inv.discount_type ?? ""] ?? rupiah(inv.discount_amount)}` : ""}
+                {inv.override_reason ? ` · Alasan: ${inv.override_reason}` : ""}
+              </p>
+            )}
+            {info && <p className="text-xs text-slate-600">{quotaLine(info.quota)}</p>}
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              <Badge tone={STATUS_TONE[inv.status] ?? "neutral"}>{STATUS_LABEL[inv.status] ?? inv.status}</Badge>
+              {isOverdue(inv, data.overdueDays) && <Badge tone="danger">Jatuh tempo</Badge>}
+              {problem && <Badge tone="danger">{PROBLEM_TEXT[problem]}</Badge>}
+              {inv.status !== "paid" && <Badge tone="neutral">Belum menambah kuota</Badge>}
+              {inv.supersedes_invoice_id && <Badge tone="info">Revisi dari tagihan lain</Badge>}
+              {inv.superseded_by_invoice_id && (
+                <Badge tone="neutral">
+                  Digantikan{" "}
+                  <Link href={`/admin/murid/${inv.student_id}?tab=tagihan`} className="underline">
+                    tagihan baru
+                  </Link>
+                </Badge>
+              )}
+            </div>
+            {inv.status === "processing" && inv.payment_proof_url && (
+              <a href={inv.payment_proof_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs font-semibold text-[#0B6470] underline">
+                Lihat bukti transfer ({inv.payment_method === "qris" ? "QRIS" : "Transfer"})
+              </a>
+            )}
           </div>
-          {inv.status === "processing" && inv.payment_proof_url && (
-            <a href={inv.payment_proof_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs font-semibold text-[#0B6470] underline">
-              Lihat bukti transfer ({inv.payment_method === "qris" ? "QRIS" : "Transfer"})
-            </a>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {(inv.status === "draft" || inv.status === "approved") && (
-            <ToastForm action={sendInvoiceAction} pendingLabel="Memproses..." className="flex items-center gap-2">
-              <input type="hidden" name="invoice_id" value={inv.id} />
-              <input type="hidden" name="return" value={back} />
-              <GlassInput name="amount" type="number" min={1} placeholder="Nominal (Rp)" defaultValue={inv.amount > 0 ? inv.amount : undefined} className="w-32" required />
-              <GlassButton type="submit" className={`${ADMIN_CTA} px-4 py-2 text-sm`}>
-                Setujui &amp; kirim
-              </GlassButton>
-            </ToastForm>
-          )}
-          {(inv.status === "sent" || inv.status === "processing") && (
-            <>
-              <ToastForm action={markPaidAction} pendingLabel="Memproses...">
+          <div className="flex flex-wrap items-center gap-2">
+            {isDraft && (
+              <ToastForm action={sendInvoiceAction} pendingLabel="Memproses...">
                 <input type="hidden" name="invoice_id" value={inv.id} />
                 <input type="hidden" name="return" value={back} />
                 <GlassButton type="submit" className={`${ADMIN_CTA} px-4 py-2 text-sm`}>
-                  {inv.status === "processing" ? "Konfirmasi lunas" : "Tandai sudah bayar"}
+                  Setujui &amp; kirim
                 </GlassButton>
               </ToastForm>
-              <ToastForm action={resendInvoiceAction} pendingLabel="Mengirim...">
+            )}
+            {isWaiting && (
+              <>
+                <ToastForm action={markPaidAction} pendingLabel="Memproses...">
+                  <input type="hidden" name="invoice_id" value={inv.id} />
+                  <input type="hidden" name="return" value={back} />
+                  <GlassButton type="submit" className={`${ADMIN_CTA} px-4 py-2 text-sm`}>
+                    {inv.status === "processing" ? "Konfirmasi lunas" : "Tandai sudah bayar"}
+                  </GlassButton>
+                </ToastForm>
+                <ToastForm action={resendInvoiceAction} pendingLabel="Mengirim...">
+                  <input type="hidden" name="invoice_id" value={inv.id} />
+                  <input type="hidden" name="return" value={back} />
+                  <GlassButton type="submit" className={`${SECONDARY_BUTTON} px-3 py-2 text-sm`}>
+                    Kirim ulang WhatsApp
+                  </GlassButton>
+                </ToastForm>
+              </>
+            )}
+            {["sent", "processing", "paid"].includes(inv.status) && (
+              <>
+                <CopyButton value={`${origin}/invoice/${inv.id}`} label="Salin link" className="px-3 py-1.5 text-xs" />
+                <InvoiceShareLinks origin={origin} invoiceId={inv.id} studentName={inv.student?.full_name ?? ""} parentEmail={inv.billing?.email} />
+              </>
+            )}
+          </div>
+        </div>
+
+        {isDraft && (
+          <details className="rounded-xl border border-white/40 bg-white/30 px-3 py-2 text-sm">
+            <summary className="cursor-pointer select-none font-medium text-[#0B6470]">Edit draft (nominal, diskon, sesi, catatan)</summary>
+            <ToastForm action={updateDraftInvoiceAction} pendingLabel="Menyimpan..." className="mt-2 flex flex-wrap items-end gap-2">
+              <input type="hidden" name="invoice_id" value={inv.id} />
+              <input type="hidden" name="return" value={back} />
+              <label className="flex flex-col gap-1 text-xs text-slate-600">
+                Nominal (Rp)
+                <GlassInput name="amount" type="number" min={1} defaultValue={inv.amount > 0 ? inv.amount : undefined} className="w-36" required />
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-slate-600">
+                Jumlah sesi
+                <GlassInput name="sessions_count" type="number" min={1} defaultValue={inv.sessions_count} className="w-24" required />
+              </label>
+              <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs text-slate-600">
+                Alasan override (wajib jika nominal ≠ harga peserta/paket)
+                <GlassInput name="override_reason" defaultValue={inv.override_reason ?? ""} placeholder="Contoh: diskon khusus event" />
+              </label>
+              <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs text-slate-600">
+                Catatan internal (opsional)
+                <GlassInput name="internal_note" placeholder="Catatan untuk admin lain" />
+              </label>
+              <GlassButton type="submit" className={`${SECONDARY_BUTTON} px-4 py-2 text-sm`}>
+                Simpan draft
+              </GlassButton>
+            </ToastForm>
+          </details>
+        )}
+
+        {isWaiting && (
+          <details className="rounded-xl border border-white/40 bg-white/30 px-3 py-2 text-sm">
+            <summary className="cursor-pointer select-none font-medium text-[#0B6470]">Revisi tagihan</summary>
+            <div className="mt-2 flex flex-col gap-2">
+              <p className="text-xs text-slate-600">
+                Tagihan ini sudah dikirim dan tidak diedit langsung. Merevisi akan menandai tagihan ini &ldquo;Direvisi&rdquo;
+                (link pembayaran lamanya otomatis tidak bisa dipakai membayar lagi -- sistem belum terhubung ke payment
+                gateway pihak ketiga, jadi ini ditangani di level status aplikasi) dan membuat draft baru dengan nominal
+                terbaru untuk Anda tinjau dan kirim.
+              </p>
+              <ToastForm action={reviseInvoiceAction} pendingLabel="Merevisi..." className="flex flex-wrap items-end gap-2">
                 <input type="hidden" name="invoice_id" value={inv.id} />
                 <input type="hidden" name="return" value={back} />
-                <GlassButton type="submit" className={`${SECONDARY_BUTTON} px-3 py-2 text-sm`}>
-                  Kirim ulang WhatsApp
+                <label className="flex flex-col gap-1 text-xs text-slate-600">
+                  Nominal baru (Rp)
+                  <GlassInput name="amount" type="number" min={1} defaultValue={inv.amount} className="w-36" required />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-slate-600">
+                  Jumlah sesi
+                  <GlassInput name="sessions_count" type="number" min={1} defaultValue={inv.sessions_count} className="w-24" required />
+                </label>
+                <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs text-slate-600">
+                  Alasan revisi (wajib)
+                  <GlassInput name="revision_reason" placeholder="Contoh: salah input jumlah sesi" required />
+                </label>
+                <GlassButton type="submit" className={`${ADMIN_CTA} px-4 py-2 text-sm`}>
+                  Buat revisi
                 </GlassButton>
               </ToastForm>
-            </>
-          )}
-          {["sent", "processing", "paid"].includes(inv.status) && (
-            <>
-              <CopyButton value={`${origin}/invoice/${inv.id}`} label="Salin link" className="px-3 py-1.5 text-xs" />
-              <InvoiceShareLinks origin={origin} invoiceId={inv.id} studentName={inv.student?.full_name ?? ""} parentEmail={inv.billing?.email} />
-            </>
-          )}
-        </div>
+            </div>
+          </details>
+        )}
       </div>
     );
   }
@@ -337,12 +456,16 @@ export default async function TagihanPage({ searchParams }: { searchParams: Prom
                         <div className="col-span-2 lg:col-span-1">
                           <GlassSelect name={`package_${b.enrollment.id}`} defaultValue={defaultPackage(b.enrollment.program_id, b.enrollment.student_id)} glassChevron className="min-w-56 text-sm">
                             {options.length === 0 && <option value="">Belum ada paket aktif</option>}
-                            {options.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name} · {p.sessions_count} sesi · {rupiah(p.price)}
-                                {p.id === preferred ? " (pilihan orang tua)" : ""}
-                              </option>
-                            ))}
+                            {options.map((p) => {
+                              const locked = lockPriceByKey.get(`${b.enrollment.id}:${p.id}`);
+                              return (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} · {p.sessions_count} sesi · {rupiah(locked ?? p.price)}
+                                  {locked != null ? " (harga terkunci)" : ""}
+                                  {p.id === preferred ? " (pilihan orang tua)" : ""}
+                                </option>
+                              );
+                            })}
                           </GlassSelect>
                         </div>
                       </div>

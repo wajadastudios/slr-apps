@@ -131,9 +131,11 @@ export function InvoicePdf({
   studentName,
   parentName,
   packageName,
-  packageNumber,
+  createdAt,
   sessionsCount,
   amount,
+  basePrice,
+  discountAmount,
 }: {
   logoUrl: string;
   address: string | null;
@@ -145,9 +147,11 @@ export function InvoicePdf({
   studentName: string;
   parentName: string;
   packageName: string;
-  packageNumber: number;
+  createdAt: string | null;
   sessionsCount: number;
   amount: number;
+  basePrice?: number | null;
+  discountAmount?: number | null;
 }) {
   const statusColor = STATUS_COLOR[status] ?? { text: "#17263D", bg: "#f1f5f9" };
 
@@ -211,7 +215,7 @@ export function InvoicePdf({
               {packageName}
             </Text>
             <Text style={styles.colSesi}>{sessionsCount} sesi</Text>
-            <Text style={styles.colPeriode}>Paket ke-{packageNumber}</Text>
+            <Text style={styles.colPeriode}>{createdAt ?? "-"}</Text>
             <Text style={[styles.colTotal, { fontWeight: 700 }]}>
               {formatRupiah(amount)}
             </Text>
@@ -219,6 +223,18 @@ export function InvoicePdf({
         </View>
 
         <View style={styles.totalBlock}>
+          {basePrice != null && discountAmount != null && discountAmount > 0 && (
+            <>
+              <View style={styles.totalBox}>
+                <Text style={styles.totalLabel}>HARGA DASAR</Text>
+                <Text style={styles.totalValue}>{formatRupiah(basePrice)}</Text>
+              </View>
+              <View style={styles.totalBox}>
+                <Text style={styles.totalLabel}>DISKON</Text>
+                <Text style={styles.totalValue}>-{formatRupiah(discountAmount)}</Text>
+              </View>
+            </>
+          )}
           <View style={styles.totalBox}>
             <Text style={styles.totalLabel}>TOTAL TAGIHAN</Text>
             <Text style={styles.totalValue}>{formatRupiah(amount)}</Text>

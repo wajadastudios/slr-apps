@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSiteOrigin } from "@/lib/site-url";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
+import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { ToastForm } from "@/components/ui/toast-form";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -17,7 +18,8 @@ import { loadMilestones } from "@/lib/milestone-loader";
 import { computeQuota, invoiceProblem, isOverdue, paidSessionsOf, quotaLine, PROBLEM_TEXT } from "@/lib/admin/quota";
 import { describeActivity, type ActivityRow } from "@/lib/admin/activity";
 import { coachName, dayName, formatClock, formatDate, formatDateTime, formatRange, rupiah } from "@/lib/admin/format";
-import { createInvoiceForStudentAction, resendInvoiceAction } from "../../tagihan/actions";
+import { PRICE_SOURCE_LABEL, DISCOUNT_TYPE_LABEL, type PriceSource } from "@/lib/pricing";
+import { createInvoiceForStudentAction, resendInvoiceAction, updateEnrollmentPriceAction } from "../../tagihan/actions";
 import { setEnrollmentStatusAction } from "../../pendaftar/kelas/actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
@@ -41,13 +43,25 @@ const STATUS_TONE: Record<string, Tone> = {
   rejected: "danger",
 };
 
-const INVOICE_TONE: Record<string, Tone> = { draft: "neutral", approved: "neutral", sent: "warn", processing: "info", paid: "ok" };
+const INVOICE_TONE: Record<string, Tone> = {
+  draft: "neutral",
+  approved: "neutral",
+  sent: "warn",
+  processing: "info",
+  paid: "ok",
+  cancelled: "neutral",
+  expired: "danger",
+  superseded: "neutral",
+};
 const INVOICE_LABEL: Record<string, string> = {
   draft: "Draft",
   approved: "Disetujui",
   sent: "Menunggu pembayaran",
   processing: "Menunggu verifikasi",
   paid: "Lunas",
+  cancelled: "Dibatalkan",
+  expired: "Kedaluwarsa",
+  superseded: "Direvisi",
 };
 const ATTENDANCE_TONE: Record<string, Tone> = { hadir: "ok", izin: "warn", sakit: "warn", alpha: "danger" };
 
@@ -111,7 +125,9 @@ export default async function MuridDetailPage({
       .eq("student_id", id),
     supabase
       .from("invoices")
-      .select("id, enrollment_id, status, sessions_count, amount, package_name, created_at, sent_at, invoice_number, billing:billing_account_id(full_name, email)")
+      .select(
+        "id, enrollment_id, status, sessions_count, amount, base_price, discount_amount, discount_type, price_source, package_name, created_at, sent_at, invoice_number, supersedes_invoice_id, superseded_by_invoice_id, billing:billing_account_id(full_name, email)"
+      )
       .eq("student_id", id)
       .order("created_at", { ascending: false }),
     supabase
@@ -134,6 +150,21 @@ export default async function MuridDetailPage({
     supabase.from("site_settings").select("value").eq("key", "jatuh_tempo_hari").maybeSingle(),
   ]);
   const overdueDays = Number(overdueSetting?.value) > 0 ? Number(overdueSetting?.value) : 7;
+
+  const enrollmentIds = (enrollmentRows ?? []).map((e) => e.id);
+  const { data: lockRows } = enrollmentIds.length
+    ? await supabase
+        .from("enrollment_price_locks")
+        .select("id, enrollment_id, program_package_id, price, effective_from, reason")
+        .in("enrollment_id", enrollmentIds)
+        .order("effective_from", { ascending: false })
+    : { data: [] as { id: string; enrollment_id: string; program_package_id: string; price: number; effective_from: string; reason: string | null }[] };
+  // Latest lock per (enrollment, package); rows already effective_from desc.
+  const lockByKey = new Map<string, NonNullable<typeof lockRows>[number]>();
+  for (const l of lockRows ?? []) {
+    const key = `${l.enrollment_id}:${l.program_package_id}`;
+    if (!lockByKey.has(key)) lockByKey.set(key, l);
+  }
 
   type Enr = {
     id: string;
@@ -386,6 +417,9 @@ export default async function MuridDetailPage({
           {live.map((e) => {
             const q = quotaOf(e);
             const programPackages = (packages ?? []).filter((p) => p.program_id === e.program?.id);
+            const locksForEnrollment = programPackages
+              .map((p) => ({ pkg: p, lock: lockByKey.get(`${e.id}:${p.id}`) }))
+              .filter((x) => x.lock);
             return (
               <GlassCard key={e.id} className="flex flex-col gap-3">
                 <h2 className={HEADING}>{e.program?.name}</h2>
@@ -394,6 +428,16 @@ export default async function MuridDetailPage({
                   <p role="status" className="rounded-xl bg-[#FFF1CC] px-3 py-2 text-sm text-[#7A5400]">
                     Peringatan administrasi: kehadiran melebihi kuota lunas sebanyak {q.overdrawn} sesi. Data historis tidak diubah.
                   </p>
+                )}
+                {locksForEnrollment.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    {locksForEnrollment.map(({ pkg, lock }) => (
+                      <p key={pkg.id} className="text-xs text-slate-600">
+                        Harga terkunci &middot; {pkg.name}: <span className="font-semibold text-[#17263D]">{rupiah(lock!.price)}</span>{" "}
+                        (disepakati sejak {formatDate(lock!.effective_from)}{lock!.reason ? ` · ${lock!.reason}` : ""})
+                      </p>
+                    ))}
+                  </div>
                 )}
                 <ToastForm action={createInvoiceForStudentAction} className="flex flex-wrap items-end gap-2" pendingLabel="Membuat...">
                   <input type="hidden" name="student_id" value={id} />
@@ -404,17 +448,60 @@ export default async function MuridDetailPage({
                       <option value="" disabled>
                         {programPackages.length ? "Pilih paket" : "Belum ada paket aktif"}
                       </option>
-                      {programPackages.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} · {p.sessions_count} sesi · {rupiah(p.price)}
-                        </option>
-                      ))}
+                      {programPackages.map((p) => {
+                        const lock = lockByKey.get(`${e.id}:${p.id}`);
+                        return (
+                          <option key={p.id} value={p.id}>
+                            {p.name} · {p.sessions_count} sesi · {rupiah(lock?.price ?? p.price)}
+                            {lock ? " (harga terkunci)" : " (harga terbaru)"}
+                          </option>
+                        );
+                      })}
                     </GlassSelect>
                   </div>
                   <GlassButton type="submit" disabled={programPackages.length === 0} className={`${ADMIN_CTA} px-5 py-2 text-sm`}>
                     Buat draft tagihan
                   </GlassButton>
                 </ToastForm>
+
+                {programPackages.length > 0 && (
+                  <details className="rounded-xl border border-white/40 bg-white/30 px-3 py-2 text-sm">
+                    <summary className="cursor-pointer select-none font-medium text-[#0B6470]">Perbarui harga peserta</summary>
+                    <div className="mt-2 flex flex-col gap-2">
+                      <p className="text-xs text-slate-600">
+                        Perubahan akan berlaku mulai tagihan berikutnya. Invoice yang sudah dibuat tidak akan berubah.
+                      </p>
+                      <ToastForm action={updateEnrollmentPriceAction} pendingLabel="Menyimpan..." className="flex flex-wrap items-end gap-2">
+                        <input type="hidden" name="enrollment_id" value={e.id} />
+                        <input type="hidden" name="return" value={back} />
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-600">Paket</label>
+                          <GlassSelect name="program_package_id" required defaultValue="" glassChevron className="w-48">
+                            <option value="" disabled>Pilih paket</option>
+                            {programPackages.map((p) => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </GlassSelect>
+                        </div>
+                        <label className="flex flex-col gap-1 text-xs text-slate-600">
+                          Harga baru (Rp)
+                          <GlassInput name="price" type="number" min={0} required className="w-36" />
+                        </label>
+                        <label className="flex flex-col gap-1 text-xs text-slate-600">
+                          Berlaku mulai (opsional)
+                          <GlassInput name="effective_from" type="date" className="w-40" />
+                        </label>
+                        <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs text-slate-600">
+                          Alasan (opsional)
+                          <GlassInput name="reason" placeholder="Contoh: Penyesuaian harga 2027" />
+                        </label>
+                        <GlassButton type="submit" className={`${SECONDARY_BUTTON} px-4 py-2 text-sm`}>
+                          Simpan
+                        </GlassButton>
+                      </ToastForm>
+                    </div>
+                  </details>
+                )}
               </GlassCard>
             );
           })}
@@ -438,11 +525,20 @@ export default async function MuridDetailPage({
                       <p className="text-xs text-slate-500">
                         {inv.invoice_number ?? "Draft"} · {enr?.program?.name ?? "Tanpa pendaftaran"} · Penagih: {billing?.full_name ?? "-"} · {formatDate(inv.created_at)}
                       </p>
+                      {(inv.base_price != null || inv.discount_amount > 0) && (
+                        <p className="text-xs text-slate-500">
+                          {PRICE_SOURCE_LABEL[(inv.price_source ?? "package") as PriceSource]}
+                          {inv.base_price != null ? ` · Harga dasar ${rupiah(inv.base_price)}` : ""}
+                          {inv.discount_amount > 0 ? ` · Diskon ${DISCOUNT_TYPE_LABEL[inv.discount_type ?? ""] ?? rupiah(inv.discount_amount)}` : ""}
+                        </p>
+                      )}
                       <div className="mt-1 flex flex-wrap gap-1.5">
                         <Badge tone={INVOICE_TONE[inv.status] ?? "neutral"}>{INVOICE_LABEL[inv.status] ?? inv.status}</Badge>
                         {overdue && <Badge tone="danger">Jatuh tempo</Badge>}
                         {problem && <Badge tone="danger">{PROBLEM_TEXT[problem]}</Badge>}
                         {inv.status !== "paid" && <Badge tone="neutral">Belum menambah kuota</Badge>}
+                        {inv.supersedes_invoice_id && <Badge tone="info">Revisi dari tagihan lain</Badge>}
+                        {inv.superseded_by_invoice_id && <Badge tone="neutral">Sudah digantikan tagihan baru</Badge>}
                       </div>
                     </div>
                     {["sent", "processing", "paid"].includes(inv.status) && (
