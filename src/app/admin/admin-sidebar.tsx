@@ -29,8 +29,13 @@ const NAV_GROUPS = [
     label: "Keuangan",
     defaultOpen: true,
     items: [
-      { href: "/admin/tagihan", label: "Tagihan" },
-      { href: "/admin/gaji", label: "Gaji Pengajar" },
+      { href: "/admin/keuangan/ringkasan", label: "Ringkasan" },
+      { href: "/admin/tagihan", label: "Tagihan", also: ["/admin/keuangan/tagihan"] },
+      { href: "/admin/keuangan/arus-kas", label: "Arus Kas" },
+      { href: "/admin/keuangan/biaya", label: "Biaya" },
+      { href: "/admin/gaji", label: "Gaji Pengajar", also: ["/admin/keuangan/gaji-pengajar"] },
+      { href: "/admin/keuangan/pajak", label: "Pajak & Kepatuhan" },
+      { href: "/admin/keuangan/export", label: "Export Laporan" },
     ],
   },
   {
