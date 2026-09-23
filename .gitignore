@@ -8,3 +8,9 @@ build/
 .DS_Store
 Thumbs.db
 .claude/scheduled_tasks.lock
+
+# [TEST] QA environment artifacts -- contain test account passwords and a
+# handoff doc; never committed. See HANDOFF-CODEX-QA-TEST.md itself (also
+# gitignored) for what these are and how to use them.
+/HANDOFF-CODEX-QA-TEST.md
+/scripts/test-seed/
