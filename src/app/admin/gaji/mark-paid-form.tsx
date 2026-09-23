@@ -64,6 +64,7 @@ export function MarkPaidForm({
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("transfer");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -82,6 +83,7 @@ export function MarkPaidForm({
         izin_sakit_count: izinSakitCount,
         amount,
         proof_url,
+        payment_method: paymentMethod,
       });
 
       toast.success("Pembayaran gaji berhasil dicatat");
@@ -111,6 +113,16 @@ export function MarkPaidForm({
       onSubmit={handleSubmit}
       className="flex flex-wrap items-center gap-2"
     >
+      <select
+        value={paymentMethod}
+        onChange={(e) => setPaymentMethod(e.target.value)}
+        disabled={busy}
+        className="rounded-lg border border-white/40 bg-white/60 px-2 py-1.5 text-xs text-slate-800"
+      >
+        <option value="transfer">Transfer</option>
+        <option value="tunai">Tunai</option>
+        <option value="lainnya">Lainnya</option>
+      </select>
       <input
         ref={inputRef}
         type="file"
