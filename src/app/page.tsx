@@ -109,6 +109,10 @@ export default async function Home() {
       .select(
         "id, pelatih_id, label, location, day_of_week, start_time, capacity, program:program_id(name)"
       )
+      // [TEST]/QA slots must never reach the public landing page -- see
+      // 0040_audit_fixes.sql for the explicit is_test flag (never rely on
+      // the "[TEST]" text label alone).
+      .eq("is_test", false)
       .order("day_of_week")
       .order("start_time"),
     supabase

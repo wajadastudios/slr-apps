@@ -24,20 +24,23 @@ export function coachName(p: { full_name: string; title?: string | null } | null
   return p.title ? `${p.title} ${p.full_name}` : p.full_name;
 }
 
-export type SlotFill = "penuh" | "hampir_penuh" | "tersedia";
+export type SlotFill = "penuh" | "hampir_penuh" | "terisi_sebagian" | "tersedia";
 
-// Full at capacity, "almost full" when at most one seat (or a fifth of the
-// seats) is left.
+// 0 filled = Tersedia (never "hampir penuh" just because capacity is small,
+// e.g. 0/1); full at capacity = Penuh; >= 80% filled = Hampir penuh;
+// anything else in between = Terisi sebagian.
 export function slotFill(filled: number, capacity: number): SlotFill {
+  if (filled <= 0) return "tersedia";
   if (filled >= capacity) return "penuh";
-  const left = capacity - filled;
-  if (left <= 1 || left / capacity <= 0.2) return "hampir_penuh";
-  return "tersedia";
+  const percent = capacity > 0 ? filled / capacity : 0;
+  if (percent >= 0.8) return "hampir_penuh";
+  return "terisi_sebagian";
 }
 
 export const FILL_LABEL: Record<SlotFill, string> = {
   penuh: "Penuh",
   hampir_penuh: "Hampir penuh",
+  terisi_sebagian: "Terisi sebagian",
   tersedia: "Tersedia",
 };
 

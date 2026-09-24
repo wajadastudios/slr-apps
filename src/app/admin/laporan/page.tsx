@@ -8,10 +8,9 @@ import { PersonalGoalsManager } from "@/components/personal-goals";
 import { RecordUnlockCard } from "@/components/record-unlock-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { StarScoreLegend } from "@/components/star-score-legend";
-import { computeProgressPercent, latestAttendedReport } from "@/lib/progress";
+import { computeLatestAchievement } from "@/lib/progress";
 import { computeMilestoneStatuses } from "@/lib/milestones";
 import { formatAge } from "@/lib/performance";
-import { activeKeys } from "@/lib/indicators";
 import { loadIndicatorConfig } from "@/lib/indicator-loader";
 import { loadMilestones } from "@/lib/milestone-loader";
 import { PROGRAM_SELECT, normalizeProgram, usesStars } from "@/lib/programs";
@@ -73,7 +72,8 @@ export default async function AdminLaporanPage({
         .from("progress_reports")
         .select("*")
         .eq("enrollment_id", selected.id)
-        .order("session_date", { ascending: false }),
+        .order("session_date", { ascending: false })
+        .order("updated_at", { ascending: false }),
       medals
         ? supabase.from("performance_records").select("*").eq("enrollment_id", selected.id)
         : Promise.resolve({ data: [] as never[] }),
@@ -104,12 +104,9 @@ export default async function AdminLaporanPage({
     }
 
     const stars = usesStars(program.assessment_type);
-    const progressPercent = stars
-      ? computeProgressPercent(
-          activeKeys(indicatorConfig),
-          latestAttendedReport(reports)?.scores as Record<string, number> | null | undefined
-        )
-      : null;
+    // A single percent score was dropped per product decision -- see the
+    // same change in src/app/pelatih/murid/[studentId]/page.tsx.
+    const latestAchievement = stars ? computeLatestAchievement(reports, indicatorConfig) : null;
     const age = formatAge(student.birth_date);
 
     body = (
@@ -119,9 +116,9 @@ export default async function AdminLaporanPage({
             {student.full_name} &middot; {program.name}
             {age ? ` · ${age}` : ""}
           </p>
-          {progressPercent !== null && (
+          {latestAchievement && (
             <span className="rounded-full bg-[#EEF9FB] px-3 py-1.5 text-sm font-semibold text-[#35C5D0]">
-              Progress {progressPercent}%
+              {latestAchievement}
             </span>
           )}
         </GlassCard>

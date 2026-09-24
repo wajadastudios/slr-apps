@@ -19,7 +19,7 @@ function toDateOnly(iso: string | null | undefined): string {
 export async function syncPaidInvoicesToCashFlow(supabase: Db, actorId: string | null): Promise<number> {
   const { data: paid } = await supabase
     .from("invoices")
-    .select("id, amount, created_at, sent_at, student_id, enrollment_id, payment_method")
+    .select("id, amount, created_at, sent_at, student_id, enrollment_id, payment_method, is_test")
     .eq("status", "paid");
   if (!paid || paid.length === 0) return 0;
 
@@ -62,6 +62,10 @@ export async function syncPaidInvoicesToCashFlow(supabase: Db, actorId: string |
       program_id: programId,
       location,
       status: "tercatat" as const,
+      // Propagated from the invoice itself -- never re-derived from the
+      // "[TEST]" text label -- so a QA invoice's cash flow entry is flagged
+      // the same way and can be excluded from real reports by default.
+      is_test: i.is_test ?? false,
       note: "Sinkron otomatis dari invoice lunas",
       created_by: actorId,
       updated_by: actorId,

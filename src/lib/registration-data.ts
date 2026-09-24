@@ -46,7 +46,11 @@ export async function loadRegistrationPrograms(): Promise<{
       programsQuery().eq("registration_open", true),
       admin
         .from("class_slots")
+        // service-role client -- RLS is bypassed entirely, so is_test must be
+        // filtered explicitly here or a [TEST]/QA slot would be offered to a
+        // real registrant as a real choice. See 0040_audit_fixes.sql.
         .select("id, program_id, label, location, day_of_week, start_time, capacity")
+        .eq("is_test", false)
         .order("day_of_week")
         .order("start_time"),
       admin

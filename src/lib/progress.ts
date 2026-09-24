@@ -4,6 +4,23 @@ export function isAbsent(attendance: string | null | undefined): boolean {
   return attendance === "izin" || attendance === "sakit";
 }
 
+// The number of DISTINCT sessions actually attended, not the number of
+// report rows. A double-click, a network retry, or any other path that
+// ends up writing two report rows for the same calendar session must never
+// count as two attended sessions against a participant's quota -- counting
+// distinct session_date makes every quota display resilient to that even if
+// a duplicate row exists, on top of (not instead of) preventing the
+// duplicate insert itself at the source (see createReportAction).
+export function countAttendedSessions(
+  reports: { attendance?: string | null; session_date: string }[]
+): number {
+  const days = new Set<string>();
+  for (const r of reports) {
+    if (r.attendance === "hadir") days.add(r.session_date);
+  }
+  return days.size;
+}
+
 // Skill scores describe what the child can do, so a session they missed
 // (izin/sakit) says nothing about that -- progress is read from the newest
 // session they actually attended. Expects reports newest-first.
@@ -11,22 +28,6 @@ export function latestAttendedReport<T extends { attendance?: string | null }>(
   reports: T[]
 ): T | undefined {
   return reports.find((r) => !isAbsent(r.attendance));
-}
-
-export function computeProgressPercent(
-  skillTemplate: string[],
-  scores: Record<string, number> | null | undefined
-): number | null {
-  if (!scores || skillTemplate.length === 0) return null;
-
-  const values = skillTemplate
-    .map((skill) => scores[skill])
-    .filter((v): v is number => typeof v === "number");
-
-  if (values.length === 0) return null;
-
-  const avg = values.reduce((sum, v) => sum + v, 0) / values.length;
-  return Math.round((avg / 5) * 100);
 }
 
 // Both functions below key off Asia/Jakarta wall-clock time, not the
@@ -108,9 +109,9 @@ export type SessionQuota = {
 // must not count until it flips to "paid".
 export function computeSessionQuota(
   invoices: { status: string; sessions_count: number }[],
-  reports: { attendance: string | null }[]
+  reports: { attendance: string | null; session_date: string }[]
 ): SessionQuota {
-  const hadir = reports.filter((r) => r.attendance === "hadir").length;
+  const hadir = countAttendedSessions(reports);
   const total = invoices
     .filter((i) => i.status === "paid")
     .reduce((sum, i) => sum + i.sessions_count, 0);

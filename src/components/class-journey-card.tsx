@@ -1,6 +1,7 @@
 import { GlassCard } from "@/components/ui/glass-card";
 import { formatShortDate } from "@/lib/format-date";
 import { attendanceLabel } from "@/lib/report-preview";
+import { countAttendedSessions } from "@/lib/progress";
 
 type Session = {
   session_date: string;
@@ -13,7 +14,7 @@ type Session = {
 // Aquanatal "Perjalanan Kelas": a calm timeline of the sessions attended. It
 // counts participation, never ability -- no scores, percentages or targets.
 export function ClassJourneyCard({ reports }: { reports: Session[] }) {
-  const attended = reports.filter((r) => r.attendance === "hadir");
+  const attendedCount = countAttendedSessions(reports);
   const first = [...reports].sort((a, b) => a.session_date.localeCompare(b.session_date))[0];
   const timeline = reports.slice(0, 12);
 
@@ -30,7 +31,7 @@ export function ClassJourneyCard({ reports }: { reports: Session[] }) {
       ) : (
         <>
           <p className="mb-4 text-sm text-slate-600">
-            {attended.length} sesi diikuti
+            {attendedCount} sesi diikuti
             {first ? ` sejak ${formatShortDate(first.session_date)}` : ""}. Setiap sesi berjalan sesuai
             kenyamanan Anda.
           </p>

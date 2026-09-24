@@ -17,7 +17,7 @@ import { addParticipantAction, movePersonAction, removePersonAction, saveSlotCha
 import { deleteSlotAction } from "../../slot-jadwal/actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
-const FILL_TONE: Record<SlotFill, Tone> = { penuh: "danger", hampir_penuh: "warn", tersedia: "ok" };
+const FILL_TONE: Record<SlotFill, Tone> = { penuh: "danger", hampir_penuh: "warn", terisi_sebagian: "info", tersedia: "ok" };
 const ENROLL_TONE: Record<string, Tone> = { scheduled: "ok", active: "ok", waiting_schedule: "info", schedule_offered: "info", pending_review: "warn" };
 
 export default async function SlotRosterPage({

@@ -20,6 +20,7 @@ export type InvoiceLite = {
   status: string;
   sent_at: string | null;
   program_id?: string | null;
+  is_test?: boolean;
 };
 
 function inPeriod(dateISO: string, from: string, to: string): boolean {

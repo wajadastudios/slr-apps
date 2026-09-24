@@ -8,6 +8,16 @@ import { createClient } from "@/lib/supabase/server";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { getSiteOrigin } from "@/lib/site-url";
 import { lockEnrollmentPriceIfMissing, resolveInvoicePrice } from "@/lib/pricing";
+import { randomBytes } from "node:crypto";
+
+// Unguessable public payment-link token -- same shape/entropy as the
+// claim_token/offer_token pattern already used elsewhere in this codebase
+// (see register_enrollment in 0035_family_accounts_billing.sql), just
+// generated in JS instead of SQL since this runs at send time, not insert
+// time.
+function generatePublicToken(): string {
+  return randomBytes(32).toString("hex");
+}
 
 // where to go after an action: the page it was started from, when that is an
 // admin page (never an arbitrary URL)
@@ -244,7 +254,7 @@ async function sendInvoiceActionImpl(formData: FormData) {
 
   const { data: draft } = await supabase
     .from("invoices")
-    .select("status, amount")
+    .select("status, amount, public_token")
     .eq("id", invoice_id)
     .maybeSingle();
   if (!draft || !["draft", "approved"].includes(draft.status)) {
@@ -255,6 +265,11 @@ async function sendInvoiceActionImpl(formData: FormData) {
   }
 
   const { data: invoiceNumber } = await supabase.rpc("next_invoice_number");
+  // The link shared over WhatsApp must work for someone who is not logged
+  // in (incognito, WhatsApp's in-app browser, a different device than the
+  // one they registered from) -- an unguessable token, never the plain
+  // invoice id, and never anything a login-gated route could 404 on.
+  const publicToken = draft!.public_token ?? generatePublicToken();
 
   const { error } = await supabase
     .from("invoices")
@@ -263,6 +278,7 @@ async function sendInvoiceActionImpl(formData: FormData) {
       approved_by: session.user.id,
       sent_at: new Date().toISOString(),
       invoice_number: invoiceNumber,
+      public_token: publicToken,
     })
     .eq("id", invoice_id);
 
@@ -277,7 +293,7 @@ async function sendInvoiceActionImpl(formData: FormData) {
   const origin = await getSiteOrigin();
   await sendWhatsApp(
     parentPhone,
-    `Invoice les renang untuk ${studentName}: ${origin}/invoice/${invoice_id}`
+    `Invoice les renang untuk ${studentName}: ${origin}/invoice/pay/${publicToken}`
   );
 
   revalidatePath("/admin/tagihan");
@@ -555,9 +571,16 @@ async function resendInvoiceActionImpl(formData: FormData) {
   const invoice_id = String(formData.get("invoice_id") ?? "");
   const supabase = await createClient();
 
-  const { data: inv } = await supabase.from("invoices").select("status").eq("id", invoice_id).maybeSingle();
+  const { data: inv } = await supabase.from("invoices").select("status, public_token").eq("id", invoice_id).maybeSingle();
   if (!inv || !["sent", "processing"].includes(inv.status)) {
     redirect(withError(returnTo, "Hanya tagihan yang menunggu pembayaran yang dapat dikirim ulang."));
+  }
+  // Backfilled by 0040_audit_fixes.sql for every non-draft invoice, but
+  // guard anyway in case this runs against a database that migration
+  // hasn't reached yet.
+  const publicToken = inv!.public_token ?? generatePublicToken();
+  if (!inv!.public_token) {
+    await supabase.from("invoices").update({ public_token: publicToken }).eq("id", invoice_id);
   }
 
   const { studentName, parentPhone } = await getInvoiceNotifyInfo(supabase, invoice_id);
@@ -567,7 +590,7 @@ async function resendInvoiceActionImpl(formData: FormData) {
   const origin = await getSiteOrigin();
   const sent = await sendWhatsApp(
     parentPhone,
-    `Pengingat: invoice les renang untuk ${studentName}: ${origin}/invoice/${invoice_id}`
+    `Pengingat: invoice les renang untuk ${studentName}: ${origin}/invoice/pay/${publicToken}`
   );
   if (sent === false) {
     redirect(withError(returnTo, "Pesan WhatsApp belum terkirim. Periksa koneksi Fonnte, lalu coba lagi."));

@@ -106,6 +106,12 @@ export default async function PelatihGajiPage() {
           {gaji.izinSakitCount > 0 ? `, ${gaji.izinSakitCount} izin/sakit` : ""}) · Komisi
           Referral: {formatRupiah(commission)}
         </p>
+        {gaji.unratedCount > 0 && (
+          <p role="alert" className="mt-2 rounded-xl bg-[#FFF1CC] px-3 py-2 text-xs font-medium text-[#7A5400]">
+            ⚠️ Tarif mengajar Anda belum diatur admin untuk {gaji.unratedCount} sesi periode ini, jadi belum ikut
+            dihitung di atas (bukan berarti sesi itu tidak dibayar). Hubungi admin untuk mengatur tarif.
+          </p>
+        )}
         <p className="mt-2 text-lg font-semibold text-[#17263D]">
           Total: {formatRupiah(total)}
         </p>

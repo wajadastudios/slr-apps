@@ -14,7 +14,7 @@ import { DAYS } from "@/lib/days";
 import { createSlotAction, deleteSlotAction } from "./actions";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
-const FILL_TONE: Record<SlotFill, Tone> = { penuh: "danger", hampir_penuh: "warn", tersedia: "ok" };
+const FILL_TONE: Record<SlotFill, Tone> = { penuh: "danger", hampir_penuh: "warn", terisi_sebagian: "info", tersedia: "ok" };
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
 
 type SlotRow = {

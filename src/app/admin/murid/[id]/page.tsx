@@ -16,6 +16,7 @@ import { formatAge, formatMetricLabel, formatMetricValue, type PerformanceRecord
 import { genderLabel } from "@/lib/registration-input";
 import { loadMilestones } from "@/lib/milestone-loader";
 import { computeQuota, invoiceProblem, isOverdue, paidSessionsOf, quotaLine, PROBLEM_TEXT } from "@/lib/admin/quota";
+import { countAttendedSessions } from "@/lib/progress";
 import { describeActivity, type ActivityRow } from "@/lib/admin/activity";
 import { coachName, dayName, formatClock, formatDate, formatDateTime, formatRange, rupiah } from "@/lib/admin/format";
 import { PRICE_SOURCE_LABEL, DISCOUNT_TYPE_LABEL, type PriceSource } from "@/lib/pricing";
@@ -126,15 +127,16 @@ export default async function MuridDetailPage({
     supabase
       .from("invoices")
       .select(
-        "id, enrollment_id, status, sessions_count, amount, base_price, discount_amount, discount_type, price_source, package_name, created_at, sent_at, invoice_number, supersedes_invoice_id, superseded_by_invoice_id, billing:billing_account_id(full_name, email)"
+        "id, enrollment_id, status, sessions_count, amount, base_price, discount_amount, discount_type, price_source, package_name, created_at, sent_at, invoice_number, public_token, supersedes_invoice_id, superseded_by_invoice_id, billing:billing_account_id(full_name, email)"
       )
       .eq("student_id", id)
       .order("created_at", { ascending: false }),
     supabase
       .from("progress_reports")
-      .select("id, enrollment_id, program_id, session_date, attendance, session_number, notes, next_focus, pelatih:pelatih_id(full_name, title)")
+      .select("id, enrollment_id, program_id, session_date, attendance, session_number, notes, next_focus, updated_at, pelatih:pelatih_id(full_name, title)")
       .eq("student_id", id)
-      .order("session_date", { ascending: false }),
+      .order("session_date", { ascending: false })
+      .order("updated_at", { ascending: false }),
     supabase
       .from("performance_records")
       .select("id, enrollment_id, program_id, metric_type, stroke, distance_m, duration_seconds, recorded_at, awards")
@@ -192,7 +194,7 @@ export default async function MuridDetailPage({
   const quotaOf = (e: Enr) =>
     computeQuota(
       paidSessionsOf(invoices.filter((i) => i.enrollment_id === e.id)),
-      reports.filter((r) => r.enrollment_id === e.id && r.attendance === "hadir").length
+      countAttendedSessions(reports.filter((r) => r.enrollment_id === e.id))
     );
 
   const activeProgramFilter = sp.program ?? "";
@@ -543,7 +545,7 @@ export default async function MuridDetailPage({
                     </div>
                     {["sent", "processing", "paid"].includes(inv.status) && (
                       <div className="flex flex-wrap items-center gap-2">
-                        <CopyButton value={`${origin}/invoice/${inv.id}`} label="Salin link pembayaran" className="px-3 py-1.5 text-xs" />
+                        <CopyButton value={`${origin}/invoice/pay/${inv.public_token ?? inv.id}`} label="Salin link pembayaran" className="px-3 py-1.5 text-xs" />
                         {["sent", "processing"].includes(inv.status) && (
                           <ToastForm action={resendInvoiceAction} pendingLabel="Mengirim...">
                             <input type="hidden" name="invoice_id" value={inv.id} />

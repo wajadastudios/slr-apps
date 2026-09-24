@@ -72,7 +72,17 @@ export default async function ProgramSetupPage({
         title={`Atur Program: ${program.name}`}
         subtitle="Selesaikan langkah di bawah, lalu buka program untuk pendaftar."
         actions={
-          !program.active ? <Badge>Nonaktif</Badge> : program.registration_open ? <Badge tone="ok">Menerima pendaftar</Badge> : ready ? <Badge tone="info">Siap dibuka</Badge> : <Badge tone="warn">Belum siap</Badge>
+          !program.active ? (
+            <Badge>Nonaktif</Badge>
+          ) : program.registration_open && !ready ? (
+            <Badge tone="danger">Menerima pendaftar, tapi belum lengkap</Badge>
+          ) : program.registration_open ? (
+            <Badge tone="ok">Menerima pendaftar</Badge>
+          ) : ready ? (
+            <Badge tone="info">Siap dibuka</Badge>
+          ) : (
+            <Badge tone="warn">Belum siap</Badge>
+          )
         }
       />
       {error && (

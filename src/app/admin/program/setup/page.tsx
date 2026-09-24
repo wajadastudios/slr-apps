@@ -50,6 +50,14 @@ export default async function ProgramSetupListPage() {
                 <h2 className={HEADING}>{p.name}</h2>
                 {!p.active ? (
                   <Badge>Nonaktif</Badge>
+                ) : p.registration_open && blockers.length > 0 ? (
+                  // setRegistrationOpenAction blocks turning this ON while
+                  // anything is missing, but a program opened before that
+                  // guard existed (or that later lost a package/slot/coach)
+                  // can still be sitting here inconsistent -- never show a
+                  // clean "ok" badge for that, so it isn't mistaken for
+                  // actually ready.
+                  <Badge tone="danger">Menerima pendaftar, tapi belum lengkap</Badge>
                 ) : p.registration_open ? (
                   <Badge tone="ok">Menerima pendaftar</Badge>
                 ) : blockers.length === 0 ? (

@@ -21,6 +21,7 @@ import {
   computeLatestAchievement,
   computeNextSession,
   computeSessionQuota,
+  countAttendedSessions,
   formatSessionQuota,
   latestAttendedReport,
 } from "@/lib/progress";
@@ -183,7 +184,8 @@ export default async function AnakDetailPage({
       .from("progress_reports")
       .select("*")
       .eq("enrollment_id", enrollment.id)
-      .order("session_date", { ascending: false }),
+      .order("session_date", { ascending: false })
+      .order("updated_at", { ascending: false }),
     loadInvoiceSummaries(supabase),
     loadEnrollmentBilling(supabase),
     supabase
@@ -207,7 +209,7 @@ export default async function AnakDetailPage({
   const quotaText = singleClass
     ? formatSessionQuota(computeSessionQuota(invoices ?? [], allReports))
     : {
-        value: `${allReports.filter((r) => r.attendance === "hadir").length} sesi diikuti`,
+        value: `${countAttendedSessions(allReports)} sesi diikuti`,
         note: "Kuota paket ada di menu Tagihan",
       };
   const quota = computeSessionQuota(invoices ?? [], allReports);

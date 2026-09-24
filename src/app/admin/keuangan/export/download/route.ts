@@ -19,6 +19,7 @@ export async function GET(request: Request) {
   );
   const programFilter = url.searchParams.get("program") ?? undefined;
   const locationFilter = url.searchParams.get("location") ?? undefined;
+  const includeTest = url.searchParams.get("test") === "1";
 
   const [
     { data: programs },
@@ -42,16 +43,16 @@ export async function GET(request: Request) {
     supabase.from("site_settings").select("value").eq("key", "jatuh_tempo_hari").maybeSingle(),
     supabase
       .from("invoices")
-      .select("id, amount, status, sent_at, package_name, student:student_id(full_name)")
+      .select("id, amount, status, sent_at, package_name, is_test, student:student_id(full_name)")
       .in("status", ["sent", "processing"]),
     supabase
       .from("operational_expenses")
-      .select("id, category, amount, expense_date, program_id, location, vendor, reference_number, payment_status, payment_method, note")
+      .select("id, category, amount, expense_date, program_id, location, vendor, reference_number, payment_status, payment_method, note, is_test")
       .gte("expense_date", period.from)
       .lte("expense_date", period.to),
     supabase
       .from("payroll_payments")
-      .select("id, pelatih_id, period_year, period_month, gross_amount, adjustment_amount, tax_deduction_amount, net_amount, amount, status, payment_method, paid_at, pelatih:pelatih_id(full_name)"),
+      .select("id, pelatih_id, period_year, period_month, gross_amount, adjustment_amount, tax_deduction_amount, net_amount, amount, status, payment_method, paid_at, is_test, pelatih:pelatih_id(full_name)"),
     supabase.from("tax_entity_profile").select("*").order("effective_from", { ascending: false }),
     supabase.from("tax_settings").select("*").order("effective_from", { ascending: false }),
     supabase
@@ -68,10 +69,10 @@ export async function GET(request: Request) {
   const overdueDays = Number(overdueSetting?.value) > 0 ? Number(overdueSetting?.value) : 7;
 
   const cf = ((cashFlowRows ?? []) as unknown as (CashFlowEntryLite & { payment_method: string | null; note: string | null; is_test: boolean; created_by: { full_name: string } | null })[]).filter(
-    (e) => (!programFilter || e.program_id === programFilter) && (!locationFilter || e.location === locationFilter)
+    (e) => (includeTest || !e.is_test) && (!programFilter || e.program_id === programFilter) && (!locationFilter || e.location === locationFilter)
   );
 
-  const receivables: InvoiceLite[] = receivableRows ?? [];
+  const receivables: InvoiceLite[] = (receivableRows ?? []).filter((i) => includeTest || !i.is_test);
   const overdueIds = new Set(
     receivables.filter((r) => isOverdue({ status: r.status, sent_at: (r as unknown as { sent_at: string | null }).sent_at }, overdueDays)).map((r) => r.id)
   );
@@ -83,7 +84,7 @@ export async function GET(request: Request) {
     receivableInvoices: receivables,
     overdueInvoiceIds: overdueIds,
     payrollUnpaidNet: (payrollRows ?? [])
-      .filter((p) => ["draft", "disetujui"].includes(p.status))
+      .filter((p) => ["draft", "disetujui"].includes(p.status) && (includeTest || !p.is_test))
       .reduce((s, p) => s + Number(p.net_amount ?? p.amount ?? 0), 0),
   });
 
@@ -92,7 +93,11 @@ export async function GET(request: Request) {
     periodTo: period.to,
     generatedAtISO: new Date().toISOString(),
     generatedBy: session.fullName ?? session.user.email ?? "Admin",
-    filters: { program: programFilter ? (programName.get(programFilter) ?? programFilter) : undefined, location: locationFilter },
+    filters: {
+      program: programFilter ? (programName.get(programFilter) ?? programFilter) : undefined,
+      location: locationFilter,
+      data_uji: includeTest ? "disertakan" : "dikecualikan",
+    },
   };
 
   const wb = createFinanceWorkbook(meta);
@@ -176,7 +181,7 @@ export async function GET(request: Request) {
   );
 
   // 6. Biaya Operasional
-  const expenses = expenseRows ?? [];
+  const expenses = (expenseRows ?? []).filter((e) => includeTest || !e.is_test);
   addDataSheet(
     wb,
     "Biaya Operasional",
@@ -198,6 +203,7 @@ export async function GET(request: Request) {
 
   // 7. Gaji Pengajar
   const payroll = (payrollRows ?? []).filter((p) => {
+    if (!includeTest && p.is_test) return false;
     const periodDate = `${p.period_year}-${String(p.period_month).padStart(2, "0")}-01`;
     return periodDate >= period.from.slice(0, 7) + "-01" && periodDate <= period.to;
   });
