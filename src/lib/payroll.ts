@@ -34,14 +34,24 @@ export function resolveRateForDate(
 export function computeGaji(
   reports: ReportForPayroll[],
   rates: RateRow[]
-): { hadirCount: number; izinSakitCount: number; total: number } {
+): { hadirCount: number; izinSakitCount: number; total: number; unratedCount: number } {
   let hadirCount = 0;
   let izinSakitCount = 0;
   let total = 0;
+  // Sessions that really happened (a real report row -- duplicates are
+  // already prevented upstream by progress_reports' own unique(enrollment_
+  // id, session_date) guard, see 0040_audit_fixes.sql) but couldn't be
+  // priced because no pelatih_rates row was ever in effect on that date.
+  // These must never silently read as "Rp0 gaji" -- the caller shows an
+  // explicit "tarif belum diatur" warning instead.
+  let unratedCount = 0;
 
   for (const report of reports) {
     const rate = resolveRateForDate(rates, report.session_date);
-    if (!rate) continue; // no rate was ever set as of this session's date
+    if (!rate) {
+      unratedCount += 1;
+      continue; // no rate was ever set as of this session's date
+    }
 
     if (report.attendance === "hadir") {
       hadirCount += 1;
@@ -52,7 +62,7 @@ export function computeGaji(
     }
   }
 
-  return { hadirCount, izinSakitCount, total };
+  return { hadirCount, izinSakitCount, total, unratedCount };
 }
 
 export type ReferredStudent = {

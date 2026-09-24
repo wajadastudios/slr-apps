@@ -211,18 +211,20 @@ export function formGroups(config: IndicatorConfig, alsoKeys: string[] = []): Fo
 
 // Groups worth opening first: ones where the child has a score that is
 // started but not yet mastered. Falls back to the first group.
+// Exactly one group open by default -- the one with an in-progress
+// indicator (partially scored last session), or the first group if none
+// qualifies. Never more than one: a long list of groups should never start
+// as a wall of expanded indicators.
 export function relevantGroupIds(
   groups: FormGroup[],
   latestScores: Record<string, number> | null | undefined
 ): string[] {
-  const ids = groups
-    .filter((g) =>
-      g.indicators.some((i) => {
-        const score = latestScores?.[i.key];
-        return typeof score === "number" && score > 0 && score < 5;
-      })
-    )
-    .map((g) => g.id);
-  if (ids.length > 0) return ids;
-  return groups[0] ? [groups[0].id] : [];
+  const inProgress = groups.find((g) =>
+    g.indicators.some((i) => {
+      const score = latestScores?.[i.key];
+      return typeof score === "number" && score > 0 && score < 5;
+    })
+  );
+  const open = inProgress ?? groups[0];
+  return open ? [open.id] : [];
 }

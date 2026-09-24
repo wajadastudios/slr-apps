@@ -11,6 +11,7 @@ import { GroupAccordion } from "@/components/group-accordion";
 import {
   computeNextSession,
   computeSessionQuota,
+  countAttendedSessions,
   formatSessionQuota,
   getGreeting,
 } from "@/lib/progress";
@@ -48,8 +49,12 @@ export default async function OrtuDashboardPage({
     loadEnrollmentBilling(supabase),
     supabase
       .from("progress_reports")
-      .select("student_id, program_id, session_date, session_number, attendance, notes")
-      .order("session_date", { ascending: false }),
+      .select("student_id, program_id, session_date, session_number, attendance, notes, updated_at")
+      // updated_at breaks ties within the same session_date (two reports
+      // entered the same day) and also reflects an edit to an older report
+      // -- session_date alone (a date, no time) can't do either.
+      .order("session_date", { ascending: false })
+      .order("updated_at", { ascending: false }),
     supabase
       .from("schedules")
       .select("student_id, slot:slot_id(day_of_week, start_time, pelatih_id, program_id)"),
@@ -247,7 +252,7 @@ export default async function OrtuDashboardPage({
           const quota = singleClass
             ? formatSessionQuota(computeSessionQuota(invoicesByStudent.get(child.id) ?? [], enrollmentReports))
             : {
-                value: `${enrollmentReports.filter((r) => r.attendance === "hadir").length} sesi diikuti`,
+                value: `${countAttendedSessions(enrollmentReports)} sesi diikuti`,
                 note: "Kuota paket ada di menu Tagihan",
               };
 

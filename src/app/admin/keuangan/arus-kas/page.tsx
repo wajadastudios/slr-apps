@@ -23,7 +23,7 @@ const STATUS_TONE: Record<CashFlowStatus, "neutral" | "warn" | "ok" | "danger"> 
   dibatalkan: "danger",
 };
 
-type Params = { from?: string; to?: string; program?: string; location?: string; error?: string; edit?: string };
+type Params = { from?: string; to?: string; program?: string; location?: string; error?: string; edit?: string; test?: string };
 
 export default async function ArusKasPage({ searchParams }: { searchParams: Promise<Params> }) {
   const session = await requireAdmin();
@@ -31,6 +31,7 @@ export default async function ArusKasPage({ searchParams }: { searchParams: Prom
   const supabase = await createClient();
   const todayISO = toISODate(jakartaToday());
   const period = resolvePeriod(sp, todayISO);
+  const includeTest = sp.test === "1";
 
   await syncAllToCashFlow(supabase, session.user.id);
 
@@ -50,8 +51,15 @@ export default async function ArusKasPage({ searchParams }: { searchParams: Prom
   );
   const programName = new Map(programs.map((p) => [p.id, p.name]));
 
-  const totalMasuk = rows.filter((r) => r.direction === "masuk" && r.status !== "dibatalkan").reduce((s, r) => s + Number(r.amount), 0);
-  const totalKeluar = rows.filter((r) => r.direction === "keluar" && r.status !== "dibatalkan").reduce((s, r) => s + Number(r.amount), 0);
+  // The ledger below always lists every entry (each one already carries its
+  // own [TEST] tag), but the at-a-glance totals stay production-only by
+  // default -- same "excluded unless QA mode" rule as Ringkasan.
+  const totalMasuk = rows
+    .filter((r) => r.direction === "masuk" && r.status !== "dibatalkan" && (includeTest || !r.is_test))
+    .reduce((s, r) => s + Number(r.amount), 0);
+  const totalKeluar = rows
+    .filter((r) => r.direction === "keluar" && r.status !== "dibatalkan" && (includeTest || !r.is_test))
+    .reduce((s, r) => s + Number(r.amount), 0);
 
   const editing = sp.edit ? rows.find((r) => r.id === sp.edit) : undefined;
   const back = `/admin/keuangan/arus-kas?${new URLSearchParams(
@@ -72,9 +80,15 @@ export default async function ArusKasPage({ searchParams }: { searchParams: Prom
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <StatTile label="Total masuk (periode)" value={rupiah(totalMasuk)} />
-        <StatTile label="Total keluar (periode)" value={rupiah(totalKeluar)} />
+        <StatTile label="Total masuk (periode)" value={rupiah(totalMasuk)} hint={includeTest ? "Termasuk data [TEST]" : "Tanpa data [TEST]"} />
+        <StatTile label="Total keluar (periode)" value={rupiah(totalKeluar)} hint={includeTest ? "Termasuk data [TEST]" : "Tanpa data [TEST]"} />
       </div>
+      <a
+        href={`?${new URLSearchParams({ from: period.from, to: period.to, program: sp.program ?? "", location: sp.location ?? "", ...(includeTest ? {} : { test: "1" }) }).toString()}`}
+        className="w-fit text-xs text-[#0B6470] underline"
+      >
+        {includeTest ? "Kembali ke total tanpa data [TEST]" : "Sertakan data [TEST] di total (mode QA)"}
+      </a>
 
       <GlassCard>
         <h2 className="mb-3 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">

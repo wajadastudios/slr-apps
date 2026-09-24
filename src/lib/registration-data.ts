@@ -2,6 +2,9 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DAYS } from "@/lib/days";
 import { flowsFor } from "@/lib/program-audience";
+import { resolveCurrentPackagePrices } from "@/lib/pricing";
+import { readyBlockers } from "@/lib/admin/readiness";
+import { loadReadiness } from "@/lib/admin/readiness-load";
 
 export type RegistrationSlot = { id: string; text: string; location: string | null };
 export type RegistrationPackage = { id: string; name: string; sessions_count: number; price: number };
@@ -37,7 +40,9 @@ export async function loadRegistrationPrograms(): Promise<{
     const programsQuery = () =>
       admin
         .from("programs")
-        .select("id, name, description, requires_acknowledgement, intended_gender, self_registration, audience")
+        .select(
+          "id, name, description, requires_acknowledgement, intended_gender, self_registration, audience, assessment_type, records_mode, registration_open"
+        )
         .eq("active", true)
         .order("name");
 
@@ -46,7 +51,11 @@ export async function loadRegistrationPrograms(): Promise<{
       programsQuery().eq("registration_open", true),
       admin
         .from("class_slots")
+        // service-role client -- RLS is bypassed entirely, so is_test must be
+        // filtered explicitly here or a [TEST]/QA slot would be offered to a
+        // real registrant as a real choice. See 0040_audit_fixes.sql.
         .select("id, program_id, label, location, day_of_week, start_time, capacity")
+        .eq("is_test", false)
         .order("day_of_week")
         .order("start_time"),
       admin
@@ -59,15 +68,42 @@ export async function loadRegistrationPrograms(): Promise<{
 
     // before the admin migration exists there is no such switch: every active
     // program stays open, exactly as before
+    const usingReadinessGate = !openPrograms.error;
     const programsRes = openPrograms.error ? await programsQuery() : openPrograms;
     if (programsRes.error) return { programs: [], error: true };
+
+    // registration_open alone is not enough: a program opened before the
+    // readiness checklist existed (or configured incompletely by mistake)
+    // must still never be offered to a real registrant here, even though
+    // /admin/program/setup already blocks a NEW open with blockers (see
+    // 0040_audit_fixes.sql's readiness badge). This never flips
+    // registration_open itself -- only filters what this one read returns.
+    const readyPrograms = usingReadinessGate
+      ? (
+          await Promise.all(
+            (programsRes.data ?? []).map(async (p) => ({
+              program: p,
+              // already filtered .eq("active", true) above, and this query
+              // doesn't select the column itself
+              ready: readyBlockers(await loadReadiness(admin, { ...p, active: true })).length === 0,
+            }))
+          )
+        )
+          .filter((x) => x.ready)
+          .map((x) => x.program)
+      : (programsRes.data ?? []);
 
     const filled = new Map<string, number>();
     for (const row of (availabilityRes.data ?? []) as { slot_id: string; filled: number }[]) {
       filled.set(row.slot_id, Number(row.filled));
     }
 
-    const programs: RegistrationProgram[] = (programsRes.data ?? []).map((p) => ({
+    // Same cache-vs-current-version gap as the landing page: a prospect must
+    // see the price they will actually be invoiced, not a stale cache
+    // waiting on an admin to re-save the package after a scheduled change.
+    const currentPrices = await resolveCurrentPackagePrices(admin, packagesRes.data ?? []);
+
+    const programs: RegistrationProgram[] = readyPrograms.map((p) => ({
       id: p.id,
       name: p.name,
       description: p.description ?? null,
@@ -86,7 +122,12 @@ export async function loadRegistrationPrograms(): Promise<{
         })),
       packages: (packagesRes.data ?? [])
         .filter((k) => k.program_id === p.id)
-        .map((k) => ({ id: k.id, name: k.name, sessions_count: k.sessions_count, price: Number(k.price) })),
+        .map((k) => ({
+          id: k.id,
+          name: k.name,
+          sessions_count: k.sessions_count,
+          price: currentPrices.get(k.id)?.price ?? Number(k.price),
+        })),
     }));
 
     return { programs, error: false };

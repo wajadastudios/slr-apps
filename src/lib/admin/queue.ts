@@ -38,11 +38,19 @@ export function enrollmentBilling(
   reports: QReport[],
   threshold: number
 ): EnrollmentBillingInfo[] {
-  const hadirByEnrollment = new Map<string, number>();
+  // Distinct session_date per enrollment, not raw row count: keeps quota
+  // resilient to any duplicate report row, matching countAttendedSessions()
+  // used everywhere else this same "hadir" count feeds a quota display.
+  const hadirDaysByEnrollment = new Map<string, Set<string>>();
   for (const r of reports) {
     if (r.attendance !== "hadir" || !r.enrollment_id) continue;
-    hadirByEnrollment.set(r.enrollment_id, (hadirByEnrollment.get(r.enrollment_id) ?? 0) + 1);
+    const days = hadirDaysByEnrollment.get(r.enrollment_id) ?? new Set<string>();
+    days.add(r.session_date);
+    hadirDaysByEnrollment.set(r.enrollment_id, days);
   }
+  const hadirByEnrollment = new Map<string, number>(
+    [...hadirDaysByEnrollment].map(([id, days]) => [id, days.size])
+  );
   const byEnrollment = new Map<string, InvoiceLite[]>();
   for (const i of invoices) {
     if (!i.enrollment_id) continue;

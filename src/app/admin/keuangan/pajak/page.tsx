@@ -45,17 +45,22 @@ export default async function PajakPage({ searchParams }: { searchParams: Promis
     const [{ data: cashFlowRows }, { data: expenseRows }] = await Promise.all([
       supabase
         .from("cash_flow_entries")
-        .select("id, entry_date, direction, category, amount, status, program_id, location, attachment_url")
+        .select("id, entry_date, direction, category, amount, status, program_id, location, attachment_url, is_test")
         .gte("entry_date", period.from)
         .lte("entry_date", period.to),
       supabase
         .from("operational_expenses")
-        .select("id, attachment_url")
+        .select("id, attachment_url, is_test")
         .gte("expense_date", period.from)
         .lte("expense_date", period.to)
         .eq("payment_status", "dibayar"),
     ]);
-    const cf = (cashFlowRows ?? []) as CashFlowEntryLite[];
+    // Tax estimates never include [TEST]/QA data -- no opt-in here (unlike
+    // Ringkasan/Arus Kas), since a wrong tax figure is the one place this
+    // audit singled out as a real risk, not just a display nicety.
+    const realCashFlowRows = (cashFlowRows ?? []).filter((e) => !e.is_test);
+    const realExpenseRows = (expenseRows ?? []).filter((e) => !e.is_test);
+    const cf = realCashFlowRows as CashFlowEntryLite[];
 
     const omzetBruto = sumCashFlow(cf, "masuk", period.from, period.to, "pembayaran_murid");
     const refund = sumCashFlow(cf, "keluar", period.from, period.to, "refund");
@@ -66,8 +71,8 @@ export default async function PajakPage({ searchParams }: { searchParams: Promis
     const labaRugiInternal = pendapatanBersih - biayaOperasional - gajiPengajar;
 
     const belumBerkategori = cf.filter((e) => e.category === "lainnya" && e.status !== "dibatalkan").length;
-    const cfNoAttachment = (cashFlowRows ?? []).filter((e) => !e.attachment_url).length;
-    const expenseNoAttachment = (expenseRows ?? []).filter((e) => !e.attachment_url).length;
+    const cfNoAttachment = realCashFlowRows.filter((e) => !e.attachment_url).length;
+    const expenseNoAttachment = realExpenseRows.filter((e) => !e.attachment_url).length;
 
     const pkpActive = currentProfile?.pkp_status === "pkp";
     const active = activeTaxSettingsOn(settings, period.to);
@@ -269,6 +274,7 @@ export default async function PajakPage({ searchParams }: { searchParams: Promis
       {section === "laporan" && report && (
         <div className="flex flex-col gap-4">
           <p className="rounded-xl bg-[#FFF1CC] px-4 py-3 text-sm font-semibold text-[#7A5400]">{TAX_DISCLAIMER}</p>
+          <p className="text-xs text-slate-500">Transaksi berlabel [TEST]/QA tidak pernah ikut dihitung di laporan ini.</p>
 
           <GlassCard>
             <h2 className="mb-2 font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">Periode</h2>

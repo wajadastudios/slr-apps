@@ -12,7 +12,7 @@ import { loadProgramsAndLocations } from "@/lib/finance/lookups";
 import { resolvePeriod } from "@/lib/finance/shared";
 import { computeRingkasanTotals, groupCashFlowBy, monthlyTrend, type CashFlowEntryLite, type InvoiceLite } from "@/lib/finance/summary";
 
-type Params = { from?: string; to?: string; program?: string; location?: string };
+type Params = { from?: string; to?: string; program?: string; location?: string; test?: string };
 
 export default async function KeuanganRingkasanPage({ searchParams }: { searchParams: Promise<Params> }) {
   const session = await requireAdmin();
@@ -20,6 +20,10 @@ export default async function KeuanganRingkasanPage({ searchParams }: { searchPa
   const supabase = await createClient();
   const todayISO = toISODate(jakartaToday());
   const period = resolvePeriod(sp, todayISO);
+  // "Data test bisa difilter atau dikecualikan dari laporan produksi...
+  // laporan tetap dapat menampilkan data test bila admin sengaja memilih
+  // mode QA" -- excluded by default, opt-in via ?test=1.
+  const includeTest = sp.test === "1";
   // widen the read window for the 6-month trend chart, independent of the
   // filter period shown in the stat tiles above it.
   const wideFrom = new Date(period.to);
@@ -38,22 +42,27 @@ export default async function KeuanganRingkasanPage({ searchParams }: { searchPa
         .gte("entry_date", wideFromISO)
         .lte("entry_date", period.to),
       supabase.from("site_settings").select("value").eq("key", "jatuh_tempo_hari").maybeSingle(),
-      supabase.from("invoices").select("id, amount, status, sent_at").in("status", ["sent", "processing"]),
-      supabase.from("payroll_payments").select("net_amount, amount, status").in("status", ["draft", "disetujui"]),
+      supabase.from("invoices").select("id, amount, status, sent_at, is_test").in("status", ["sent", "processing"]),
+      supabase.from("payroll_payments").select("net_amount, amount, status, is_test").in("status", ["draft", "disetujui"]),
     ]);
 
   const overdueDays = Number(overdueSetting?.value) > 0 ? Number(overdueSetting?.value) : 7;
 
   const allCashFlow = (cashFlowRows ?? []) as CashFlowEntryLite[];
   const filtered = allCashFlow.filter(
-    (e) => (!sp.program || e.program_id === sp.program) && (!sp.location || e.location === sp.location)
+    (e) =>
+      (includeTest || !e.is_test) &&
+      (!sp.program || e.program_id === sp.program) &&
+      (!sp.location || e.location === sp.location)
   );
 
-  const receivableInvoices: InvoiceLite[] = receivableRows ?? [];
+  const receivableInvoices: InvoiceLite[] = (receivableRows ?? []).filter((i) => includeTest || !i.is_test);
   const overdueInvoiceIds = new Set(
     receivableInvoices.filter((i) => isOverdue({ status: i.status, sent_at: (i as unknown as { sent_at: string | null }).sent_at }, overdueDays)).map((i) => i.id)
   );
-  const payrollUnpaidNet = (payrollUnpaidRows ?? []).reduce((sum, p) => sum + Number(p.net_amount ?? p.amount ?? 0), 0);
+  const payrollUnpaidNet = (payrollUnpaidRows ?? [])
+    .filter((p) => includeTest || !p.is_test)
+    .reduce((sum, p) => sum + Number(p.net_amount ?? p.amount ?? 0), 0);
 
   const totals = computeRingkasanTotals({
     cashFlow: filtered,
@@ -96,7 +105,27 @@ export default async function KeuanganRingkasanPage({ searchParams }: { searchPa
 
       {testCount > 0 && (
         <p className="rounded-xl bg-[#FFF1CC] px-3 py-2 text-xs text-[#7A5400]">
-          {testCount} transaksi berlabel [TEST] termasuk dalam rentang data yang dimuat (6 bulan terakhir) dan ikut dijumlahkan di bawah -- hapus atau batalkan data uji sebelum memakai angka ini untuk laporan sungguhan.
+          {testCount} transaksi berlabel [TEST] ada dalam rentang data ini.{" "}
+          {includeTest ? (
+            <>
+              Sedang <strong>disertakan</strong> (mode QA) --{" "}
+              <a href={`?${new URLSearchParams({ from: period.from, to: period.to, program: sp.program ?? "", location: sp.location ?? "" }).toString()}`} className="underline">
+                kembali ke laporan produksi (kecualikan data uji)
+              </a>
+              .
+            </>
+          ) : (
+            <>
+              Sudah <strong>dikecualikan</strong> dari angka di bawah --{" "}
+              <a
+                href={`?${new URLSearchParams({ from: period.from, to: period.to, program: sp.program ?? "", location: sp.location ?? "", test: "1" }).toString()}`}
+                className="underline"
+              >
+                sertakan data uji (mode QA)
+              </a>
+              .
+            </>
+          )}
         </p>
       )}
 

@@ -15,8 +15,8 @@ import { RecordUnlockCard } from "@/components/record-unlock-card";
 import { ReportHistoryCard } from "@/components/report-history-card";
 import { ToastForm } from "@/components/ui/toast-form";
 import { computeMilestoneStatuses } from "@/lib/milestones";
-import { computeProgressPercent, latestAttendedReport } from "@/lib/progress";
-import { activeKeys, formGroups, relevantGroupIds } from "@/lib/indicators";
+import { computeLatestAchievement, latestAttendedReport } from "@/lib/progress";
+import { formGroups, relevantGroupIds } from "@/lib/indicators";
 import { loadIndicatorConfig } from "@/lib/indicator-loader";
 import { loadMilestones } from "@/lib/milestone-loader";
 import { requirePelatih } from "@/lib/create-account";
@@ -139,7 +139,8 @@ export default async function MuridReportPage({
       .from("progress_reports")
       .select("*")
       .eq("enrollment_id", enrollment.id)
-      .order("session_date", { ascending: false }),
+      .order("session_date", { ascending: false })
+      .order("updated_at", { ascending: false }),
     medals
       ? supabase.from("performance_records").select("*").eq("enrollment_id", enrollment.id)
       : Promise.resolve({ data: [] as never[] }),
@@ -176,8 +177,12 @@ export default async function MuridReportPage({
   const todayIso = toISODate(jakartaToday());
   const today = tanggal && /^\d{4}-\d{2}-\d{2}$/.test(tanggal) ? tanggal : todayIso;
   const latestScores = latestAttendedReport(reports)?.scores as Record<string, number> | null | undefined;
-  const progressPercent = usesStars(type)
-    ? computeProgressPercent(activeKeys(indicatorConfig), latestScores)
+  // A single percent score was dropped per product decision -- a short,
+  // concrete achievement ("Meningkat pada X" / "Sudah baik pada Y") is more
+  // meaningful than one averaged number, and simply hides itself (returns
+  // null) when there isn't enough data to say something true.
+  const latestAchievement = usesStars(type)
+    ? computeLatestAchievement(reports, indicatorConfig)
     : null;
   const formGroupList = formGroups(indicatorConfig);
   const openGroups = relevantGroupIds(formGroupList, latestScores);
@@ -193,9 +198,9 @@ export default async function MuridReportPage({
             {age ? ` · ${age}` : ""}
           </span>
         </h1>
-        {progressPercent !== null && (
+        {latestAchievement && (
           <span className="rounded-full bg-[#EEF9FB] px-3 py-1.5 text-sm font-semibold text-[#35C5D0]">
-            Progress: {progressPercent}%
+            {latestAchievement}
           </span>
         )}
       </div>

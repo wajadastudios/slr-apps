@@ -186,7 +186,14 @@ async function IndicatorTab({ programId, sel }: { programId: string; sel?: strin
     })),
   }));
 
-  return <IndicatorWorkspace programId={programId} groups={groups} focus={sel} />;
+  // key={programId} forces a remount on program switch -- without it React
+  // reuses the same component instance and its "closed" accordion state
+  // (computed once, lazily, from the FIRST program's group ids) never gets
+  // recomputed for the new program's completely different group ids, so
+  // every group reads as "open" (none of them match the stale closed list).
+  // This was exactly the audit's "halaman konfigurasi/penilaian admin masih
+  // terasa panjang bila semua kelompok terbuka" finding.
+  return <IndicatorWorkspace key={programId} programId={programId} groups={groups} focus={sel} />;
 }
 
 async function RecordsTab({

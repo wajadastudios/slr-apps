@@ -259,6 +259,8 @@ async function createReportActionImpl(formData: FormData) {
 
   revalidatePath(`/pelatih/murid/${student_id}`);
   revalidatePath("/pelatih");
+  revalidatePath("/ortu");
+  revalidatePath(`/ortu/anak/${student_id}`);
   redirect(back(student_id, program.id));
 }
 
@@ -348,6 +350,9 @@ async function updateReportActionImpl(formData: FormData) {
   }
 
   revalidatePath(`/pelatih/murid/${student_id}`);
+  revalidatePath("/pelatih");
+  revalidatePath("/ortu");
+  revalidatePath(`/ortu/anak/${student_id}`);
   redirect(back(student_id, program.id));
 }
 
@@ -381,6 +386,9 @@ async function deleteReportActionImpl(formData: FormData) {
   }
 
   revalidatePath(`/pelatih/murid/${student_id}`);
+  revalidatePath("/pelatih");
+  revalidatePath("/ortu");
+  revalidatePath(`/ortu/anak/${student_id}`);
   redirect(back(student_id, program_id));
 }
 

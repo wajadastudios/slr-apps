@@ -174,6 +174,16 @@ export default async function AdminGajiPage({
           {rows.length === 0 && <p className="text-sm text-slate-600">Belum ada pengajar aktif.</p>}
           {rows.map(({ pelatih, gaji, commission, liveTotal, payment }) => (
             <div key={pelatih.id} className="flex flex-col gap-2">
+              {gaji.unratedCount > 0 && (
+                <p role="alert" className="rounded-xl bg-[#FFF1CC] px-3 py-2 text-xs font-medium text-[#7A5400]">
+                  ⚠️ Tarif mengajar belum diatur untuk {gaji.unratedCount} sesi periode ini -- sesi tersebut tidak dihitung
+                  ke gaji (bukan Rp0 karena tidak ada sesi). Atur tarif di{" "}
+                  <a href="/admin/pelatih" className="underline">
+                    halaman pengajar
+                  </a>
+                  , lalu tampilkan ulang periode ini.
+                </p>
+              )}
               <DataRow
                 primary={pelatih.title ? `${pelatih.title} ${pelatih.full_name}` : pelatih.full_name}
                 secondary={

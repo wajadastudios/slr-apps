@@ -68,6 +68,7 @@ type InvoiceRow = {
   payment_method: string | null;
   payment_proof_url: string | null;
   invoice_number: string | null;
+  public_token: string | null;
   created_at: string;
   sent_at: string | null;
   student: { full_name: string } | null;
@@ -86,7 +87,7 @@ export default async function TagihanPage({ searchParams }: { searchParams: Prom
     selectAll<InvoiceRow>(
       supabase,
       "invoices",
-      "id, student_id, enrollment_id, package_name, sessions_count, amount, base_price, discount_amount, discount_type, price_source, override_reason, supersedes_invoice_id, superseded_by_invoice_id, status, payment_method, payment_proof_url, invoice_number, created_at, sent_at, student:student_id(full_name), billing:billing_account_id(full_name, email)"
+      "id, student_id, enrollment_id, package_name, sessions_count, amount, base_price, discount_amount, discount_type, price_source, override_reason, supersedes_invoice_id, superseded_by_invoice_id, status, payment_method, payment_proof_url, invoice_number, public_token, created_at, sent_at, student:student_id(full_name), billing:billing_account_id(full_name, email)"
     ),
     supabase.from("program_packages").select("id, program_id, name, sessions_count, price").eq("active", true).order("sessions_count"),
     supabase.from("students").select("id, next_package_preference_id"),
@@ -223,8 +224,8 @@ export default async function TagihanPage({ searchParams }: { searchParams: Prom
             )}
             {["sent", "processing", "paid"].includes(inv.status) && (
               <>
-                <CopyButton value={`${origin}/invoice/${inv.id}`} label="Salin link" className="px-3 py-1.5 text-xs" />
-                <InvoiceShareLinks origin={origin} invoiceId={inv.id} studentName={inv.student?.full_name ?? ""} parentEmail={inv.billing?.email} />
+                <CopyButton value={`${origin}/invoice/pay/${inv.public_token ?? inv.id}`} label="Salin link" className="px-3 py-1.5 text-xs" />
+                <InvoiceShareLinks origin={origin} publicToken={inv.public_token ?? inv.id} studentName={inv.student?.full_name ?? ""} parentEmail={inv.billing?.email} />
               </>
             )}
           </div>

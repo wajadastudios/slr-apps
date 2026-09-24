@@ -144,33 +144,20 @@ async function createPackagePriceVersionActionImpl(formData: FormData) {
 
   const supabase = await createClient();
 
-  const { error: closeError } = await supabase
-    .from("package_price_versions")
-    .update({ effective_until: effectiveFromIso })
-    .eq("program_package_id", package_id)
-    .is("effective_until", null);
-  if (closeError) {
-    redirect(`/admin/paket-harga?id=${program_id}&error=${encodeURIComponent(closeError.message)}`);
-  }
-
-  const { error: insertError } = await supabase.from("package_price_versions").insert({
-    program_package_id: package_id,
-    price,
-    effective_from: effectiveFromIso,
-    note,
-    created_by: session.user.id,
+  // Closing the old version, inserting the new one, and refreshing the
+  // program_packages.price cache happen in one transaction (see
+  // 0041_price_version_atomicity.sql) -- a failed insert can no longer leave
+  // the package with no open version, and a retry that resubmits the same
+  // price as the currently open version is a no-op rather than a duplicate.
+  const { error } = await supabase.rpc("create_package_price_version", {
+    p_package_id: package_id,
+    p_price: price,
+    p_note: note,
+    p_effective_from: effectiveFromIso,
+    p_created_by: session.user.id,
   });
-  if (insertError) {
-    redirect(`/admin/paket-harga?id=${program_id}&error=${encodeURIComponent(insertError.message)}`);
-  }
-
-  // Only advance the "current price" cache if this version takes effect now
-  // or in the past -- a future-dated version stays purely historical/planned
-  // until its date arrives (no cron in this codebase flips it automatically
-  // yet; new invoices before that date still resolve to whichever version
-  // has no later one ahead of it, per resolveInvoicePrice's ordering).
-  if (effectiveFrom.getTime() <= Date.now()) {
-    await supabase.from("program_packages").update({ price }).eq("id", package_id);
+  if (error) {
+    redirect(`/admin/paket-harga?id=${program_id}&error=${encodeURIComponent(error.message)}`);
   }
 
   revalidatePath("/admin/paket-harga");

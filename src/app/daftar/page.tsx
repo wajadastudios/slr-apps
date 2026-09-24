@@ -4,6 +4,8 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { WaterBg } from "@/components/water-bg";
 import { RegistrationForm } from "@/components/registration-form";
+import { readyBlockers } from "@/lib/admin/readiness";
+import { loadReadiness } from "@/lib/admin/readiness-load";
 
 export default async function DaftarPage({
   searchParams,
@@ -13,11 +15,11 @@ export default async function DaftarPage({
   const { error, success } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: programs }, { data: settings }] =
+  const [{ data: allPrograms }, { data: settings }] =
     await Promise.all([
       supabase
         .from("programs")
-        .select("id, name, self_registration")
+        .select("id, name, self_registration, audience, assessment_type, records_mode, registration_open")
         .eq("active", true)
         .order("name"),
       supabase
@@ -25,6 +27,17 @@ export default async function DaftarPage({
         .select("key, value")
         .in("key", ["registrasi_dewasa_aktif", "trial_fee_amount"]),
     ]);
+
+  // registration_open alone is not enough: a program opened before the
+  // readiness checklist existed (or configured incompletely) must never be
+  // offered here either -- same gap and same fix as loadRegistrationPrograms
+  // in src/lib/registration-data.ts, applied to this separate trial-lead
+  // form. Never flips registration_open itself, only filters this one read.
+  const openPrograms = (allPrograms ?? []).filter((p) => p.registration_open === true);
+  const readiness = await Promise.all(
+    openPrograms.map((p) => loadReadiness(supabase, { ...p, active: true }))
+  );
+  const programs = openPrograms.filter((_, i) => readyBlockers(readiness[i]).length === 0);
 
   const adultModeEnabled =
     settings?.find((s) => s.key === "registrasi_dewasa_aktif")?.value ===

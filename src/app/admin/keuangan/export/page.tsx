@@ -49,12 +49,16 @@ export default async function ExportKeuanganPage({ searchParams }: { searchParam
               {locations.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </label>
+          <label className="flex items-center gap-2 pb-2.5 text-sm text-slate-700">
+            <input type="checkbox" name="test" value="1" className="h-4 w-4" />
+            Sertakan data uji [TEST] (mode QA)
+          </label>
           <GlassButton type="submit" className="!bg-[#35C5D0] px-5 py-2 text-sm !text-white hover:!bg-[#2bb0ba]">
             Download Excel
           </GlassButton>
         </form>
         <p className="mt-3 text-xs text-slate-500">
-          Setiap export tercatat di Audit Trail Keuangan (periode, filter, waktu, dan siapa yang mengexport). Sheet pajak selalu berlabel &ldquo;Estimasi internal — verifikasi dengan akuntan sebelum pelaporan.&rdquo;
+          Secara default, transaksi berlabel [TEST]/QA dikecualikan dari semua sheet (kolom &ldquo;Data uji&rdquo; di sheet Arus Kas tetap menandainya bila mode QA dicentang). Setiap export tercatat di Audit Trail Keuangan (periode, filter, waktu, dan siapa yang mengexport). Sheet pajak selalu berlabel &ldquo;Estimasi internal — verifikasi dengan akuntan sebelum pelaporan.&rdquo;
         </p>
       </GlassCard>
     </div>

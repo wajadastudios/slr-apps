@@ -10,7 +10,7 @@ import { dayName, formatClock, formatRange, slotFill, FILL_LABEL, type SlotFill 
 import { DAYS } from "@/lib/days";
 
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
-const FILL_TONE: Record<SlotFill, Tone> = { penuh: "danger", hampir_penuh: "warn", tersedia: "ok" };
+const FILL_TONE: Record<SlotFill, Tone> = { penuh: "danger", hampir_penuh: "warn", terisi_sebagian: "info", tersedia: "ok" };
 const MAX_NAMES = 3;
 const PAGE = 40;
 
@@ -84,6 +84,24 @@ export default async function JadwalPage({ searchParams }: { searchParams: Promi
   }));
   const conflicts = existingConflicts(contexts);
   const conflictIds = new Set(conflicts.flatMap((c) => [c.a.id, c.b.id]));
+  // The badge used to just say "Ada konflik jadwal" with no reason -- build
+  // one human-readable line per conflicting pair, from each slot's own side,
+  // naming the other slot and why (same pengajar vs same lokasi).
+  const conflictReasonsBySlot = new Map<string, string[]>();
+  const addReason = (slotId: string, other: SlotContext, kind: "pelatih" | "location") => {
+    const list = conflictReasonsBySlot.get(slotId) ?? [];
+    const otherLabel = `${other.programName} · ${dayName(other.day_of_week)} ${formatClock(other.start_time)}`;
+    list.push(
+      kind === "pelatih"
+        ? `${other.pelatihName} juga mengajar ${otherLabel}`
+        : `Lokasi "${other.location}" juga dipakai untuk ${otherLabel}`
+    );
+    conflictReasonsBySlot.set(slotId, list);
+  };
+  for (const c of conflicts) {
+    addReason(c.a.id, c.b, c.kind);
+    addReason(c.b.id, c.a, c.kind);
+  }
 
   const q = (sp.q ?? "").trim().toLowerCase();
   const limit = Math.max(PAGE, Number(sp.limit) || PAGE);
@@ -146,6 +164,7 @@ export default async function JadwalPage({ searchParams }: { searchParams: Promi
             <select name="filter" defaultValue={sp.filter ?? ""} className={FIELD_CLASS}>
               <option value="">Semua</option>
               <option value="tersedia">Tersedia</option>
+              <option value="terisi_sebagian">Terisi sebagian</option>
               <option value="hampir_penuh">Hampir penuh</option>
               <option value="penuh">Penuh</option>
               <option value="konflik">Ada konflik</option>
@@ -241,7 +260,7 @@ export default async function JadwalPage({ searchParams }: { searchParams: Promi
     .filter((s) => {
       const fill = slotFill((bySlot.get(s.id) ?? []).length, s.capacity);
       if (sp.filter === "konflik") return conflictIds.has(s.id);
-      if (sp.filter === "tersedia" || sp.filter === "hampir_penuh" || sp.filter === "penuh") return fill === sp.filter;
+      if (sp.filter === "tersedia" || sp.filter === "hampir_penuh" || sp.filter === "terisi_sebagian" || sp.filter === "penuh") return fill === sp.filter;
       return true;
     })
     .filter((s) => {
@@ -308,6 +327,13 @@ export default async function JadwalPage({ searchParams }: { searchParams: Promi
                             : `${names.slice(0, MAX_NAMES).join(", ")}${names.length > MAX_NAMES ? ` +${names.length - MAX_NAMES} peserta` : ""}`}
                         </span>
                       </div>
+                      {conflictReasonsBySlot.has(s.id) && (
+                        <ul className="mt-1 flex flex-col gap-0.5 text-xs text-[#A3183C]">
+                          {conflictReasonsBySlot.get(s.id)!.map((reason, i) => (
+                            <li key={i}>&bull; {reason}</li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     <Link
                       href={`/admin/jadwal/${s.id}`}

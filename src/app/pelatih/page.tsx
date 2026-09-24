@@ -92,8 +92,9 @@ export default async function PelatihDashboardPage({
       ),
     supabase
       .from("progress_reports")
-      .select("student_id, program_id, session_date, attendance, next_focus")
-      .order("session_date", { ascending: false }),
+      .select("student_id, program_id, session_date, attendance, next_focus, updated_at")
+      .order("session_date", { ascending: false })
+      .order("updated_at", { ascending: false }),
   ]);
 
   const enrollments: Enrollment[] = [];

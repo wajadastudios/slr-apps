@@ -78,8 +78,12 @@ async function createMilestoneActionImpl(formData: FormData) {
   const admin = createAdminClient();
   const programId = await requireMedalProgram(supabase, formData);
 
-  // Freeze what existing records already earned before anything changes.
-  await freezeLegacyAwards(admin, await loadMilestones(supabase));
+  // Freeze what existing records already earned before anything changes --
+  // a failure here must stop the milestone from being created at all, since
+  // creating it anyway means new records could be judged before old ones
+  // were ever locked in.
+  const freezeError = await freezeLegacyAwards(admin, await loadMilestones(supabase));
+  if (freezeError) fail(formData, freezeError);
 
   const existing = await loadMilestones(supabase, programId);
   const { data: created, error } = await supabase
@@ -91,7 +95,7 @@ async function createMilestoneActionImpl(formData: FormData) {
     fail(formData, error?.message ?? "Milestone gagal dibuat.");
   }
 
-  await awardMilestoneToExisting(admin, {
+  const awardError = await awardMilestoneToExisting(admin, {
     ...created,
     distance_m: created.distance_m === null ? null : Number(created.distance_m),
     bronze: Number(created.bronze),
@@ -101,6 +105,16 @@ async function createMilestoneActionImpl(formData: FormData) {
 
   revalidatePath("/admin/penilaian");
   revalidatePath("/admin/laporan");
+  // Milestone itself is already saved at this point -- a retroactive-award
+  // failure is reported, not hidden, but does not roll back the creation.
+  const sel = `&sel=${created.id}`;
+  if (awardError) {
+    redirect(
+      `${backUrl(formData)}${sel}&error=${encodeURIComponent(
+        `Milestone dibuat, tetapi gagal memberi lencana retroaktif ke rekor lama: ${awardError}`
+      )}`
+    );
+  }
   // open the new milestone in the editor
   redirect(backUrl(formData, created.id));
 }
@@ -136,8 +150,11 @@ async function updateMilestoneActionImpl(formData: FormData) {
     );
   }
 
-  // Lock in earned badges against the OLD targets before changing them.
-  await freezeLegacyAwards(admin, await loadMilestones(supabase));
+  // Lock in earned badges against the OLD targets before changing them --
+  // a failure here must stop the update, or the change would apply on top
+  // of history that was never actually frozen.
+  const freezeError = await freezeLegacyAwards(admin, await loadMilestones(supabase));
+  if (freezeError) fail(formData, freezeError);
 
   const { error } = await supabase.from("milestones").update(parsed.value).eq("id", id);
   if (error) fail(formData, error.message);
@@ -154,7 +171,8 @@ async function toggleMilestoneActiveActionImpl(formData: FormData) {
   if (!id) return;
 
   const supabase = await createClient();
-  await freezeLegacyAwards(createAdminClient(), await loadMilestones(supabase));
+  const freezeError = await freezeLegacyAwards(createAdminClient(), await loadMilestones(supabase));
+  if (freezeError) fail(formData, freezeError);
 
   const { error } = await supabase.from("milestones").update({ active: nextActive }).eq("id", id);
   if (error) fail(formData, error.message);
@@ -201,7 +219,8 @@ async function deleteMilestoneActionImpl(formData: FormData) {
   if (!id) return;
 
   const supabase = await createClient();
-  await freezeLegacyAwards(createAdminClient(), await loadMilestones(supabase));
+  const freezeError = await freezeLegacyAwards(createAdminClient(), await loadMilestones(supabase));
+  if (freezeError) fail(formData, freezeError);
 
   const { error } = await supabase.rpc("admin_delete_milestone", { p_id: id });
   if (error) {

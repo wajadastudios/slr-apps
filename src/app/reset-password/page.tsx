@@ -13,6 +13,7 @@ import { WaterBg } from "@/components/water-bg";
 export default function ResetPasswordPage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const [verifyFailed, setVerifyFailed] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -31,7 +32,14 @@ export default function ResetPasswordPage() {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) setReady(true);
     });
-    return () => subscription.unsubscribe();
+    // A missing, expired, or already-used reset link never fires
+    // PASSWORD_RECOVERY and never has a session -- without this, the page
+    // was stuck on "Memverifikasi..." forever with no way forward.
+    const timeout = setTimeout(() => setVerifyFailed(true), 6000);
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   async function handleSubmit(e: FormEvent) {
@@ -72,11 +80,25 @@ export default function ResetPasswordPage() {
           <p className="text-center text-sm text-[#1a8f6f]">
             Password berhasil diubah. Mengarahkan ke halaman masuk...
           </p>
-        ) : !ready ? (
+        ) : ready ? null : verifyFailed ? (
+          <div className="flex flex-col items-center gap-3 text-center">
+            <p className="text-sm text-red-700">
+              Tautan reset password tidak valid, sudah kedaluwarsa, atau sudah pernah dipakai.
+            </p>
+            <Link href="/lupa-password" className="text-sm font-medium text-[#35C5D0] hover:underline">
+              Minta tautan reset password baru
+            </Link>
+            <Link href="/login" className="text-sm text-slate-600 hover:underline">
+              &larr; Kembali ke halaman masuk
+            </Link>
+          </div>
+        ) : (
           <p className="text-center text-sm text-slate-600">
             Memverifikasi tautan reset password...
           </p>
-        ) : (
+        )}
+
+        {ready && (
           <>
             <p className="mb-6 text-center text-sm text-slate-700">
               Masukkan password baru Anda.

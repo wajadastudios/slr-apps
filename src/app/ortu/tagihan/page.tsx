@@ -15,7 +15,7 @@ export default async function OrtuTagihanPage() {
   const { data: invoices } = await supabase
     .from("invoices")
     .select(
-      "id, package_name, sessions_count, amount, status, student:student_id(full_name)"
+      "id, package_name, sessions_count, amount, status, public_token, student:student_id(full_name)"
     )
     .order("id", { ascending: false });
 
@@ -38,7 +38,7 @@ export default async function OrtuTagihanPage() {
         secondary={
           <InvoiceShareLinks
             origin={origin}
-            invoiceId={inv.id}
+            publicToken={inv.public_token ?? inv.id}
             studentName={student?.full_name ?? ""}
           />
         }
