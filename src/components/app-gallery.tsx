@@ -52,7 +52,8 @@ const PERSONA_NAME: Record<Persona, string> = { anak: "Nabil", dewasa: "Nabila" 
 // space reserved below the card, since `transform` never changes layout.
 const MOBILE_CARD_W = 304;
 const MOBILE_CARD_H = 336;
-const MOBILE_CARD_SCALE = 0.6;
+// 0.6 base scale, up 15% per a later request (0.6 * 1.15).
+const MOBILE_CARD_SCALE = 0.69;
 const SESSION_LABELS = ["14 Agu", "21 Agu", "28 Agu", "4 Sep", "11 Sep", "18 Sep"];
 const ACHIEVED_DATES = ["21 Agu 2026", "4 Sep 2026", "15 Sep 2026"];
 const ACHIEVED_TIER_CYCLE: MedalKey[] = ["bronze", "silver", "bronze"];
@@ -613,6 +614,12 @@ export function AppGallery({ kidsTemplate, dewasaTemplate }: AppGalleryProps) {
   const [persona, setPersona] = useState<Persona>("anak");
   const [activeCard, setActiveCard] = useState(0);
   const [observedVisible, setObservedVisible] = useState(false);
+  // Fractional "which slide am I over" position while swiping the mobile
+  // track (e.g. 1.4 = 40% of the way from card 1 to card 2) -- drives the
+  // same fade-toward-neighbor look deckStyle() gives the desktop deck,
+  // which activeCard alone (an integer, updated only once a swipe settles)
+  // can't produce mid-swipe.
+  const [mobileScrollProgress, setMobileScrollProgress] = useState(0);
   const mobileScrollRef = useRef<HTMLDivElement>(null);
   const mobileCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -674,6 +681,30 @@ export function AppGallery({ kidsTemplate, dewasaTemplate }: AppGalleryProps) {
     );
     mobileCardRefs.current.forEach((el) => el && observer.observe(el));
     return () => observer.disconnect();
+  }, [persona]);
+
+  // Continuous fade while dragging: each full-viewport-wide slide's scroll
+  // offset, as a fraction of one slide width, doubles as "how far into the
+  // next/previous card this swipe is" -- rAF-throttled since scroll fires
+  // far more often than a frame needs it.
+  useEffect(() => {
+    const container = mobileScrollRef.current;
+    if (!container) return;
+    let raf = 0;
+    function update() {
+      const width = container!.clientWidth || 1;
+      setMobileScrollProgress(container!.scrollLeft / width);
+    }
+    function onScroll() {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(update);
+    }
+    update();
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
   }, [persona]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -778,6 +809,11 @@ export function AppGallery({ kidsTemplate, dewasaTemplate }: AppGalleryProps) {
             {CARD_DEFS.map((def, i) => {
               const isActive = i === activeCard;
               const hasNext = i < CARD_DEFS.length - 1;
+              // Same opacity floor deckStyle() uses for its immediate
+              // neighbor (offset === 1: opacity 0.7) -- interpolated by how
+              // far the swipe has moved this slide from center, instead of
+              // a fixed per-offset value, since a drag can stop partway.
+              const swipeOpacity = 1 - Math.min(1, Math.abs(mobileScrollProgress - i)) * 0.3;
               return (
                 <div
                   key={def.key}
@@ -789,7 +825,11 @@ export function AppGallery({ kidsTemplate, dewasaTemplate }: AppGalleryProps) {
                 >
                   <div
                     className="relative"
-                    style={{ width: MOBILE_CARD_W * MOBILE_CARD_SCALE, height: MOBILE_CARD_H * MOBILE_CARD_SCALE }}
+                    style={{
+                      width: MOBILE_CARD_W * MOBILE_CARD_SCALE,
+                      height: MOBILE_CARD_H * MOBILE_CARD_SCALE,
+                      opacity: swipeOpacity,
+                    }}
                   >
                     {/* Teaser: a soft, unreadable card-shaped silhouette peeking out behind-right */}
                     {isActive && hasNext && (
