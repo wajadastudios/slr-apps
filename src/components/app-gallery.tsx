@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useId, useSyncExternalStore } from "react"
 import type { CSSProperties } from "react";
 import { AccordionItem } from "@/components/ui/accordion";
 import { FocusTargetIcon } from "@/components/icons/focus-target-icon";
-import { APP_GALLERY_MOBILE_WIDTH_CLASS } from "@/lib/card-sizing";
 import type { IndicatorGroup } from "@/lib/indicators";
 import type { PublicProgramTemplate } from "@/lib/landing-template";
 
@@ -42,6 +41,18 @@ const MEDAL = {
 };
 
 const PERSONA_NAME: Record<Persona, string> = { anak: "Nabil", dewasa: "Nabila" };
+
+// Mobile card: drawn at this native size (matching the desktop deck's own
+// design width/height) then visually shrunk by MOBILE_CARD_SCALE via a
+// transform on an absolutely-positioned wrapper -- the OUTER, normal-flow
+// wrapper is sized to the already-scaled (MOBILE_CARD_W/H * SCALE)
+// dimensions, so the space this reserves in the page matches what's
+// actually visible. Scaling a normal-flow box directly (instead of this
+// two-box setup) would leave the pre-scale, larger box's worth of empty
+// space reserved below the card, since `transform` never changes layout.
+const MOBILE_CARD_W = 304;
+const MOBILE_CARD_H = 336;
+const MOBILE_CARD_SCALE = 0.6;
 const SESSION_LABELS = ["14 Agu", "21 Agu", "28 Agu", "4 Sep", "11 Sep", "18 Sep"];
 const ACHIEVED_DATES = ["21 Agu 2026", "4 Sep 2026", "15 Sep 2026"];
 const ACHIEVED_TIER_CYCLE: MedalKey[] = ["bronze", "silver", "bronze"];
@@ -164,7 +175,7 @@ function EmptyNotice({ text }: { text: string }) {
   );
 }
 
-function CardRingkasan({ data }: { data: RingkasanData }) {
+function CardRingkasan({ data, compact }: { data: RingkasanData; compact?: boolean }) {
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2.5">
@@ -191,7 +202,7 @@ function CardRingkasan({ data }: { data: RingkasanData }) {
       </div>
       <div className="rounded-xl border border-slate-100 bg-white/60 px-2.5 py-2">
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Catatan coach</p>
-        <p className="text-xs leading-relaxed text-slate-700">{data.coachNote}</p>
+        <p className={`text-xs leading-relaxed text-slate-700 ${compact ? "line-clamp-2" : ""}`}>{data.coachNote}</p>
       </div>
       <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#35C5D0]" aria-hidden="true" />
@@ -201,11 +212,91 @@ function CardRingkasan({ data }: { data: RingkasanData }) {
   );
 }
 
-function CardLaporan({ data }: { data: LaporanData | null }) {
+/** Picks up to `max` indicators to show as a preview: done items first (max 2), then
+ * the current active one, falling back to earlier items in order if the group is short. */
+function previewIndicators(indicators: Indicator[], max = 3): Indicator[] {
+  const picked = new Set<Indicator>();
+  for (const ind of indicators) {
+    if (picked.size >= max) break;
+    const doneCount = [...picked].filter((p) => p.status === "done").length;
+    if (ind.status === "done" && doneCount < 2) picked.add(ind);
+  }
+  const active = indicators.find((i) => i.status === "active");
+  if (active && picked.size < max) picked.add(active);
+  for (const ind of indicators) {
+    if (picked.size >= max) break;
+    picked.add(ind);
+  }
+  return indicators.filter((i) => picked.has(i));
+}
+
+function CardLaporan({ data, compact }: { data: LaporanData | null; compact?: boolean }) {
   const [openGroup, setOpenGroup] = useState<string>(data?.groups[0]?.name ?? "");
 
   if (!data) {
     return <EmptyNotice text="Template latihan sedang disiapkan." />;
+  }
+
+  if (compact) {
+    const main = data.groups[0];
+    const others = data.groups.slice(1);
+    const done = main.indicators.filter((i) => i.status === "done").length;
+    const preview = previewIndicators(main.indicators);
+    const hiddenCount = main.indicators.length - preview.length;
+    return (
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Indikator perkembangan</p>
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-[#DDF7EC] px-2 py-0.5 text-[10px] font-semibold text-[#0E5A43]">
+            <span aria-hidden="true">✓</span> Hadir
+          </span>
+        </div>
+        <div className="rounded-xl border border-white/60 bg-white/40 px-3 py-2.5">
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="text-sm font-semibold text-[#17263D]">{main.name}</span>
+            <span className="rounded-full bg-[#EEF9FB] px-1.5 py-0.5 text-[10px] font-medium text-[#0B6470]">
+              {done}/{main.indicators.length}
+            </span>
+          </div>
+          <ul className="flex flex-col gap-1.5">
+            {preview.map((ind) => (
+              <li key={ind.label} className="flex items-center gap-2">
+                {ind.status === "done" ? (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#DDF7EC] text-[10px] font-bold text-[#0E5A43]" aria-hidden="true">✓</span>
+                ) : ind.status === "active" ? (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#EEF9FB]" aria-hidden="true">
+                    <span className="h-2 w-2 rounded-full bg-[#35C5D0]" />
+                  </span>
+                ) : (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100" aria-hidden="true">
+                    <span className="h-2 w-2 rounded-full bg-slate-300" />
+                  </span>
+                )}
+                <span className={`text-xs ${ind.status === "done" ? "text-slate-700" : ind.status === "active" ? "font-medium text-[#0B6470]" : "text-slate-400"}`}>
+                  {ind.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {hiddenCount > 0 && (
+            <p className="mt-1.5 text-[11px] font-medium text-[#0B6470]">+ {hiddenCount} indikator lainnya</p>
+          )}
+        </div>
+        {others.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            {others.map((g) => {
+              const d = g.indicators.filter((i) => i.status === "done").length;
+              return (
+                <div key={g.name} className="flex items-center justify-between rounded-xl bg-white/25 px-3 py-2">
+                  <span className="text-xs font-medium text-slate-500">{g.name}</span>
+                  <span className="text-[10px] text-slate-400">{d}/{g.indicators.length}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -435,22 +526,26 @@ function buildPersonaDeck(persona: Persona, template: PublicProgramTemplate | nu
   };
 }
 
-function renderCardBody(index: number, persona: Persona, deck: PersonaDeck) {
+function renderCardBody(index: number, persona: Persona, deck: PersonaDeck, compact = false) {
   switch (index) {
-    case 0: return <CardRingkasan data={deck.ringkasan} />;
-    case 1: return <CardLaporan key={persona} data={deck.laporan} />;
+    case 0: return <CardRingkasan data={deck.ringkasan} compact={compact} />;
+    case 1: return <CardLaporan key={persona} data={deck.laporan} compact={compact} />;
     case 2: return <CardPerkembangan key={persona} data={deck.perkembangan} />;
     default: return <CardRekor key={persona} data={deck.rekor} />;
   }
 }
 
-/** App-page-like frame: faux notch + icon/title header, scrollable body. */
+/**
+ * App-page-like frame: faux notch + icon/title header, scrollable body.
+ * `flow`: mobile mode — height grows with content instead of filling a fixed
+ * box, so long reports/records are never clipped.
+ */
 function CardFrame({
-  icon, title, active, children,
-}: { icon: string; title: string; active?: boolean; children: React.ReactNode }) {
+  icon, title, active, flow, children,
+}: { icon: string; title: string; active?: boolean; flow?: boolean; children: React.ReactNode }) {
   return (
     <div
-      className={`flex h-full flex-col overflow-hidden rounded-[26px] border bg-white/95 backdrop-blur-2xl transition-shadow duration-300 ${
+      className={`flex ${flow ? "h-auto min-h-[336px]" : "h-full"} flex-col overflow-hidden rounded-[26px] border bg-white/95 backdrop-blur-2xl transition-shadow duration-300 ${
         active
           ? "border-white/70 shadow-[0_25px_55px_-20px_rgba(4,15,28,0.4)]"
           : "border-white/40 shadow-[0_15px_35px_-20px_rgba(4,15,28,0.28)]"
@@ -459,13 +554,13 @@ function CardFrame({
       <div className="flex items-center justify-center pt-2.5" aria-hidden="true">
         <div className="h-1 w-9 rounded-full bg-slate-300/70" />
       </div>
-      <div className="flex items-center gap-2 px-4 pb-2.5 pt-2 sm:px-5">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#35C5D0]/15 text-sm" aria-hidden="true">
+      <div className={`flex items-center gap-2 ${flow ? "px-3.5 pb-2 pt-1.5" : "px-4 pb-2.5 pt-2 sm:px-5"}`}>
+        <span className={`flex shrink-0 items-center justify-center rounded-full bg-[#35C5D0]/15 ${flow ? "h-6 w-6 text-xs" : "h-7 w-7 text-sm"}`} aria-hidden="true">
           {icon}
         </span>
-        <p className="font-[family-name:var(--font-quicksand)] text-sm font-bold text-[#17263D]">{title}</p>
+        <p className={`font-[family-name:var(--font-quicksand)] font-bold text-[#17263D] ${flow ? "text-xs" : "text-sm"}`}>{title}</p>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto border-t border-slate-100 px-4 py-3 sm:px-5">
+      <div className={`min-h-0 flex-1 ${flow ? "overflow-visible px-3.5 py-2.5" : "overflow-y-auto px-4 py-3 sm:px-5"} border-t border-slate-100`}>
         {children}
       </div>
     </div>
@@ -486,32 +581,8 @@ function usePrefersReducedMotion() {
   );
 }
 
-function subscribeIsCompact(callback: () => void) {
-  const mq = window.matchMedia("(max-width: 639px)");
-  mq.addEventListener("change", callback);
-  return () => mq.removeEventListener("change", callback);
-}
-
-// Below `sm` (639px): matches Tailwind's own `sm:` breakpoint, so this is
-// true on exactly the widths where the deck card is sized in vw (see
-// APP_GALLERY_MOBILE_WIDTH_CLASS) and needs the smaller peek offsets below
-// -- the desktop percentages would push the side cards' visible sliver
-// past the viewport edge entirely on a narrow phone.
-function useIsCompact() {
-  return useSyncExternalStore(
-    subscribeIsCompact,
-    () => window.matchMedia("(max-width: 639px)").matches,
-    () => false,
-  );
-}
-
-/** Positions each deck card relative to the active one: center / side / teaser / hidden.
- * `compact`: the deck card is viewport-relative and nearly fills its inset
- * container (see APP_GALLERY_MOBILE_WIDTH_CLASS), so the desktop offsets
- * below would shove a side card's peek entirely past the viewport edge --
- * smaller offsets keep a visible sliver inside the same overflow-x-hidden
- * boundary instead of disappearing. */
-function deckStyle(offset: number, compact: boolean): CSSProperties {
+/** Positions each deck card relative to the active one: center / side / teaser / hidden. */
+function deckStyle(offset: number): CSSProperties {
   const abs = Math.abs(offset);
   if (abs > 2) {
     return {
@@ -522,10 +593,10 @@ function deckStyle(offset: number, compact: boolean): CSSProperties {
     };
   }
   const sign = Math.sign(offset);
-  const translateX = abs === 0 ? 0 : compact ? (abs === 1 ? 24 : 34) : abs === 1 ? 60 : 96;
-  const translateY = abs === 0 ? 0 : compact ? (abs === 1 ? 10 : 16) : abs === 1 ? 20 : 36;
-  const scale = abs === 0 ? 1 : compact ? (abs === 1 ? 0.84 : 0.74) : abs === 1 ? 0.86 : 0.74;
-  const rotate = abs === 0 ? 0 : sign * (compact ? (abs === 1 ? 8 : 5) : abs === 1 ? 6 : 3);
+  const translateX = abs === 0 ? 0 : abs === 1 ? 60 : 96;
+  const translateY = abs === 0 ? 0 : abs === 1 ? 20 : 36;
+  const scale = abs === 0 ? 1 : abs === 1 ? 0.86 : 0.74;
+  const rotate = abs === 0 ? 0 : sign * (abs === 1 ? 6 : 3);
   const opacity = abs === 0 ? 1 : abs === 1 ? 0.7 : 0.32;
   const zIndex = 30 - abs * 10;
   return {
@@ -542,9 +613,10 @@ export function AppGallery({ kidsTemplate, dewasaTemplate }: AppGalleryProps) {
   const [persona, setPersona] = useState<Persona>("anak");
   const [activeCard, setActiveCard] = useState(0);
   const [observedVisible, setObservedVisible] = useState(false);
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
+  const mobileCardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const sectionRef = useRef<HTMLDivElement>(null);
   const reducedMotion = usePrefersReducedMotion();
-  const isCompact = useIsCompact();
   // With reduced motion, skip the observer entirely and treat the section as revealed.
   const revealed = reducedMotion || observedVisible;
 
@@ -575,7 +647,34 @@ export function AppGallery({ kidsTemplate, dewasaTemplate }: AppGalleryProps) {
   function goTo(index: number) {
     const clamped = Math.max(0, Math.min(CARD_DEFS.length - 1, index));
     setActiveCard(clamped);
+    if (typeof window !== "undefined" && window.innerWidth < 640) {
+      mobileCardRefs.current[clamped]?.scrollIntoView({
+        behavior: reducedMotion ? "auto" : "smooth",
+        inline: "start",
+        block: "nearest",
+      });
+    }
   }
+
+  // Sync activeCard when the user swipes the mobile track manually.
+  useEffect(() => {
+    const container = mobileScrollRef.current;
+    if (!container) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const mostVisible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (mostVisible) {
+          const idx = Number((mostVisible.target as HTMLElement).dataset.index);
+          if (!Number.isNaN(idx)) setActiveCard(idx);
+        }
+      },
+      { root: container, threshold: [0.55] },
+    );
+    mobileCardRefs.current.forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [persona]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "ArrowLeft") { e.preventDefault(); goTo(activeCard - 1); }
@@ -637,18 +736,9 @@ export function AppGallery({ kidsTemplate, dewasaTemplate }: AppGalleryProps) {
           </div>
         </div>
 
-        {/* Card-deck stage: same absolute deck on every breakpoint (mobile
-            keeps the two tilted side cards visible, exactly like desktop,
-            instead of a horizontal-scroll carousel). Below `sm`, the stage
-            breaks out to the full viewport width (the classic
-            left-1/2/-mx-[50vw] trick) so its overflow-x-hidden clips at the
-            actual screen edge rather than at the section's own mx-4 inset
-            -- clipping at the narrower inset would hide the side cards'
-            peek entirely instead of letting it show up to the true edge.
-            Desktop keeps its original (unbroken-out) box, so its peek
-            distance is unchanged. */}
+        {/* Desktop card-deck stage */}
         <div
-          className="relative left-1/2 right-1/2 -mx-[50vw] h-[400px] w-screen overflow-x-hidden sm:static sm:left-auto sm:right-auto sm:mx-0 sm:h-[420px] sm:w-auto sm:overflow-visible"
+          className="relative hidden h-[420px] sm:block"
           onKeyDown={handleKeyDown}
           role="region"
           aria-label="Galeri contoh aplikasi"
@@ -659,8 +749,8 @@ export function AppGallery({ kidsTemplate, dewasaTemplate }: AppGalleryProps) {
             return (
               <div
                 key={def.key}
-                className={`absolute left-1/2 top-0 h-[400px] transition-[transform,opacity] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] sm:h-[420px] ${APP_GALLERY_MOBILE_WIDTH_CLASS} sm:w-[320px] sm:max-w-none md:w-[350px]`}
-                style={deckStyle(offset, isCompact)}
+                className="absolute left-1/2 top-0 h-[420px] w-[290px] transition-[transform,opacity] duration-[400ms] ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[320px] md:w-[350px]"
+                style={deckStyle(offset)}
                 aria-hidden={!isActive}
                 inert={!isActive ? true : undefined}
               >
@@ -670,6 +760,58 @@ export function AppGallery({ kidsTemplate, dewasaTemplate }: AppGalleryProps) {
               </div>
             );
           })}
+        </div>
+
+        {/* Mobile: one centered card (drawn at its native desktop-like size,
+            then scaled down ~40% via transform onto a matching, explicitly
+            sized wrapper) + a single decorative teaser sliver behind-right.
+            Sizing the wrapper to the already-scaled dimensions -- rather
+            than scaling a normal-flow box -- means the reserved layout
+            space matches what's actually visible, so there's no leftover
+            gap before the pager and the card never visually reaches past
+            the dark-turquoise box. */}
+        <div className="sm:hidden" role="region" aria-label="Galeri contoh aplikasi">
+          <div
+            ref={mobileScrollRef}
+            className="relative left-1/2 right-1/2 -mx-[50vw] flex w-screen snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {CARD_DEFS.map((def, i) => {
+              const isActive = i === activeCard;
+              const hasNext = i < CARD_DEFS.length - 1;
+              return (
+                <div
+                  key={def.key}
+                  ref={(el) => { mobileCardRefs.current[i] = el; }}
+                  data-index={i}
+                  className="flex w-screen shrink-0 snap-start justify-center py-3"
+                  aria-hidden={!isActive}
+                  inert={!isActive ? true : undefined}
+                >
+                  <div
+                    className="relative"
+                    style={{ width: MOBILE_CARD_W * MOBILE_CARD_SCALE, height: MOBILE_CARD_H * MOBILE_CARD_SCALE }}
+                  >
+                    {/* Teaser: a soft, unreadable card-shaped silhouette peeking out behind-right */}
+                    {isActive && hasNext && (
+                      <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 z-0 rounded-2xl border border-white/25 bg-white/80"
+                        style={{ transform: "translateX(14px) scale(0.95)", opacity: 0.2 }}
+                      />
+                    )}
+                    <div
+                      className="absolute left-0 top-0 z-10 origin-top-left"
+                      style={{ width: MOBILE_CARD_W, height: MOBILE_CARD_H, transform: `scale(${MOBILE_CARD_SCALE})` }}
+                    >
+                      <CardFrame icon={def.icon} title={titleFor(def, persona)} active={isActive}>
+                        {renderCardBody(i, persona, activeDeck)}
+                      </CardFrame>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Floating glass pill controls */}
