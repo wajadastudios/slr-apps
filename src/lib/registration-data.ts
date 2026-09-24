@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DAYS } from "@/lib/days";
 import { flowsFor } from "@/lib/program-audience";
+import { resolveCurrentPackagePrices } from "@/lib/pricing";
 
 export type RegistrationSlot = { id: string; text: string; location: string | null };
 export type RegistrationPackage = { id: string; name: string; sessions_count: number; price: number };
@@ -71,6 +72,11 @@ export async function loadRegistrationPrograms(): Promise<{
       filled.set(row.slot_id, Number(row.filled));
     }
 
+    // Same cache-vs-current-version gap as the landing page: a prospect must
+    // see the price they will actually be invoiced, not a stale cache
+    // waiting on an admin to re-save the package after a scheduled change.
+    const currentPrices = await resolveCurrentPackagePrices(admin, packagesRes.data ?? []);
+
     const programs: RegistrationProgram[] = (programsRes.data ?? []).map((p) => ({
       id: p.id,
       name: p.name,
@@ -90,7 +96,12 @@ export async function loadRegistrationPrograms(): Promise<{
         })),
       packages: (packagesRes.data ?? [])
         .filter((k) => k.program_id === p.id)
-        .map((k) => ({ id: k.id, name: k.name, sessions_count: k.sessions_count, price: Number(k.price) })),
+        .map((k) => ({
+          id: k.id,
+          name: k.name,
+          sessions_count: k.sessions_count,
+          price: currentPrices.get(k.id)?.price ?? Number(k.price),
+        })),
     }));
 
     return { programs, error: false };

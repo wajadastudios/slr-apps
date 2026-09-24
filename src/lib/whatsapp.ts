@@ -25,7 +25,12 @@ export async function sendWhatsApp(phone: string | null | undefined, message: st
       body: new URLSearchParams({ target, message, countryCode: "62" }),
     });
     const body = (await res.json().catch(() => null)) as { status?: boolean; reason?: string } | null;
-    if (!res.ok || body?.status === false) {
+    // Fonnte's own success shape always sets status: true -- anything else
+    // (HTTP error, unparseable body, missing field, status: false) means the
+    // request to the provider was not confirmed accepted, so it must not be
+    // recorded as sent. This is still only "Fonnte accepted the request",
+    // never proof the message reached the recipient's device.
+    if (!res.ok || body?.status !== true) {
       console.error("sendWhatsApp not delivered:", res.status, body?.reason ?? body);
       return false;
     }

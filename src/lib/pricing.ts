@@ -81,6 +81,40 @@ export async function resolveInvoicePrice(
   };
 }
 
+// Batch version of the same effective-dated lookup above, for
+// participant-facing pages that list several packages' prices at once
+// (landing page, self-registration form) instead of resolving one invoice.
+// program_packages.price/currency is only a cache, refreshed when an admin
+// re-saves after a scheduled version's date arrives (Kebijakan C) -- reading
+// it directly would show a stale price to a prospect right up until that
+// next save, while an actual invoice (via resolveInvoicePrice) would already
+// be charging the new one. Falls back to the package's own cached price for
+// any id with no version row at all (should not happen after 0038's
+// backfill, but a prospect must never see no price at all).
+export async function resolveCurrentPackagePrices(
+  supabase: SupabaseClient,
+  packages: { id: string; price: number; currency?: string | null }[]
+): Promise<Map<string, { price: number; currency: string }>> {
+  const result = new Map<string, { price: number; currency: string }>();
+  for (const p of packages) result.set(p.id, { price: Number(p.price), currency: p.currency ?? "IDR" });
+  if (packages.length === 0) return result;
+
+  const { data } = await supabase
+    .from("package_price_versions")
+    .select("program_package_id, price, currency, effective_from")
+    .in("program_package_id", packages.map((p) => p.id))
+    .lte("effective_from", new Date().toISOString())
+    .order("effective_from", { ascending: false });
+
+  const resolved = new Set<string>();
+  for (const v of data ?? []) {
+    if (resolved.has(v.program_package_id)) continue;
+    resolved.add(v.program_package_id);
+    result.set(v.program_package_id, { price: Number(v.price), currency: v.currency ?? "IDR" });
+  }
+  return result;
+}
+
 // Called right after an invoice is created from the package's current price
 // (resolved.source === "package"): locks that price in for this
 // enrollment+package pair so its *next* invoice reuses it even if the

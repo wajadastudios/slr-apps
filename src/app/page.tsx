@@ -16,6 +16,7 @@ import { AppGallery } from "@/components/app-gallery";
 import { DAYS } from "@/lib/days";
 import { PROGRAM_SELECT } from "@/lib/programs";
 import { findProgramByKeywords, loadPublicProgramTemplate } from "@/lib/landing-template";
+import { resolveCurrentPackagePrices } from "@/lib/pricing";
 
 const HEADING_FONT = "font-[family-name:var(--font-quicksand)]";
 
@@ -192,6 +193,12 @@ export default async function Home() {
     packagesByProgram.set(p.program_id, list);
   }
 
+  // program_packages.price is only a cache of "the current version's price"
+  // (Kebijakan C) -- resolved here the same way an actual invoice would, so
+  // a scheduled price change is reflected the moment its effective date
+  // arrives instead of waiting for an admin to re-save the package.
+  const currentPrices = await resolveCurrentPackagePrices(supabase, packages ?? []);
+
   const priceGroups: PriceGroup[] = (programs ?? [])
     .map((p) => ({
       programId: p.id,
@@ -200,7 +207,7 @@ export default async function Home() {
         id: pkg.id,
         name: pkg.name,
         sessions_count: pkg.sessions_count,
-        price: Number(pkg.price),
+        price: currentPrices.get(pkg.id)?.price ?? Number(pkg.price),
         benefits: pkg.benefits,
         badge: pkg.badge,
       })),
