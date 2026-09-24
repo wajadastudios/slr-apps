@@ -529,21 +529,28 @@ await as(uid(9));
 check("Ani sees them", (await q("select id from public.progress_reports where student_id=$1", [aniStudentId])).length === 1);
 
 // -- children: an existing child or a new one, cards stay separate
+// (0042: register_child_enrollment no longer takes a real seat -- it only
+// ever creates a pending_review enrollment, same as an adult family member.
+// Capacity is now the admin-offer step's concern, not this one's.)
 await as(P1);
-const newKid = (await db.query("select out_enrollment_id id, out_student_id student_id from public.register_child_enrollment(null,'Adik Rara',null,$1)", [uid(205)])).rows[0];
+const newKid = (await db.query("select out_enrollment_id id, out_student_id student_id from public.register_child_enrollment(null,'Adik Rara',null,$1,'Sabtu 08.00','Kolam CDR')", [uid(205)])).rows[0];
 await su();
 const kid = (await q("select kind, parent_id, is_self from public.students where id=$1", [newKid.student_id]))[0];
-const kidEnr = (await q("select status, requested_by_user_id, billing_contact_user_id, billing_mode from public.enrollments where id=$1", [newKid.id]))[0];
+const kidEnr = (await q("select status, requested_by_user_id, billing_contact_user_id, billing_mode, preferred_schedule, preferred_location, slot_id from public.enrollments where id=$1", [newKid.id]))[0];
 check("a new child is a child participant of the family account", kid.kind === "child" && kid.parent_id === P1 && !kid.is_self);
-check("...with its own enrollment, paid by the family account", kidEnr.status === "active" && kidEnr.requested_by_user_id === P1 && kidEnr.billing_contact_user_id === P1 && kidEnr.billing_mode === "requester", JSON.stringify(kidEnr));
+check("...with its own PENDING enrollment (trial-first, per owner decision), no seat taken yet", kidEnr.status === "pending_review" && kidEnr.slot_id === null && kidEnr.requested_by_user_id === P1 && kidEnr.billing_contact_user_id === P1 && kidEnr.billing_mode === "requester" && kidEnr.preferred_schedule === "Sabtu 08.00" && kidEnr.preferred_location === "Kolam CDR", JSON.stringify(kidEnr));
+check("...and no schedule row was created (no seat claimed)", (await q("select id from public.schedules where student_id=$1", [newKid.student_id])).length === 0);
 await as(P1);
-check("the last seat is gone: the next child is refused and nothing is left behind", /slot is full/.test((await fails(() => db.query("select * from public.register_child_enrollment(null,'Anak Ketiga',null,$1)", [uid(205)]))) ?? "") && (await q("select id from public.students where full_name='Anak Ketiga'")).length === 0);
-check("an adult program cannot be booked through the child flow", /not open/.test((await fails(() => db.query("select * from public.register_child_enrollment(null,'Anak Salah',null,$1)", [uid(207)]))) ?? ""));
-const rara2 = (await db.query("select out_enrollment_id id, out_student_id student_id from public.register_child_enrollment($1,null,null,$2)", [uid(100), uid(206)])).rows[0];
+const secondKid = (await db.query("select out_enrollment_id id, out_student_id student_id from public.register_child_enrollment(null,'Anak Ketiga',null,$1,'Sabtu 08.00','Kolam CDR')", [uid(205)])).rows[0];
+await su();
+check("capacity is no longer checked here: a slot with 1 seat still accepts a second family's request as pending_review -- admin decides who actually gets it when offering a schedule", (await q("select status from public.enrollments where id=$1", [secondKid.id]))[0].status === "pending_review" && (await q("select id from public.schedules where student_id=$1", [secondKid.student_id])).length === 0);
+await as(P1);
+check("an adult program cannot be booked through the child flow", /not open/.test((await fails(() => db.query("select * from public.register_child_enrollment(null,'Anak Salah',null,$1,'x','y')", [uid(207)]))) ?? ""));
+const rara2 = (await db.query("select out_enrollment_id id, out_student_id student_id from public.register_child_enrollment($1,null,null,$2,'x','y')", [uid(100), uid(206)])).rows[0];
 check("an existing child joins a second program with a separate enrollment", rara2.student_id === uid(100) && rara2.id !== rara.id);
-check("an existing child cannot be booked into the same program twice", /already enrolled/.test((await fails(() => db.query("select * from public.register_child_enrollment($1,null,null,$2)", [uid(100), uid(205)]))) ?? ""));
+check("an existing child cannot be booked into the same program twice", /already enrolled/.test((await fails(() => db.query("select * from public.register_child_enrollment($1,null,null,$2,'x','y')", [uid(100), uid(205)]))) ?? ""));
 await as(P2);
-check("another family cannot book somebody else's child", /not authorized/.test((await fails(() => db.query("select * from public.register_child_enrollment($1,null,null,$2)", [uid(100), uid(206)]))) ?? ""));
+check("another family cannot book somebody else's child", /not authorized/.test((await fails(() => db.query("select * from public.register_child_enrollment($1,null,null,$2,'x','y')", [uid(100), uid(206)]))) ?? ""));
 await as(P1);
 const cards = await q("select e.id, p.name from public.enrollments e join public.programs p on p.id = e.program_id join public.students s on s.id = e.student_id where s.parent_id = $1 and e.status not in ('cancelled','rejected')", [P1]);
 check("one family account shows a separate enrollment (card) per participant and program", cards.length >= 3 && new Set(cards.map((c) => c.id)).size === cards.length, JSON.stringify(cards.map((c) => c.name)));
@@ -621,11 +628,11 @@ await su();
 await db.exec(`insert into public.programs (id, name, skill_template, active, audience, self_registration, registration_open) values ('${uid(800)}','Semua Usia','[]'::jsonb,true,'all',true,true)`);
 await db.exec(`insert into public.class_slots (id, program_id, pelatih_id, label, day_of_week, start_time, capacity) values ('${uid(801)}','${uid(800)}','${PB}','Grup',0,'07:00',5)`);
 await as(P1);
-check("a program for all ages can be booked through the child flow", (await fails(() => db.query("select * from public.register_child_enrollment(null,'Anak Semua',null,$1)", [uid(801)]))) === null);
+check("a program for all ages can be booked through the child flow", (await fails(() => db.query("select * from public.register_child_enrollment(null,'Anak Semua',null,$1,'x','y')", [uid(801)]))) === null);
 await as(ANDI);
 check("...and through the adult flow", (await fails(() => db.query("select * from public.register_enrollment($1,'self',null,null,null,null,null,'','','')", [uid(800)]))) === null);
 await as(P1);
-check("an adult-only program is refused in the child flow", /not open/.test((await fails(() => db.query("select * from public.register_child_enrollment(null,'Anak Salah',null,$1)", [uid(207)]))) ?? ""));
+check("an adult-only program is refused in the child flow", /not open/.test((await fails(() => db.query("select * from public.register_child_enrollment(null,'Anak Salah',null,$1,'x','y')", [uid(207)]))) ?? ""));
 await as(HUS);
 await su();
 await db.exec(`update public.programs set audience='child', self_registration=false where id='${KIDS}'`);
