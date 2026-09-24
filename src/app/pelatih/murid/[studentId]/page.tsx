@@ -14,6 +14,7 @@ import { PersonalGoalsManager } from "@/components/personal-goals";
 import { RecordUnlockCard } from "@/components/record-unlock-card";
 import { ReportHistoryCard } from "@/components/report-history-card";
 import { ToastForm } from "@/components/ui/toast-form";
+import { MediaFileInput } from "@/components/media-file-input";
 import { computeMilestoneStatuses } from "@/lib/milestones";
 import { computeLatestAchievement, latestAttendedReport } from "@/lib/progress";
 import { formGroups, relevantGroupIds } from "@/lib/indicators";
@@ -281,20 +282,7 @@ export default async function MuridReportPage({
               <GlassTextarea name="notes" rows={3} />
             </div>
 
-            {!isObservation && (
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm text-slate-800">Foto/Video (opsional)</label>
-                <div className="rounded-2xl border border-dashed border-white/50 bg-white/30 px-4 py-3">
-                  <input
-                    type="file"
-                    name="media"
-                    multiple
-                    accept="image/*,video/*"
-                    className="w-full text-sm text-slate-700 file:mr-3 file:rounded-xl file:border-0 file:bg-[#35C5D0] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-[#2bb0ba]"
-                  />
-                </div>
-              </div>
-            )}
+            {!isObservation && <MediaFileInput label="Foto/Video (opsional)" />}
 
             <div className="flex flex-col gap-1.5">
               <label className="text-sm text-slate-800">

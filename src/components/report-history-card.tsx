@@ -7,6 +7,7 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import { StarRating } from "@/components/ui/star-rating";
+import { MediaFileInput } from "@/components/media-file-input";
 import { SkillScoresField } from "@/components/skill-scores-field";
 import { ParentIndicatorSummary } from "@/components/parent-indicator-summary";
 import { ParentLevelSummary } from "@/components/parent-level-summary";
@@ -164,18 +165,7 @@ function ReportEntry({
           </div>
 
           {type !== "observation" && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-slate-600">
-              Tambah Foto/Video (opsional, lampiran lama tetap tersimpan)
-            </label>
-            <input
-              type="file"
-              name="media"
-              multiple
-              accept="image/*,video/*"
-              className="w-full text-sm text-slate-700 file:mr-3 file:rounded-xl file:border-0 file:bg-[#35C5D0] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-[#2bb0ba]"
-            />
-          </div>
+            <MediaFileInput label="Tambah Foto/Video (opsional, lampiran lama tetap tersimpan)" />
           )}
 
           <div className="flex flex-col gap-1">
