@@ -17,8 +17,12 @@ export async function proxy(request: NextRequest) {
 
   if (!user) {
     if (isProtected) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
+      // Carries the full original path+query as ?next=, which the login
+      // page's own client-side handler already reads and returns to after
+      // sign-in (see src/app/login/page.tsx) -- without this, the original
+      // destination is lost the moment the user is bounced to /login.
+      const url = new URL("/login", request.url);
+      url.searchParams.set("next", pathname + request.nextUrl.search);
       return NextResponse.redirect(url);
     }
     return response;
@@ -38,21 +42,25 @@ export async function proxy(request: NextRequest) {
   // actually see why they are locked out.
   if (profile?.active === false) {
     if (pathname === "/login") return response;
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    const url = new URL("/login", request.url);
     url.searchParams.set("nonaktif", "1");
     return NextResponse.redirect(url);
   }
 
   if (pathname === "/login") {
-    const url = request.nextUrl.clone();
-    url.pathname = home ?? "/";
+    // Already signed in: honor ?next= if it points back into this account's
+    // own area (never off to another role's pages, never off-site), else
+    // fall back to the role home -- same destination the login page's own
+    // client-side redirect would have picked, for the case this route is
+    // hit directly (e.g. a stale bookmark) rather than through the form.
+    const next = request.nextUrl.searchParams.get("next");
+    const safeNext = next && home && next.startsWith(home) ? next : null;
+    const url = new URL(safeNext ?? home ?? "/", request.url);
     return NextResponse.redirect(url);
   }
 
   if (isProtected && (!home || !pathname.startsWith(home))) {
-    const url = request.nextUrl.clone();
-    url.pathname = home ?? "/login";
+    const url = new URL(home ?? "/login", request.url);
     return NextResponse.redirect(url);
   }
 
