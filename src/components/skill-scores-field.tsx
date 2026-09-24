@@ -88,6 +88,7 @@ export function SkillScoresField({
                     )}
                   </span>
                   <StarRating
+                    label={indicator.label}
                     value={scores[indicator.key] ?? 0}
                     onChange={(v) => setScores((prev) => ({ ...prev, [indicator.key]: v }))}
                   />
