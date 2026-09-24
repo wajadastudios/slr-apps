@@ -15,6 +15,24 @@ export async function proxy(request: NextRequest) {
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
 
+  // Next.js POSTs a Server Action to the SAME page URL it was called from
+  // (tagged with this header), not a separate endpoint -- so every
+  // middleware redirect branch below also fires for one. An HTTP redirect
+  // response there breaks the action's own request/response contract:
+  // the client's fetch for the action expects a Flight-encoded action
+  // result and cannot parse a 307, so the user sees a bare "An unexpected
+  // response was received from the server" instead of anything from our
+  // own code. The action itself already calls requirePelatih()/
+  // requireAdmin(), which redirect()s from inside the action on the same
+  // "not signed in" condition -- safeAction (src/lib/safe-action.ts)
+  // already turns THAT into a graceful "Sesi Anda berakhir" toast. So a
+  // Server Action request is let through here unconditionally, deferring
+  // the auth decision to the action instead of intercepting it in a
+  // response shape the action-calling client can't handle.
+  if (request.headers.has("next-action")) {
+    return response;
+  }
+
   if (!user) {
     if (isProtected) {
       // Carries the full original path+query as ?next=, which the login
