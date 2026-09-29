@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
+import { GlassInput } from "@/components/ui/glass-input";
+import { ToastForm } from "@/components/ui/toast-form";
 import { ReportHistoryCard } from "@/components/report-history-card";
 import { PerformanceRecordsManager } from "@/components/performance-records-manager";
 import { PersonalGoalsManager } from "@/components/personal-goals";
@@ -27,8 +29,18 @@ import {
   createPersonalGoalAction,
   deleteGoalEntryAction,
 } from "./goal-actions";
+import { resolveReportCorrectionAction } from "./correction-actions";
+import { formatShortDate } from "@/lib/format-date";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
+
+type PendingCorrection = {
+  id: string;
+  reason: string;
+  created_at: string;
+  report: { id: string; session_date: string; enrollment_id: string | null; student: { full_name: string } | null } | null;
+  reporter: { full_name: string } | null;
+};
 
 // Admin reads a participant per ENROLLMENT (person + program): reports,
 // indicators, records and goals of different programs never share a page.
@@ -39,6 +51,15 @@ export default async function AdminLaporanPage({
 }) {
   const { id, error } = await searchParams;
   const supabase = await createClient();
+
+  const { data: pendingCorrectionRows } = await supabase
+    .from("report_corrections")
+    .select(
+      "id, reason, created_at, report:report_id(id, session_date, enrollment_id, student:student_id(full_name)), reporter:reported_by(full_name)"
+    )
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  const pendingCorrections = (pendingCorrectionRows ?? []) as unknown as PendingCorrection[];
 
   const { data: rows } = await supabase
     .from("enrollments")
@@ -182,6 +203,50 @@ export default async function AdminLaporanPage({
           Laporan belum diisi
         </a>
       </GlassCard>
+
+      {pendingCorrections.length > 0 && (
+        <GlassCard className="!border-[#FFC800]/50 !bg-[#FFF8E1]/70">
+          <h2 className={`mb-3 ${HEADING}`}>
+            Ajukan koreksi menunggu tinjauan
+            <span className="ml-2 rounded-full bg-[#FFC800]/30 px-2.5 py-0.5 text-xs font-semibold text-[#6b5200]">
+              {pendingCorrections.length}
+            </span>
+          </h2>
+          <ul className="flex flex-col gap-3">
+            {pendingCorrections.map((c) => (
+              <li key={c.id} className="rounded-xl border border-white/60 bg-white/60 p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-sm font-semibold text-[#17263D]">
+                    {c.report?.student?.full_name ?? "Murid tidak ditemukan"}
+                    {c.report && ` · sesi ${formatShortDate(c.report.session_date)}`}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Diajukan {c.reporter?.full_name ?? "-"} &middot; {formatShortDate(c.created_at)}
+                  </p>
+                </div>
+                <p className="mt-1 text-sm text-slate-700">{c.reason}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {c.report?.enrollment_id && (
+                    <a
+                      href={`/admin/laporan?id=${c.report.enrollment_id}`}
+                      className="text-xs font-medium text-[#1597A3] underline"
+                    >
+                      Lihat laporan
+                    </a>
+                  )}
+                  <ToastForm action={resolveReportCorrectionAction} className="flex flex-1 flex-wrap items-center gap-2">
+                    <input type="hidden" name="id" value={c.id} />
+                    <GlassInput name="admin_note" placeholder="Catatan (opsional)" className="min-w-[160px] flex-1 text-xs" />
+                    <GlassButton type="submit" className="!bg-[#35C5D0] px-3 py-1.5 text-xs !text-white hover:!bg-[#2bb0ba]">
+                      Tandai selesai
+                    </GlassButton>
+                  </ToastForm>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      )}
 
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>Laporan Perkembangan Peserta</h2>

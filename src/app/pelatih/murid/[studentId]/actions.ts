@@ -392,6 +392,39 @@ async function deleteReportActionImpl(formData: FormData) {
   redirect(back(student_id, program_id));
 }
 
+async function submitReportCorrectionActionImpl(formData: FormData) {
+  const session = await requirePelatih();
+
+  const report_id = String(formData.get("report_id") ?? "");
+  const student_id = String(formData.get("student_id") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (!report_id || !reason) {
+    redirect(back(student_id, "", "Jelaskan singkat apa yang tampaknya salah pada laporan ini."));
+  }
+
+  const supabase = await createClient();
+
+  // RLS ("pelatih can flag reports of taught students",
+  // 0043_report_history_and_corrections.sql) already scopes this to reports
+  // of an enrollment the caller currently teaches -- same boundary as
+  // reading the report in the first place.
+  const { error } = await supabase
+    .from("report_corrections")
+    .insert({ report_id, reported_by: session.user.id, reason });
+
+  if (error) {
+    redirect(back(student_id, "", error.message));
+  }
+
+  revalidatePath(`/pelatih/murid/${student_id}`);
+  redirect(back(student_id, ""));
+}
+
 export const createReportAction = safeAction(createReportActionImpl, "Laporan latihan berhasil disimpan");
 export const updateReportAction = safeAction(updateReportActionImpl, "Laporan latihan berhasil diperbarui");
 export const deleteReportAction = safeAction(deleteReportActionImpl, "Laporan latihan berhasil dihapus");
+export const submitReportCorrectionAction = safeAction(
+  submitReportCorrectionActionImpl,
+  "Koreksi diajukan ke admin"
+);

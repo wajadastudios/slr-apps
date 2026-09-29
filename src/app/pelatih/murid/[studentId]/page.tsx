@@ -12,17 +12,20 @@ import { PerformanceRecordField } from "@/components/performance-record-field";
 import { PerformanceRecordsManager } from "@/components/performance-records-manager";
 import { PersonalGoalsManager } from "@/components/personal-goals";
 import { RecordUnlockCard } from "@/components/record-unlock-card";
-import { ReportHistoryCard } from "@/components/report-history-card";
+import { ReportHistoryCard, type ReportRevision, type ReportRow } from "@/components/report-history-card";
+import { EvaluationSummary } from "@/components/evaluation-summary";
 import { ToastForm } from "@/components/ui/toast-form";
 import { MediaFileInput } from "@/components/media-file-input";
-import { computeMilestoneStatuses } from "@/lib/milestones";
-import { computeLatestAchievement, latestAttendedReport } from "@/lib/progress";
-import { formGroups, relevantGroupIds } from "@/lib/indicators";
+import { computeMilestoneStatuses, formatMilestoneValue, pickNextTarget } from "@/lib/milestones";
+import { computeLatestAchievement, latestAttendedReport, latestNextFocus } from "@/lib/progress";
+import { formGroups, relevantGroupIds, resolveReportIndicators } from "@/lib/indicators";
 import { loadIndicatorConfig } from "@/lib/indicator-loader";
 import { loadMilestones } from "@/lib/milestone-loader";
 import { requirePelatih } from "@/lib/create-account";
 import { formatAge } from "@/lib/performance";
+import { formatShortDate } from "@/lib/format-date";
 import { jakartaToday, toISODate } from "@/lib/week";
+import { computeHandover } from "@/lib/handover";
 import {
   PROGRAM_SELECT,
   levelsFor,
@@ -32,7 +35,12 @@ import {
 } from "@/lib/programs";
 import { hasClassAccess, type EnrollmentStatus } from "@/lib/enrollment";
 import type { GoalEntry, PersonalGoal } from "@/lib/personal-goals";
-import { createReportAction, updateReportAction, deleteReportAction } from "./actions";
+import {
+  createReportAction,
+  updateReportAction,
+  deleteReportAction,
+  submitReportCorrectionAction,
+} from "./actions";
 import { updatePerformanceRecordAction, deletePerformanceRecordAction } from "./record-actions";
 import {
   addGoalEntryAction,
@@ -133,12 +141,12 @@ export default async function MuridReportPage({
   const goalsMode = program.records_mode === "personal_goals";
   const age = formatAge(student.birth_date);
 
-  const [indicatorConfig, milestones, reportsRes, recordsRes, goalsRes] = await Promise.all([
+  const [indicatorConfig, milestones, reportsRes, recordsRes, goalsRes, quotaRes] = await Promise.all([
     loadIndicatorConfig(supabase, program.id),
     medals ? loadMilestones(supabase, program.id) : Promise.resolve([]),
     supabase
       .from("progress_reports")
-      .select("*")
+      .select("*, author:pelatih_id(full_name)")
       .eq("enrollment_id", enrollment.id)
       .order("session_date", { ascending: false })
       .order("updated_at", { ascending: false }),
@@ -151,9 +159,14 @@ export default async function MuridReportPage({
           .select("id, label, unit, baseline, target, status")
           .eq("enrollment_id", enrollment.id)
       : Promise.resolve({ data: [] as never[] }),
+    supabase.rpc("pelatih_session_quota", { p_enrollment_id: enrollment.id }),
   ]);
-  const reports = reportsRes.data ?? [];
+  const rawReports = (reportsRes.data ?? []) as unknown as (Omit<ReportRow, "author_name" | "revisions"> & {
+    author: { full_name: string | null } | null;
+  })[];
+  const reports: ReportRow[] = rawReports.map((r) => ({ ...r, author_name: r.author?.full_name ?? null }));
   const performanceRecords = recordsRes.data ?? [];
+  const quota = quotaRes.data?.[0] as { total_sessions: number; attended: number; remaining: number } | undefined;
   const goals = ((goalsRes.data ?? []) as PersonalGoal[]).map((g) => ({
     ...g,
     baseline: g.baseline === null ? null : Number(g.baseline),
@@ -188,6 +201,66 @@ export default async function MuridReportPage({
   const formGroupList = formGroups(indicatorConfig);
   const openGroups = relevantGroupIds(formGroupList, latestScores);
   const hidden = { program: program.id };
+
+  // Revision history for "Riwayat perubahan": only fetched for reports the
+  // viewer themself wrote (activity_log RLS only exposes those anyway --
+  // see 0043_report_history_and_corrections.sql).
+  const ownReportIds = reports.filter((r) => r.pelatih_id === session.user.id).map((r) => r.id);
+  const revisionsByReport = new Map<string, ReportRevision[]>();
+  if (ownReportIds.length > 0) {
+    const { data: logRows } = await supabase
+      .from("activity_log")
+      .select("entity_id, created_at, actor_name, changes")
+      .eq("entity_type", "progress_reports")
+      .eq("action", "update")
+      .in("entity_id", ownReportIds)
+      .order("created_at", { ascending: false });
+    for (const row of (logRows ?? []) as {
+      entity_id: string;
+      created_at: string;
+      actor_name: string | null;
+      changes: Record<string, [unknown, unknown]>;
+    }[]) {
+      const list = revisionsByReport.get(row.entity_id) ?? [];
+      list.push({ created_at: row.created_at, actor_name: row.actor_name, changes: row.changes });
+      revisionsByReport.set(row.entity_id, list);
+    }
+  }
+  const reportsWithRevisions = reports.map((r) => ({ ...r, revisions: revisionsByReport.get(r.id) }));
+
+  // "Handover pengajar" (requirement #2): derived purely from who wrote what,
+  // when -- see src/lib/handover.ts for why this needs no admin log lookup.
+  const handover = computeHandover(reports, session.user.id);
+  const showHandoverSummary = handover.beforeReports.length > 0;
+  const beforeLatest = handover.beforeReports[handover.beforeReports.length - 1];
+  const beforeResolved = beforeLatest
+    ? resolveReportIndicators(
+        (beforeLatest.scores as Record<string, number>) ?? {},
+        beforeLatest.indicator_snapshot as never,
+        indicatorConfig
+      )
+    : [];
+  const beforeLatestIndicator = beforeResolved[beforeResolved.length - 1] ?? null;
+  const beforeNextFocus = latestNextFocus(handover.beforeReports);
+
+  // "Evaluasi Perkembangan" summary strip (requirement #3).
+  const attendedForEval = reports.filter((r) => r.attendance === "hadir" && r.scores && typeof r.scores === "object");
+  const evalLatest = attendedForEval[0];
+  const evalPrevious = attendedForEval[1];
+  let evalLatestIndicatorLabel: string | null = null;
+  if (evalLatest) {
+    const latestScoreMap = evalLatest.scores as Record<string, number>;
+    const previousScoreMap = (evalPrevious?.scores as Record<string, number>) ?? {};
+    const changedKeys = Object.keys(latestScoreMap).filter((k) => latestScoreMap[k] !== (previousScoreMap[k] ?? 0));
+    const resolvedLatest = resolveReportIndicators(latestScoreMap, evalLatest.indicator_snapshot as never, indicatorConfig);
+    const pick = resolvedLatest.find((r) => changedKeys.includes(r.key)) ?? resolvedLatest[resolvedLatest.length - 1];
+    evalLatestIndicatorLabel = pick ? `${pick.group} - ${pick.label}` : null;
+  }
+  const milestoneStatuses = medals ? computeMilestoneStatuses(performanceRecords, milestones) : [];
+  const nextTarget = medals ? pickNextTarget(milestoneStatuses) : null;
+  const nextTargetLabel = nextTarget
+    ? `${nextTarget.status.milestone.label} · ${formatMilestoneValue(nextTarget.status.milestone.metric_type, nextTarget.value)}`
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -230,6 +303,56 @@ export default async function MuridReportPage({
         <GlassCard tone="soft">
           <p className="text-xs font-medium text-slate-500">Catatan penyesuaian dari admin</p>
           <p className="mt-0.5 text-sm text-[#17263D]">{enrollment.adjustment_note}</p>
+        </GlassCard>
+      )}
+
+      {showHandoverSummary && (
+        <GlassCard tone="soft">
+          <h2 className={HEADING}>Ringkasan sebelum Anda mengajar</h2>
+          {handover.previousPelatihName && (
+            <p className="mt-1 text-sm text-slate-600">
+              Sebelumnya diajar oleh <span className="font-medium text-[#17263D]">{handover.previousPelatihName}</span>.
+            </p>
+          )}
+          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+            {beforeLatestIndicator && (
+              <div>
+                <dt className="text-[11px] font-medium text-slate-500">Indikator terakhir dinilai</dt>
+                <dd className="text-sm text-[#17263D]">
+                  {beforeLatestIndicator.group} - {beforeLatestIndicator.label}
+                </dd>
+              </div>
+            )}
+            {beforeNextFocus && (
+              <div>
+                <dt className="text-[11px] font-medium text-slate-500">Fokus latihan berikutnya</dt>
+                <dd className="text-sm text-[#17263D]">{beforeNextFocus}</dd>
+              </div>
+            )}
+            {beforeLatest?.notes && (
+              <div>
+                <dt className="text-[11px] font-medium text-slate-500">Catatan penting terakhir</dt>
+                <dd className="text-sm text-[#17263D]">{beforeLatest.notes}</dd>
+              </div>
+            )}
+            {nextTargetLabel && (
+              <div>
+                <dt className="text-[11px] font-medium text-slate-500">Rekor aktif &middot; target berikutnya</dt>
+                <dd className="text-sm text-[#17263D]">{nextTargetLabel}</dd>
+              </div>
+            )}
+            {quota && (
+              <div>
+                <dt className="text-[11px] font-medium text-slate-500">Sesi dibeli / hadir / tersisa</dt>
+                <dd className="text-sm text-[#17263D]">
+                  {quota.total_sessions} / {quota.attended} / {quota.remaining}
+                </dd>
+              </div>
+            )}
+          </dl>
+          {beforeLatest && (
+            <p className="mt-3 text-xs text-slate-500">Data per {formatShortDate(beforeLatest.session_date)}.</p>
+          )}
         </GlassCard>
       )}
 
@@ -302,7 +425,7 @@ export default async function MuridReportPage({
 
       {medals && (
         <>
-          <RecordUnlockCard statuses={computeMilestoneStatuses(performanceRecords, milestones)} />
+          <RecordUnlockCard statuses={milestoneStatuses} />
           <PerformanceRecordsManager
             records={performanceRecords}
             studentId={studentId}
@@ -329,14 +452,28 @@ export default async function MuridReportPage({
         />
       )}
 
+      {!isObservation && (
+        <EvaluationSummary
+          indicatorConfig={indicatorConfig}
+          reports={reports}
+          latestIndicatorLabel={evalLatestIndicatorLabel}
+          nextFocus={latestNextFocus(reports)}
+          nextTargetLabel={nextTargetLabel}
+          handoverAt={handover.handoverAt}
+          currentPelatihName={session.fullName ?? null}
+        />
+      )}
+
       <ReportHistoryCard
-        reports={reports}
+        reports={reportsWithRevisions}
         indicatorConfig={indicatorConfig}
         title={isObservation ? "Riwayat Catatan" : "Riwayat Laporan"}
         editable
+        viewerId={session.user.id}
         studentId={studentId}
         updateAction={updateReportAction}
         deleteAction={deleteReportAction}
+        correctionAction={submitReportCorrectionAction}
       />
     </div>
   );

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { DayAccordion, FocusDay } from "@/components/teaching-schedule";
+import { requirePelatih } from "@/lib/create-account";
 import { addDays, formatRange, jakartaToday, startOfWeek, toISODate } from "@/lib/week";
 import { GHOST_BUTTON } from "@/lib/ui-classes";
 import {
@@ -82,6 +83,7 @@ export default async function PelatihDashboardPage({
     ? Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, Math.trunc(rawOffset)))
     : 0;
 
+  const session = await requirePelatih();
   const supabase = await createClient();
 
   const [{ data: rows }, { data: reports }] = await Promise.all([
@@ -92,7 +94,7 @@ export default async function PelatihDashboardPage({
       ),
     supabase
       .from("progress_reports")
-      .select("student_id, program_id, session_date, attendance, next_focus, updated_at")
+      .select("student_id, program_id, session_date, attendance, next_focus, updated_at, pelatih_id")
       .order("session_date", { ascending: false })
       .order("updated_at", { ascending: false }),
   ]);
@@ -164,7 +166,7 @@ export default async function PelatihDashboardPage({
       {offset === 0 && enrollments.length > 0 && (
         <>
           {todayDay ? (
-            <FocusDay day={todayDay} kicker="Hari ini" />
+            <FocusDay day={todayDay} kicker="Hari ini" viewerId={session.user.id} />
           ) : (
             <>
               <GlassCard tone="soft">
@@ -175,7 +177,7 @@ export default async function PelatihDashboardPage({
                   Nikmati harinya. Sesi berikutnya ada di bawah.
                 </p>
               </GlassCard>
-              {spotlight && <FocusDay day={spotlight} kicker="Sesi berikutnya" />}
+              {spotlight && <FocusDay day={spotlight} kicker="Sesi berikutnya" viewerId={session.user.id} />}
             </>
           )}
 
@@ -183,7 +185,7 @@ export default async function PelatihDashboardPage({
             <section className="flex flex-col gap-2">
               <SectionTitle>Jadwal Berikutnya</SectionTitle>
               {upcoming.map((d) => (
-                <DayAccordion key={d.iso} day={d} />
+                <DayAccordion key={d.iso} day={d} viewerId={session.user.id} />
               ))}
             </section>
           )}
@@ -192,7 +194,7 @@ export default async function PelatihDashboardPage({
             <section className="flex flex-col gap-2">
               <SectionTitle>Sudah Lewat Minggu Ini</SectionTitle>
               {earlier.map((d) => (
-                <DayAccordion key={d.iso} day={d} defaultOpen={d.pending > 0} />
+                <DayAccordion key={d.iso} day={d} defaultOpen={d.pending > 0} viewerId={session.user.id} />
               ))}
             </section>
           )}
@@ -203,7 +205,7 @@ export default async function PelatihDashboardPage({
         <section className="flex flex-col gap-2">
           <SectionTitle>{offset > 0 ? "Jadwal Minggu Depan" : "Jadwal Minggu Lalu"}</SectionTitle>
           {otherWeek.map((d) => (
-            <DayAccordion key={d.iso} day={d} defaultOpen={d.isPast && d.pending > 0} />
+            <DayAccordion key={d.iso} day={d} defaultOpen={d.isPast && d.pending > 0} viewerId={session.user.id} />
           ))}
         </section>
       )}
