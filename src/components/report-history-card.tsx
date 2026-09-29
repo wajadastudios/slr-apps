@@ -13,6 +13,7 @@ import { ParentIndicatorSummary } from "@/components/parent-indicator-summary";
 import { ParentLevelSummary } from "@/components/parent-level-summary";
 import { LevelScoresField } from "@/components/level-scores-field";
 import { AttendanceProvider, AttendanceSelect, PresentOnly } from "@/components/report-attendance";
+import { NarrativeField } from "@/components/narrative-field";
 import { summarizeLevelGroups } from "@/lib/level-summary";
 import { levelLabel, levelsFor, usesStars, type AssessmentType } from "@/lib/programs";
 import { AccordionItem } from "@/components/ui/accordion";
@@ -68,6 +69,10 @@ export type ReportRow = {
   pelatih_id?: string | null;
   author_name?: string | null;
   revisions?: ReportRevision[];
+  // 'final' when absent (every caller predating this column always was) --
+  // a draft is only ever visible to the pengajar who wrote it (RLS), so
+  // ReportHistoryCard is the one place it can legitimately show up at all.
+  status?: "draft" | "final" | "cancelled";
 };
 
 type ReportAction = (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -251,6 +256,8 @@ function ReportEntry({
   updateAction,
   deleteAction,
   correctionAction,
+  cyclePosition,
+  draftNarrativeDue,
 }: {
   report: ReportRow;
   studentId: string;
@@ -261,6 +268,14 @@ function ReportEntry({
   updateAction?: ReportAction;
   deleteAction?: ReportAction;
   correctionAction?: CorrectionAction;
+  // Set when this report is a periodic narrative-cycle summary (e.g. the
+  // 4th valid report since 2026-10-01) -- see src/lib/narrative-cycle.ts.
+  cyclePosition?: number;
+  // Whether the NEXT cycle position is due -- used as an approximation of
+  // "would this draft need a narrative once finalized" (its exact position
+  // isn't tracked until it's final; this matches the common case where the
+  // draft is the most recent session).
+  draftNarrativeDue?: boolean;
 }) {
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -353,10 +368,10 @@ function ReportEntry({
             )}
           </PresentOnly>
 
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-slate-600">Catatan</label>
-            <GlassTextarea name="notes" rows={3} defaultValue={report.notes ?? ""} />
-          </div>
+          <NarrativeField
+            required={report.status === "draft" ? (draftNarrativeDue ?? false) : cyclePosition != null}
+            defaultValue={report.notes ?? ""}
+          />
 
           {type !== "observation" && (
             <MediaFileInput label="Tambah Foto/Video (opsional, lampiran lama tetap tersimpan)" />
@@ -379,6 +394,8 @@ function ReportEntry({
             </button>
             <GlassButton
               type="submit"
+              name="intent"
+              value="final"
               className="!bg-[#35C5D0] px-3 py-1.5 text-xs font-semibold !text-white hover:!bg-[#2bb0ba] active:!bg-[#2bb0ba]"
             >
               Simpan Perubahan
@@ -402,6 +419,14 @@ function ReportEntry({
           <p className="text-xs text-slate-500">{formatShortDate(report.session_date)}</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {report.status === "draft" && (
+            <span className="rounded-full bg-[#FFF3C4] px-2.5 py-0.5 text-xs font-semibold text-[#7a5c00]">Draft</span>
+          )}
+          {cyclePosition != null && (
+            <span className="rounded-full bg-[#E9E5FF] px-2.5 py-0.5 text-xs font-semibold text-[#4b3a9e]">
+              Rangkuman laporan ke-{cyclePosition}
+            </span>
+          )}
           {isOthersReport && report.author_name && (
             <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
               oleh {report.author_name}
@@ -426,7 +451,15 @@ function ReportEntry({
         </div>
       )}
 
-      {report.notes && (
+      {report.notes && parentView && cyclePosition != null && (
+        <div className="mt-3 rounded-xl border border-[#4b3a9e]/25 bg-[#E9E5FF]/50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#4b3a9e]">Rangkuman Perkembangan</p>
+          <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-[#17263D]">{report.notes}</p>
+          {report.author_name && <p className="mt-2 text-xs text-slate-500">oleh {report.author_name}</p>}
+        </div>
+      )}
+
+      {report.notes && !(parentView && cyclePosition != null) && (
         <div className="mt-3">
           <p
             className={`whitespace-pre-line text-sm leading-relaxed text-slate-700 ${
@@ -446,6 +479,13 @@ function ReportEntry({
             </button>
           )}
         </div>
+      )}
+
+      {!report.notes && parentView && resolved.length > 0 && (
+        <p className="mt-3 text-sm text-slate-600">
+          Penilaian sesi tersimpan — Indikator latihan hari ini sudah diperbarui. Rangkuman perkembangan personal
+          dibuat secara berkala oleh pengajar.
+        </p>
       )}
 
       {report.next_focus && (
@@ -567,6 +607,8 @@ export function ReportHistoryCard({
   updateAction,
   deleteAction,
   correctionAction,
+  cyclePositions,
+  draftNarrativeDue,
   id,
   title = "Riwayat Laporan",
 }: {
@@ -592,6 +634,12 @@ export function ReportHistoryCard({
   // Pengajar-only: files a lightweight correction request against a report
   // they can read but not edit (someone else's).
   correctionAction?: CorrectionAction;
+  // report id -> position, for reports that landed on a required narrative
+  // cycle position (src/lib/narrative-cycle.ts's cyclePositionsOf()).
+  cyclePositions?: Map<string, number>;
+  // Whether the pengajar's own next report (i.e. any draft shown here) would
+  // currently land on a required cycle position.
+  draftNarrativeDue?: boolean;
 }) {
   const [page, setPage] = useState(1);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -632,6 +680,8 @@ export function ReportHistoryCard({
             updateAction={updateAction}
             deleteAction={deleteAction}
             correctionAction={correctionAction}
+            cyclePosition={cyclePositions?.get(r.id)}
+            draftNarrativeDue={draftNarrativeDue}
           />
         ))}
       </div>
@@ -714,11 +764,13 @@ export function LatestReportCard({
   indicatorConfig,
   title = "Laporan Terbaru",
   anchorId = "laporan-terbaru",
+  cyclePosition,
 }: {
   report: ReportRow;
   indicatorConfig: IndicatorConfig;
   title?: string;
   anchorId?: string;
+  cyclePosition?: number;
 }) {
   return (
     <GlassCard id={anchorId} className="scroll-mt-20">
@@ -731,6 +783,7 @@ export function LatestReportCard({
         indicatorConfig={indicatorConfig}
         parentView
         editable={false}
+        cyclePosition={cyclePosition}
       />
     </GlassCard>
   );

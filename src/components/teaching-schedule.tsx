@@ -116,6 +116,7 @@ function PrivateRow({ item, viewerId }: { item: SessionItem; viewerId?: string }
             {s.name}
             {focus && <span className="text-slate-500"> · {focus}</span>}
           </p>
+          {s.narrativeHint && <p className="text-xs font-medium text-[#7a5c00]">{s.narrativeHint}</p>}
         </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 pl-[3.75rem] sm:flex-nowrap sm:pl-0">
@@ -188,6 +189,7 @@ function GroupRow({ item, viewerId }: { item: SessionItem; viewerId?: string }) 
               <div className="min-w-0">
                 <p className="text-sm font-medium text-[#17263D]">{s.name}</p>
                 {focusLine(s) && <p className="text-xs text-slate-500">{focusLine(s)}</p>}
+                {s.narrativeHint && <p className="text-xs font-medium text-[#7a5c00]">{s.narrativeHint}</p>}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={s.status} />

@@ -402,7 +402,7 @@ test("the same person's Adult Swim and Aquanatal sessions and reports stay apart
   ];
   // only the Adult Swim session of that day has a report
   const reports: ReportLite[] = [
-    { student_id: "andi", program_id: "p-adult", session_date: "2026-09-21", attendance: "hadir", next_focus: "Napas", pelatih_id: null },
+    { student_id: "andi", program_id: "p-adult", session_date: "2026-09-21", attendance: "hadir", next_focus: "Napas", pelatih_id: null, status: "final" },
   ];
   const day = buildWeek(enrollments, reports, new Date(2026, 8, 20), "2026-09-21")[1];
   assert.equal(day.items.length, 2);

@@ -26,6 +26,7 @@ import {
   latestAttendedReport,
 } from "@/lib/progress";
 import { summarizeReportGroups } from "@/lib/report-summary";
+import { countCycleReports, cyclePositionsOf, remainingUntilNarrative } from "@/lib/narrative-cycle";
 import { supportChanges } from "@/lib/level-summary";
 import { formatShortDate } from "@/lib/format-date";
 import { PRIMARY_BUTTON, SECONDARY_BUTTON, GHOST_BUTTON } from "@/lib/ui-classes";
@@ -256,7 +257,17 @@ export default async function AnakDetailPage({
       }`
     : null;
 
-  const [latestReport, ...olderReports] = allReports;
+  // Every row here is already 'final' -- RLS itself never surfaces a draft to
+  // a parent (0044_narrative_report_cycle.sql).
+  const reportsWithAuthor = allReports.map((r) => ({
+    ...r,
+    author_name: r.pelatih_id ? (pelatihNameById.get(r.pelatih_id) ?? null) : null,
+  }));
+  const cyclePositions = cyclePositionsOf(reportsWithAuthor, program.narrative_policy);
+  const nextCyclePosition = countCycleReports(reportsWithAuthor) + 1;
+  const remainingUntilSummary = remainingUntilNarrative(program.narrative_policy, nextCyclePosition);
+
+  const [latestReport, ...olderReports] = reportsWithAuthor;
   const isObservation = program.assessment_type === "observation";
 
   // record / goals data only for the tab that needs it
@@ -310,11 +321,17 @@ export default async function AnakDetailPage({
         </GlassCard>
       ) : (
         <>
+          {!isObservation && remainingUntilSummary != null && (
+            <p className="text-xs text-slate-500">
+              Rangkuman perkembangan berikutnya dibuat setelah {remainingUntilSummary} laporan sesi lagi.
+            </p>
+          )}
           <LatestReportCard
             report={latestReport}
             indicatorConfig={indicatorConfig}
             title={isObservation ? "Catatan Sesi Terbaru" : "Laporan Terbaru"}
             anchorId={isObservation ? "catatan-terbaru" : "laporan-terbaru"}
+            cyclePosition={cyclePositions.get(latestReport.id)}
           />
           {olderReports.length > 0 && (
             <ReportHistoryCard
@@ -323,6 +340,7 @@ export default async function AnakDetailPage({
               reports={olderReports}
               indicatorConfig={indicatorConfig}
               parentView
+              cyclePositions={cyclePositions}
             />
           )}
         </>

@@ -77,6 +77,17 @@ function back(student_id: string, program_id: string, error?: string) {
   return error ? `${base}${base.includes("?") ? "&" : "?"}error=${encodeURIComponent(error)}` : base;
 }
 
+// guard_narrative_cycle() (0044_narrative_report_cycle.sql) rejects a
+// "final" report on a required cycle position with an empty narrative --
+// this is the one Postgres error this form can hit in normal use, so it
+// gets its own friendly translation instead of the generic technical-error
+// fallback in isTechnicalMessage()/toUserMessage().
+function narrativeErrorMessage(raw: string): string {
+  return raw.includes("narrative_required")
+    ? "Rangkuman Perkembangan Berkala wajib diisi sebelum laporan ini bisa difinalisasi. Anda tetap bisa menyimpan sebagai draft."
+    : raw;
+}
+
 type Ctx = {
   enrollmentId: string;
   status: EnrollmentStatus;
@@ -150,6 +161,11 @@ async function createReportActionImpl(formData: FormData) {
   const attendance = String(formData.get("attendance") ?? "");
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const next_focus = String(formData.get("next_focus") ?? "").trim() || null;
+  // Two submit buttons share this form (see NarrativeField): the default
+  // "Simpan Laporan" finalizes; "Simpan sebagai Draft" only appears when a
+  // required narrative is still empty, so the pengajar doesn't lose the rest
+  // of the report while they come back to write it.
+  const status = String(formData.get("intent") ?? "final") === "draft" ? "draft" : "final";
 
   if (!student_id || !enrollment_id || !session_date || !attendance) {
     redirect(back(student_id, "", "Tanggal dan kehadiran wajib diisi."));
@@ -220,12 +236,13 @@ async function createReportActionImpl(formData: FormData) {
       indicator_snapshot,
       assessment_type: program.assessment_type,
       template_version: program.template_version,
+      status,
     })
     .select("id")
     .single();
 
   if (error) {
-    redirect(back(student_id, program.id, error.message));
+    redirect(back(student_id, program.id, narrativeErrorMessage(error.message)));
   }
 
   // First report of a confirmed class: the class is now running.
@@ -274,6 +291,10 @@ async function updateReportActionImpl(formData: FormData) {
   const attendance = String(formData.get("attendance") ?? "");
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const next_focus = String(formData.get("next_focus") ?? "").trim() || null;
+  // Same two-submit-button convention as createReportActionImpl: this is
+  // also how a draft (opened either from the "lanjutkan draft" form or
+  // edited from its history card entry) gets finalized.
+  const status = String(formData.get("intent") ?? "final") === "draft" ? "draft" : "final";
 
   if (!report_id || !student_id || !session_date || !attendance) {
     redirect(back(student_id, "", "Tanggal dan kehadiran wajib diisi."));
@@ -341,12 +362,13 @@ async function updateReportActionImpl(formData: FormData) {
       media_urls,
       next_focus,
       indicator_snapshot,
+      status,
     })
     .eq("id", report_id)
     .eq("pelatih_id", session.user.id);
 
   if (error) {
-    redirect(back(student_id, program.id, error.message));
+    redirect(back(student_id, program.id, narrativeErrorMessage(error.message)));
   }
 
   revalidatePath(`/pelatih/murid/${student_id}`);
