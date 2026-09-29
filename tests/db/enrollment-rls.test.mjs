@@ -230,6 +230,49 @@ check("pelatih B list has only Aquanatal", mineB.length === 1 && mineB[0].progra
 await as(PA);
 check("pelatih cannot read enrollments directly (tokens/notes stay private)", (await q("select id from public.enrollments")).length === 0);
 
+// ---------- report corrections (0043) ----------
+// PB teaches Andi's Aquanatal enrollment, not the Adult Swim one -- flagging
+// is scoped per ENROLLMENT just like reading reports (0033), so PB may not
+// flag uid(310) (Adult Swim) even though they teach Andi in another program.
+await as(PB);
+const corrWrongProgram = await fails(() =>
+  db.query("insert into public.report_corrections (report_id, reported_by, reason) values ($1,current_setting('request.jwt.claim.sub')::uuid,'x')", [uid(310)])
+);
+check("a pengajar cannot flag a report of a program they do not teach, even for a student they teach elsewhere", corrWrongProgram !== null);
+const corrOther = await fails(() =>
+  db.query("insert into public.report_corrections (report_id, reported_by, reason) values ($1,current_setting('request.jwt.claim.sub')::uuid,'x')", [uid(300)])
+);
+check("...nor a report of a student they do not teach at all", corrOther !== null);
+await as(PA);
+// PA teaches the Adult Swim enrollment, so flagging uid(310) is allowed --
+// even though it is PA's own report, filing one is harmless either way.
+const corrOk = await fails(() =>
+  db.query("insert into public.report_corrections (report_id, reported_by, reason) values ($1,current_setting('request.jwt.claim.sub')::uuid,'Skor sepertinya salah')", [uid(310)])
+);
+check("a pengajar can flag a report within an enrollment they currently teach", corrOk === null, String(corrOk));
+check("the reporter reads their own correction", (await q("select id from public.report_corrections where report_id=$1", [uid(310)])).length === 1);
+await as(PB);
+check("another pengajar does not see someone else's correction", (await q("select id from public.report_corrections where report_id=$1", [uid(310)])).length === 0);
+const spoofed = await fails(() =>
+  db.query("insert into public.report_corrections (report_id, reported_by, reason) values ($1,$2,'x')", [uid(312), PA])
+);
+check("cannot file a correction under someone else's name", spoofed !== null);
+await as(ADMIN);
+const pending = await q("select status from public.report_corrections where report_id=$1", [uid(310)]);
+check("admin sees every pending correction", pending.length === 1 && pending[0].status === "pending");
+await db.query("update public.report_corrections set status='resolved', resolved_by=$1, resolved_at=now() where report_id=$2", [ADMIN, uid(310)]);
+check("admin resolves it", (await q("select status from public.report_corrections where report_id=$1", [uid(310)]))[0].status === "resolved");
+
+// ---------- session quota RPC (0043) ----------
+await su();
+await db.exec(`insert into public.program_packages (id, program_id, name, sessions_count, price) values ('${uid(731)}','${ADULT}','Adult 4 (test)',4,600000)`);
+await db.exec(`insert into public.invoices (id, student_id, enrollment_id, program_package_id, package_name, sessions_count, amount, status) values ('${uid(730)}','${andiStudent}','${adultId}','${uid(731)}','Adult 4',4,600000,'paid')`);
+await as(PA);
+const quota = (await q("select * from public.pelatih_session_quota($1)", [adultId]))[0];
+check("pelatih_session_quota totals paid sessions and distinct hadir dates, no amounts exposed", quota.total_sessions === 4 && quota.attended === 1 && quota.remaining === 3 && !("amount" in quota), JSON.stringify(quota));
+await as(PB);
+check("a pengajar who does not teach this enrollment gets nothing back", (await q("select * from public.pelatih_session_quota($1)", [adultId])).length === 0);
+
 await su();
 await db.exec(`update public.enrollments set status='waiting_schedule' where id='${aquaId}'`);
 await as(PB);
@@ -612,7 +655,15 @@ check("admin reads the activity log", (await q("select id from public.activity_l
 await as(P1);
 check("a parent cannot read it", (await q("select id from public.activity_log")).length === 0);
 await as(PA);
-check("a coach cannot read it", (await q("select id from public.activity_log")).length === 0);
+// 0043: a pengajar may read the edit history of their OWN progress_reports
+// (powers "Riwayat perubahan" on their own report) -- never any other
+// audited table or another pengajar's report.
+const paLog = await q("select entity_type, entity_id from public.activity_log");
+check(
+  "a coach only sees activity_log rows for reports they wrote, nothing else",
+  paLog.length > 0 && paLog.every((r) => r.entity_type === "progress_reports" && r.entity_id === uid(310)),
+  JSON.stringify(paLog)
+);
 check("a parent cannot write into it", (await fails(() => db.exec("insert into public.activity_log (entity_type, action) values ('x','note')"))) === null ? false : true);
 
 // -- follow-up marks

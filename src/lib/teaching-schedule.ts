@@ -22,6 +22,7 @@ export type ReportLite = {
   session_date: string;
   attendance: string | null;
   next_focus: string | null;
+  pelatih_id: string | null;
 };
 
 export type SessionStatus = "belum" | "tersimpan" | "izin" | "sakit" | "mendatang";
@@ -38,6 +39,9 @@ export type StudentSession = {
   hasReport: boolean;
   // date of this session, used to prefill the report form
   date: string;
+  // who wrote THIS session's report (null: no report yet, or a legacy
+  // report predating this column) -- decides "Lihat" vs "Edit Laporan".
+  reportAuthorId: string | null;
 };
 
 export type SessionItem = {
@@ -126,14 +130,16 @@ export function buildWeek(
       const students: StudentSession[] = list
         .map((e) => {
           const enrollment = `${e.student.id}|${e.slot.program_id}`;
+          const todaysReport = reportByKey.get(`${enrollment}|${iso}`);
           return {
             studentId: e.student.id,
             programId: e.slot.program_id,
             name: e.student.full_name,
-            status: sessionStatus(reportByKey.get(`${enrollment}|${iso}`), iso, todayIso),
+            status: sessionStatus(todaysReport, iso, todayIso),
             focus: focusByEnrollment.get(enrollment) ?? null,
             hasReport: hasReport.has(enrollment),
             date: iso,
+            reportAuthorId: todaysReport?.pelatih_id ?? null,
           };
         })
         .sort((a, b) => a.name.localeCompare(b.name, "id"));

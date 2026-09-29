@@ -18,6 +18,7 @@ import { levelLabel, levelsFor, usesStars, type AssessmentType } from "@/lib/pro
 import { AccordionItem } from "@/components/ui/accordion";
 import { formatShortDate } from "@/lib/format-date";
 import {
+  displayName,
   formGroups,
   resolveReportIndicators,
   type IndicatorConfig,
@@ -41,6 +42,13 @@ const ATTENDANCE_COLOR: Record<string, string> = {
   sakit: "bg-red-500/20 text-red-700",
 };
 
+export type ReportRevision = {
+  created_at: string;
+  actor_name: string | null;
+  // {column: [old, new]}, straight from activity_log -- see log_activity()
+  changes: Record<string, [unknown, unknown]>;
+};
+
 export type ReportRow = {
   id: string;
   session_date: string;
@@ -55,9 +63,183 @@ export type ReportRow = {
   indicator_snapshot?: IndicatorSnapshot | null;
   // how the scores were measured when the report was written
   assessment_type?: AssessmentType | null;
+  // who wrote the report and any edits since -- absent for callers that
+  // don't need per-report authorship (e.g. the parent's single latest card)
+  pelatih_id?: string | null;
+  author_name?: string | null;
+  revisions?: ReportRevision[];
 };
 
 type ReportAction = (prev: ActionState, formData: FormData) => Promise<ActionState>;
+type CorrectionAction = (prev: ActionState, formData: FormData) => Promise<ActionState>;
+
+// Columns whose raw before/after would be unreadable or is purely internal
+// bookkeeping -- never shown in "Riwayat perubahan".
+const CHANGE_SKIP = new Set([
+  "indicator_snapshot",
+  "updated_at",
+  "created_at",
+  "program_id",
+  "enrollment_id",
+  "assessment_type",
+  "template_version",
+  "pelatih_id",
+  "student_id",
+  "id",
+]);
+
+const CHANGE_LABEL: Record<string, string> = {
+  session_date: "Tanggal",
+  session_number: "Nomor sesi",
+  attendance: "Kehadiran",
+  notes: "Catatan",
+  next_focus: "Fokus sesi berikutnya",
+  media_urls: "Lampiran",
+};
+
+function truncate(value: unknown, max = 60): string {
+  const text = value == null ? "—" : String(value);
+  return text.length > max ? `${text.slice(0, max)}…` : text || "—";
+}
+
+// One readable line per changed field. `scores` is expanded per indicator
+// (using the labels the report was written with) instead of dumping jsonb.
+function describeChanges(
+  changes: Record<string, [unknown, unknown]>,
+  indicatorConfig: IndicatorConfig
+): string[] {
+  const lines: string[] = [];
+  for (const [column, [before, after]] of Object.entries(changes)) {
+    if (CHANGE_SKIP.has(column)) continue;
+    if (column === "scores") {
+      const oldScores = (before as Record<string, number>) ?? {};
+      const newScores = (after as Record<string, number>) ?? {};
+      const keys = new Set([...Object.keys(oldScores), ...Object.keys(newScores)]);
+      for (const key of keys) {
+        if (oldScores[key] === newScores[key]) continue;
+        const label = displayName(indicatorConfig, key);
+        lines.push(`${label}: ${oldScores[key] ?? "—"} → ${newScores[key] ?? "—"}`);
+      }
+      continue;
+    }
+    if (column === "attendance") {
+      lines.push(
+        `Kehadiran: ${ATTENDANCE_LABEL[String(before)] ?? String(before)} → ${ATTENDANCE_LABEL[String(after)] ?? String(after)}`
+      );
+      continue;
+    }
+    if (column === "session_date") {
+      lines.push(`Tanggal: ${formatShortDate(String(before))} → ${formatShortDate(String(after))}`);
+      continue;
+    }
+    if (column === "media_urls") {
+      const oldCount = Array.isArray(before) ? before.length : 0;
+      const newCount = Array.isArray(after) ? after.length : 0;
+      if (oldCount !== newCount) lines.push(`Lampiran: ${oldCount} → ${newCount} berkas`);
+      continue;
+    }
+    const label = CHANGE_LABEL[column] ?? column;
+    lines.push(`${label}: ${truncate(before)} → ${truncate(after)}`);
+  }
+  return lines;
+}
+
+function RevisionHistory({
+  revisions,
+  indicatorConfig,
+}: {
+  revisions: ReportRevision[];
+  indicatorConfig: IndicatorConfig;
+}) {
+  const [open, setOpen] = useState(false);
+  if (revisions.length === 0) return null;
+
+  return (
+    <AccordionItem
+      variant="ortu"
+      chevronSize="sm"
+      open={open}
+      onToggle={() => setOpen((v) => !v)}
+      className="mt-3 rounded-xl border border-white/40 bg-white/30"
+      headerClassName="min-h-11 rounded-xl px-3 py-1"
+      header={
+        <span className="text-xs font-medium text-slate-600">
+          Riwayat perubahan
+          <span className="ml-1.5 text-[11px] font-normal text-slate-500">&middot; {revisions.length}x diedit</span>
+        </span>
+      }
+    >
+      <div className="flex flex-col gap-2 px-3 pb-3 pt-1">
+        {revisions.map((rev, i) => {
+          const lines = describeChanges(rev.changes, indicatorConfig);
+          if (lines.length === 0) return null;
+          return (
+            <div key={i} className="rounded-lg bg-[#F4FAFB] px-2.5 py-2 text-[11px] text-slate-600">
+              <p className="font-medium text-[#17263D]">
+                {formatShortDate(rev.created_at)}
+                {rev.actor_name ? ` · oleh ${rev.actor_name}` : ""}
+              </p>
+              {lines.map((line, j) => (
+                <p key={j} className="mt-0.5">
+                  {line}
+                </p>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </AccordionItem>
+  );
+}
+
+function CorrectionRequestForm({
+  reportId,
+  studentId,
+  correctionAction,
+}: {
+  reportId: string;
+  studentId: string;
+  correctionAction: CorrectionAction;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`rounded-xl px-3 py-1.5 text-xs font-medium text-[#8a6900] ${GHOST_BUTTON}`}
+      >
+        Ajukan koreksi
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 w-full rounded-xl border border-[#FFC800]/40 bg-[#FFF8E1]/60 p-3">
+      <ToastForm action={correctionAction} resetOnSuccess className="flex flex-col gap-2">
+        <input type="hidden" name="report_id" value={reportId} />
+        <input type="hidden" name="student_id" value={studentId} />
+        <label className="text-xs font-medium text-[#6b5200]">
+          Apa yang tampaknya salah pada laporan ini?
+        </label>
+        <GlassTextarea name="reason" rows={2} required placeholder="Jelaskan singkat, admin akan meninjau." />
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="rounded-xl px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-white/50"
+          >
+            Batal
+          </button>
+          <GlassButton type="submit" className="!bg-[#FFC800] px-3 py-1.5 text-xs font-semibold !text-[#4a3900] hover:!brightness-95">
+            Kirim ke admin
+          </GlassButton>
+        </div>
+      </ToastForm>
+    </div>
+  );
+}
 
 function ReportEntry({
   report,
@@ -65,20 +247,32 @@ function ReportEntry({
   indicatorConfig,
   parentView,
   editable,
+  viewerId,
   updateAction,
   deleteAction,
+  correctionAction,
 }: {
   report: ReportRow;
   studentId: string;
   indicatorConfig: IndicatorConfig;
   parentView: boolean;
   editable: boolean;
+  viewerId?: string | null;
   updateAction?: ReportAction;
   deleteAction?: ReportAction;
+  correctionAction?: CorrectionAction;
 }) {
   const [indicatorsOpen, setIndicatorsOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+
+  // When viewerId is known (the pengajar's own history view), edit/delete is
+  // scoped to reports THEY wrote -- RLS already enforces this at the
+  // database, this only keeps the UI from offering a control that would
+  // fail. Callers that never pass viewerId (admin, who may edit anything;
+  // the parent's read-only latest-report card) keep the old blanket flag.
+  const canEdit = editable && (viewerId == null || report.pelatih_id === viewerId);
+  const isOthersReport = viewerId != null && report.pelatih_id != null && report.pelatih_id !== viewerId;
 
   const scores = (report.scores as Record<string, number>) ?? {};
   const type: AssessmentType = report.assessment_type ?? "score_5";
@@ -102,7 +296,7 @@ function ReportEntry({
       ? summarizeLevelGroups(scores, report.indicator_snapshot, indicatorConfig, type)
       : [];
 
-  if (editing && editable && updateAction) {
+  if (editing && canEdit && updateAction) {
     return (
       <div className="rounded-xl border border-[#35C5D0]/40 bg-white/50 px-4 py-3">
         <ToastForm action={updateAction} className="flex flex-col gap-3">
@@ -207,14 +401,21 @@ function ReportEntry({
           </p>
           <p className="text-xs text-slate-500">{formatShortDate(report.session_date)}</p>
         </div>
-        <span
-          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-            ATTENDANCE_COLOR[report.attendance ?? ""] ??
-            "bg-slate-200 text-slate-700"
-          }`}
-        >
-          {ATTENDANCE_LABEL[report.attendance ?? ""] ?? report.attendance}
-        </span>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {isOthersReport && report.author_name && (
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+              oleh {report.author_name}
+            </span>
+          )}
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              ATTENDANCE_COLOR[report.attendance ?? ""] ??
+              "bg-slate-200 text-slate-700"
+            }`}
+          >
+            {ATTENDANCE_LABEL[report.attendance ?? ""] ?? report.attendance}
+          </span>
+        </div>
       </div>
 
       {report.substitute_for && (
@@ -319,7 +520,7 @@ function ReportEntry({
         </AccordionItem>
       )}
 
-      {editable && (
+      {canEdit && (
         <div className="mt-3 flex justify-end gap-2 border-t border-white/30 pt-2">
           <button
             type="button"
@@ -342,6 +543,16 @@ function ReportEntry({
           )}
         </div>
       )}
+
+      {canEdit && report.revisions && (
+        <RevisionHistory revisions={report.revisions} indicatorConfig={indicatorConfig} />
+      )}
+
+      {isOthersReport && correctionAction && (
+        <div className="mt-3 flex justify-end border-t border-white/30 pt-2">
+          <CorrectionRequestForm reportId={report.id} studentId={studentId} correctionAction={correctionAction} />
+        </div>
+      )}
     </div>
   );
 }
@@ -351,9 +562,11 @@ export function ReportHistoryCard({
   indicatorConfig,
   parentView = false,
   editable = false,
+  viewerId,
   studentId = "",
   updateAction,
   deleteAction,
+  correctionAction,
   id,
   title = "Riwayat Laporan",
 }: {
@@ -365,11 +578,20 @@ export function ReportHistoryCard({
   // Orang tua: read-only summary per indicator group (collapsed, with
   // averages) instead of the flat indicator list pelatih/admin see.
   parentView?: boolean;
-  // Pengajar-only: shows Edit/Hapus controls per report.
+  // Whether this viewer role may edit reports at all (admin: always; pengajar:
+  // always, narrowed per-report below by viewerId; parent: never).
   editable?: boolean;
+  // When set, edit/delete only shows on reports where report.pelatih_id
+  // matches -- a pengajar reading a student's full history, including
+  // reports written by a previous pengajar. Leave unset for admin (who may
+  // edit any report) and the parent's read-only view.
+  viewerId?: string | null;
   studentId?: string;
   updateAction?: ReportAction;
   deleteAction?: ReportAction;
+  // Pengajar-only: files a lightweight correction request against a report
+  // they can read but not edit (someone else's).
+  correctionAction?: CorrectionAction;
 }) {
   const [page, setPage] = useState(1);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -406,8 +628,10 @@ export function ReportHistoryCard({
             indicatorConfig={indicatorConfig}
             parentView={parentView}
             editable={editable}
+            viewerId={viewerId}
             updateAction={updateAction}
             deleteAction={deleteAction}
+            correctionAction={correctionAction}
           />
         ))}
       </div>

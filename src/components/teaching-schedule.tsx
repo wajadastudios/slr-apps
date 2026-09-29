@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useLinkStatus } from "next/link";
 import { AccordionItem } from "@/components/ui/accordion";
 import { GHOST_BUTTON } from "@/lib/ui-classes";
 import {
@@ -21,9 +22,21 @@ const BADGE: Record<Exclude<SessionStatus, "mendatang">, { label: string; classN
   sakit: { label: "Sakit", className: "bg-slate-200 text-slate-600" },
 };
 
-const CTA_PRIMARY =
-  "inline-flex min-h-10 items-center justify-center rounded-xl bg-[#35C5D0] px-4 text-sm font-semibold text-white shadow-[0_3px_10px_rgba(53,197,208,0.35)] transition-all duration-200 hover:bg-[#22B8C7] active:scale-[0.98] active:bg-[#1597A3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C5D0] focus-visible:ring-offset-2 focus-visible:ring-offset-white/60";
-const CTA_SECONDARY = `inline-flex min-h-10 items-center justify-center rounded-xl border border-[#35C5D0]/40 bg-white/50 px-4 text-sm font-medium text-[#1597A3] ${GHOST_BUTTON}`;
+// min-w keeps "Isi Laporan" on one line even for a long student name next to
+// it; whitespace-nowrap stops it wrapping mid-word at any width in between.
+// On very narrow screens the button's own flex parent (see PrivateRow) lets
+// it drop to a full-width row instead of squeezing the label.
+const CTA_BASE = "inline-flex min-h-10 min-w-[120px] sm:min-w-[136px] items-center justify-center whitespace-nowrap rounded-xl px-4 text-sm font-semibold transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C5D0] focus-visible:ring-offset-2 focus-visible:ring-offset-white/60";
+const CTA_PRIMARY = `${CTA_BASE} bg-[#35C5D0] text-white shadow-[0_3px_10px_rgba(53,197,208,0.35)] hover:bg-[#22B8C7] active:bg-[#1597A3]`;
+const CTA_SECONDARY = `${CTA_BASE} border border-[#35C5D0]/40 bg-white/50 font-medium text-[#1597A3] ${GHOST_BUTTON}`;
+
+// Descendant of the Link it decorates, per next/link's useLinkStatus contract.
+// prefetch is on by default for same-origin links, so this usually never
+// shows -- it only appears when a navigation genuinely takes a moment.
+function PendingLabel({ label, pendingLabel }: { label: string; pendingLabel: string }) {
+  const { pending } = useLinkStatus();
+  return <>{pending ? pendingLabel : label}</>;
+}
 
 const PROGRAM_TONES = [
   "bg-[#DFF3FF] text-[#0b5f8a]",
@@ -60,17 +73,24 @@ function StatusBadge({ status }: { status: SessionStatus }) {
   );
 }
 
-// One action per child: "Isi Laporan" is the only turquoise button, saved
-// reports get a quiet "Lihat" so the eye lands on what still needs doing.
-function StudentAction({ s }: { s: StudentSession }) {
+// One action per child: "Isi Laporan" is the only turquoise button. Once a
+// report exists, the label tells editability apart -- "Edit Laporan" for the
+// viewer's own report, a quiet read-only "Lihat" for anyone else's (a
+// substitute's, or a previous pengajar's) -- so the eye lands on what still
+// needs doing without ever promising an edit the RLS would then refuse.
+function StudentAction({ s, viewerId }: { s: StudentSession; viewerId?: string }) {
   const href = reportHref(s.studentId, s.status, s.date, s.programId);
-  return s.status === "belum" ? (
-    <Link href={href} className={CTA_PRIMARY}>
-      Isi Laporan
-    </Link>
-  ) : (
-    <Link href={href} className={CTA_SECONDARY}>
-      Lihat
+  if (s.status === "belum") {
+    return (
+      <Link href={href} className={`${CTA_PRIMARY} w-full sm:w-auto`}>
+        <PendingLabel label="Isi Laporan" pendingLabel="Membuka…" />
+      </Link>
+    );
+  }
+  const canEdit = viewerId != null && s.reportAuthorId === viewerId;
+  return (
+    <Link href={href} className={`${CTA_SECONDARY} w-full sm:w-auto`}>
+      <PendingLabel label={canEdit ? "Edit Laporan" : "Lihat"} pendingLabel="Membuka…" />
     </Link>
   );
 }
@@ -80,7 +100,7 @@ function focusLine(s: StudentSession): string | null {
   return s.hasReport ? "Laporan terakhir tersedia" : null;
 }
 
-function PrivateRow({ item }: { item: SessionItem }) {
+function PrivateRow({ item, viewerId }: { item: SessionItem; viewerId?: string }) {
   const s = item.students[0];
   const focus = focusLine(s);
 
@@ -98,15 +118,15 @@ function PrivateRow({ item }: { item: SessionItem }) {
           </p>
         </div>
       </div>
-      <div className="flex items-center justify-between gap-2 pl-[3.75rem] sm:pl-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 pl-[3.75rem] sm:flex-nowrap sm:pl-0">
         <StatusBadge status={s.status} />
-        <StudentAction s={s} />
+        <StudentAction s={s} viewerId={viewerId} />
       </div>
     </li>
   );
 }
 
-function GroupRow({ item }: { item: SessionItem }) {
+function GroupRow({ item, viewerId }: { item: SessionItem; viewerId?: string }) {
   const [open, setOpen] = useState(false);
   const total = item.students.length;
   const filled = item.students.filter((s) => s.status !== "belum" && s.status !== "mendatang").length;
@@ -145,12 +165,19 @@ function GroupRow({ item }: { item: SessionItem }) {
                 )}
               </span>
             </span>
+            {/* Header action is a status label, not a control -- the whole
+                header row is already the accordion's own toggle button. A
+                bare "Isi Laporan" here would read as "submit a report for
+                the whole class" when it actually just opens the student
+                list, so the header and per-student CTAs below never share
+                that label. */}
             <span
+              title="Buka daftar murid di sesi ini"
               className={
                 pending > 0 ? `${CTA_PRIMARY} pointer-events-none` : `${CTA_SECONDARY} pointer-events-none`
               }
             >
-              {pending > 0 ? "Isi Laporan" : "Lihat murid"}
+              {pending > 0 ? "Isi Laporan Kelas" : "Lihat Murid"}
             </span>
           </span>
         }
@@ -162,9 +189,9 @@ function GroupRow({ item }: { item: SessionItem }) {
                 <p className="text-sm font-medium text-[#17263D]">{s.name}</p>
                 {focusLine(s) && <p className="text-xs text-slate-500">{focusLine(s)}</p>}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={s.status} />
-                <StudentAction s={s} />
+                <StudentAction s={s} viewerId={viewerId} />
               </div>
             </li>
           ))}
@@ -174,11 +201,15 @@ function GroupRow({ item }: { item: SessionItem }) {
   );
 }
 
-function SessionList({ items }: { items: SessionItem[] }) {
+function SessionList({ items, viewerId }: { items: SessionItem[]; viewerId?: string }) {
   return (
     <ul className="divide-y divide-white/60">
       {items.map((item) =>
-        item.isGroup ? <GroupRow key={item.key} item={item} /> : <PrivateRow key={item.key} item={item} />
+        item.isGroup ? (
+          <GroupRow key={item.key} item={item} viewerId={viewerId} />
+        ) : (
+          <PrivateRow key={item.key} item={item} viewerId={viewerId} />
+        )
       )}
     </ul>
   );
@@ -186,7 +217,7 @@ function SessionList({ items }: { items: SessionItem[] }) {
 
 // Today (or the next session day when today is empty): open, with a clear
 // header, a stronger surface and the day's list right below.
-export function FocusDay({ day, kicker }: { day: DaySchedule; kicker: string }) {
+export function FocusDay({ day, kicker, viewerId }: { day: DaySchedule; kicker: string; viewerId?: string }) {
   return (
     <section className="rounded-3xl border border-[#35C5D0]/45 bg-gradient-to-br from-white/85 to-[#E6F8FA]/80 p-4 shadow-[0_10px_36px_rgba(53,197,208,0.18)] backdrop-blur-xl sm:p-5">
       <p className="text-xs font-bold uppercase tracking-wide text-[#1597A3]">
@@ -194,7 +225,7 @@ export function FocusDay({ day, kicker }: { day: DaySchedule; kicker: string }) 
       </p>
       <p className="mt-0.5 text-sm text-slate-600">{daySummary(day)}</p>
       <div className="mt-2">
-        <SessionList items={day.items} />
+        <SessionList items={day.items} viewerId={viewerId} />
       </div>
     </section>
   );
@@ -202,7 +233,15 @@ export function FocusDay({ day, kicker }: { day: DaySchedule; kicker: string }) 
 
 // Every other day: a quiet, collapsed group whose header carries the count
 // (and a small flag when reports are waiting).
-export function DayAccordion({ day, defaultOpen = false }: { day: DaySchedule; defaultOpen?: boolean }) {
+export function DayAccordion({
+  day,
+  defaultOpen = false,
+  viewerId,
+}: {
+  day: DaySchedule;
+  defaultOpen?: boolean;
+  viewerId?: string;
+}) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
@@ -230,7 +269,7 @@ export function DayAccordion({ day, defaultOpen = false }: { day: DaySchedule; d
       }
     >
       <div className="px-4 pb-2">
-        <SessionList items={day.items} />
+        <SessionList items={day.items} viewerId={viewerId} />
       </div>
     </AccordionItem>
   );
