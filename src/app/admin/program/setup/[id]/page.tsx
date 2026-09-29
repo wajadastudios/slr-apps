@@ -9,9 +9,11 @@ import { ImpactConfirm } from "@/components/admin/impact-confirm";
 import { ADMIN_CTA, SECONDARY_BUTTON } from "@/lib/ui-classes";
 import { isAudience } from "@/lib/program-audience";
 import { AudienceForm } from "./audience-form";
+import { NarrativePolicyForm } from "./narrative-policy-form";
 import { loadReadiness, PROGRAM_SETUP_COLUMNS, type SetupProgramRow } from "@/lib/admin/readiness-load";
 import { programChecklist, readyBlockers } from "@/lib/admin/readiness";
-import { saveAudienceAction, setRegistrationOpenAction } from "../actions";
+import { saveAudienceAction, saveNarrativePolicyAction, setRegistrationOpenAction } from "../actions";
+import type { NarrativePolicy } from "@/lib/narrative-cycle";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -100,6 +102,16 @@ export default async function ProgramSetupPage({
           initial={isAudience(program.audience) ? program.audience : "child"}
           relatedCount={related ?? 0}
           action={saveAudienceAction}
+        />
+      </GlassCard>
+
+      <GlassCard className="flex flex-col gap-3">
+        <h2 className={HEADING}>Laporan Naratif Berkala</h2>
+        <NarrativePolicyForm
+          key={program.narrative_policy ?? "none"}
+          programId={program.id}
+          initial={(program.narrative_policy as NarrativePolicy) ?? "none"}
+          action={saveNarrativePolicyAction}
         />
       </GlassCard>
 

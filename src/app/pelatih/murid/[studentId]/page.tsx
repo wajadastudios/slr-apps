@@ -26,6 +26,8 @@ import { formatAge } from "@/lib/performance";
 import { formatShortDate } from "@/lib/format-date";
 import { jakartaToday, toISODate } from "@/lib/week";
 import { computeHandover } from "@/lib/handover";
+import { countCycleReports, cyclePositionsOf, narrativeRequired } from "@/lib/narrative-cycle";
+import { NarrativeField } from "@/components/narrative-field";
 import {
   PROGRAM_SELECT,
   levelsFor,
@@ -190,17 +192,34 @@ export default async function MuridReportPage({
   // from when filling in a report for a specific day.
   const todayIso = toISODate(jakartaToday());
   const today = tanggal && /^\d{4}-\d{2}-\d{2}$/.test(tanggal) ? tanggal : todayIso;
-  const latestScores = latestAttendedReport(reports)?.scores as Record<string, number> | null | undefined;
+  // A draft is not a real report yet -- it must not affect scores/trend/
+  // achievement/handover before the pengajar actually finalizes it.
+  const finalReports = reports.filter((r) => r.status === "final");
+  const latestScores = latestAttendedReport(finalReports)?.scores as Record<string, number> | null | undefined;
   // A single percent score was dropped per product decision -- a short,
   // concrete achievement ("Meningkat pada X" / "Sudah baik pada Y") is more
   // meaningful than one averaged number, and simply hides itself (returns
   // null) when there isn't enough data to say something true.
   const latestAchievement = usesStars(type)
-    ? computeLatestAchievement(reports, indicatorConfig)
+    ? computeLatestAchievement(finalReports, indicatorConfig)
     : null;
   const formGroupList = formGroups(indicatorConfig);
   const openGroups = relevantGroupIds(formGroupList, latestScores);
   const hidden = { program: program.id };
+
+  // Periodic narrative cycle (requirement: narrative report cycle). Position
+  // is always derived from what's already committed -- see
+  // src/lib/narrative-cycle.ts and 0044_narrative_report_cycle.sql (the
+  // database trigger is the actual enforcement; this only drives the form).
+  const cycleCount = countCycleReports(finalReports);
+  const narrativeDue = narrativeRequired(program.narrative_policy, cycleCount + 1);
+  const cyclePositions = cyclePositionsOf(finalReports, program.narrative_policy);
+  // If today's session already has an unfinished draft of the caller's own,
+  // resume it instead of trying to create a second row for the same date
+  // (progress_reports_enrollment_session_date_unique would refuse that).
+  const todayDraft = reports.find(
+    (r) => r.session_date === today && r.pelatih_id === session.user.id && r.status === "draft"
+  );
 
   // Revision history for "Riwayat perubahan": only fetched for reports the
   // viewer themself wrote (activity_log RLS only exposes those anyway --
@@ -230,7 +249,7 @@ export default async function MuridReportPage({
 
   // "Handover pengajar" (requirement #2): derived purely from who wrote what,
   // when -- see src/lib/handover.ts for why this needs no admin log lookup.
-  const handover = computeHandover(reports, session.user.id);
+  const handover = computeHandover(finalReports, session.user.id);
   const showHandoverSummary = handover.beforeReports.length > 0;
   const beforeLatest = handover.beforeReports[handover.beforeReports.length - 1];
   const beforeResolved = beforeLatest
@@ -244,7 +263,7 @@ export default async function MuridReportPage({
   const beforeNextFocus = latestNextFocus(handover.beforeReports);
 
   // "Evaluasi Perkembangan" summary strip (requirement #3).
-  const attendedForEval = reports.filter((r) => r.attendance === "hadir" && r.scores && typeof r.scores === "object");
+  const attendedForEval = finalReports.filter((r) => r.attendance === "hadir" && r.scores && typeof r.scores === "object");
   const evalLatest = attendedForEval[0];
   const evalPrevious = attendedForEval[1];
   let evalLatestIndicatorLabel: string | null = null;
@@ -358,25 +377,41 @@ export default async function MuridReportPage({
 
       <GlassCard>
         <h2 className={`mb-4 ${HEADING}`}>
-          {isObservation ? "Isi Catatan Sesi Aquanatal" : `Isi ${reportTitle(type)} Baru`}
+          {todayDraft
+            ? "Lanjutkan Draft Sesi Ini"
+            : isObservation
+              ? "Isi Catatan Sesi Aquanatal"
+              : `Isi ${reportTitle(type)} Baru`}
         </h2>
-        <ToastForm action={createReportAction} resetOnSuccess className="flex flex-col gap-4">
-          <AttendanceProvider>
+        {todayDraft && (
+          <p className="mb-3 rounded-xl bg-[#FFF8E1] px-3 py-2 text-xs text-[#6b5200]">
+            Sesi ini punya draft yang belum difinalisasi. Melanjutkan mengisi di bawah akan memperbarui draft yang
+            sama, bukan membuat laporan baru.
+          </p>
+        )}
+        <ToastForm action={todayDraft ? updateReportAction : createReportAction} resetOnSuccess className="flex flex-col gap-4">
+          <AttendanceProvider initial={todayDraft?.attendance ?? "hadir"}>
+            {todayDraft && <input type="hidden" name="report_id" value={todayDraft.id} />}
             <input type="hidden" name="student_id" value={studentId} />
             <input type="hidden" name="enrollment_id" value={enrollment.id} />
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm text-slate-800">Tanggal</label>
-                <GlassInput name="session_date" type="date" defaultValue={today} required />
+                <GlassInput name="session_date" type="date" defaultValue={todayDraft?.session_date ?? today} required />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm text-slate-800">Nomor Sesi</label>
-                <GlassInput name="session_number" type="number" min={1} defaultValue={nextSessionNumber} />
+                <GlassInput
+                  name="session_number"
+                  type="number"
+                  min={1}
+                  defaultValue={todayDraft?.session_number ?? nextSessionNumber}
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm text-slate-800">Kehadiran</label>
-                <AttendanceSelect />
+                <AttendanceSelect initial={todayDraft?.attendance ?? "hadir"} />
               </div>
             </div>
 
@@ -391,19 +426,21 @@ export default async function MuridReportPage({
                         ? "Observasi sesi (pilih yang paling sesuai untuk tiap butir)"
                         : "Tingkat dukungan per indikator (pilih yang paling sesuai)"
                     }
+                    initialScores={(todayDraft?.scores as Record<string, number>) ?? undefined}
                     initiallyOpen={openGroups}
                   />
                 ) : (
-                  <SkillScoresField groups={formGroupList} initiallyOpen={openGroups} />
+                  <SkillScoresField
+                    groups={formGroupList}
+                    initialScores={(todayDraft?.scores as Record<string, number>) ?? undefined}
+                    initiallyOpen={openGroups}
+                  />
                 )}
                 {medals && <PerformanceRecordField />}
               </div>
             </PresentOnly>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm text-slate-800">{isObservation ? "Catatan Instruktur" : "Catatan"}</label>
-              <GlassTextarea name="notes" rows={3} />
-            </div>
+            <NarrativeField required={narrativeDue} defaultValue={todayDraft?.notes ?? ""} />
 
             {!isObservation && <MediaFileInput label="Foto/Video (opsional)" />}
 
@@ -411,12 +448,12 @@ export default async function MuridReportPage({
               <label className="text-sm text-slate-800">
                 {isObservation ? "Fokus Sesi Berikutnya" : "Rekomendasi Fokus Sesi Berikutnya"}
               </label>
-              <GlassTextarea name="next_focus" rows={2} />
+              <GlassTextarea name="next_focus" rows={2} defaultValue={todayDraft?.next_focus ?? ""} />
             </div>
 
             {error && <p className="text-sm text-red-700">{decodeURIComponent(error)}</p>}
 
-            <GlassButton type="submit" className="!bg-[#35C5D0] w-fit !text-white hover:!bg-[#2bb0ba]">
+            <GlassButton type="submit" name="intent" value="final" className="!bg-[#35C5D0] w-fit !text-white hover:!bg-[#2bb0ba]">
               {isObservation ? "Simpan Catatan" : "Simpan Laporan"}
             </GlassButton>
           </AttendanceProvider>
@@ -455,9 +492,9 @@ export default async function MuridReportPage({
       {!isObservation && (
         <EvaluationSummary
           indicatorConfig={indicatorConfig}
-          reports={reports}
+          reports={finalReports}
           latestIndicatorLabel={evalLatestIndicatorLabel}
-          nextFocus={latestNextFocus(reports)}
+          nextFocus={latestNextFocus(finalReports)}
           nextTargetLabel={nextTargetLabel}
           handoverAt={handover.handoverAt}
           currentPelatihName={session.fullName ?? null}
@@ -474,6 +511,8 @@ export default async function MuridReportPage({
         updateAction={updateReportAction}
         deleteAction={deleteReportAction}
         correctionAction={submitReportCorrectionAction}
+        cyclePositions={cyclePositions}
+        draftNarrativeDue={narrativeDue}
       />
     </div>
   );

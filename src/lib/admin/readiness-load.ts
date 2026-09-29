@@ -10,9 +10,12 @@ type ProgramRow = {
   assessment_type: string | null;
   records_mode: string | null;
   registration_open: boolean | null;
+  // Only used by the program setup page's own narrative-policy form; other
+  // callers reusing this type (registration listings) never select it.
+  narrative_policy?: string | null;
 };
 
-const COLUMNS = "id, name, active, audience, assessment_type, records_mode, registration_open";
+const COLUMNS = "id, name, active, audience, assessment_type, records_mode, registration_open, narrative_policy";
 
 async function countRows(supabase: SupabaseClient, table: string, programId: string, active = false): Promise<number> {
   let query = supabase.from(table).select("id", { count: "exact", head: true }).eq("program_id", programId);

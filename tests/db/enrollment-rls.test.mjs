@@ -703,6 +703,122 @@ check("the change is logged with before, after and the admin", audLog.length ===
 const stillThere = (await q("select count(*)::int c from public.enrollments where program_id=$1", [uid(800)]))[0].c;
 check("existing registrations of that program stay in place after the change", stillThere === 2, String(stillThere));
 
+// ---------- narrative report cycle (0044) ----------
+await su();
+await db.exec(`
+  insert into public.class_slots (id, program_id, pelatih_id, label, day_of_week, start_time, capacity) values ('${uid(900)}','${KIDS}','${PA}','Private',0,'09:00',1);
+  insert into public.students (id, full_name, parent_id, program_id) values ('${uid(901)}','Cycle Test','${P1}','${KIDS}');
+  insert into public.schedules (student_id, slot_id) values ('${uid(901)}','${uid(900)}');
+`);
+const cycleEnr = (await q("select id from public.enrollments where student_id=$1", [uid(901)]))[0].id;
+const insertCycle = (id, date, opts = {}) =>
+  db.query(
+    "insert into public.progress_reports (id, student_id, enrollment_id, program_id, pelatih_id, session_date, attendance, status, notes) values ($1,$2,$3,$4,current_setting('request.jwt.claim.sub')::uuid,$5,$6,$7,$8)",
+    [id, uid(901), cycleEnr, KIDS, date, opts.attendance ?? "hadir", opts.status ?? "final", opts.notes ?? null]
+  );
+
+await as(PA);
+
+// scenario 1: before the cutoff, never joins the cycle
+await insertCycle(uid(910), "2026-09-25");
+check("narrative cycle #1: a session before 2026-10-01 never requires a narrative", true);
+
+// scenario 2: 4 valid sessions from the cutoff -> the 4th is refused without one
+await insertCycle(uid(911), "2026-10-01");
+await insertCycle(uid(912), "2026-10-02");
+await insertCycle(uid(913), "2026-10-03");
+const blocked4 = await fails(() => insertCycle(uid(914), "2026-10-04"));
+check("narrative cycle #2: the 4th valid Kids Swim report since cutoff is refused without a narrative", /narrative_required/.test(blocked4 ?? ""), String(blocked4));
+await insertCycle(uid(914), "2026-10-04", { notes: "Rangkuman 4 sesi pertama." });
+check("narrative cycle #2b: the same report succeeds once a narrative is present", true);
+check("narrative cycle: draft reports are exempt from the requirement regardless of position", (await fails(() => insertCycle(uid(9140), "2026-10-19", { status: "draft" }))) === null);
+await db.query("delete from public.progress_reports where id=$1", [uid(9140)]);
+
+// scenario 3: sessions 5-7 don't require a narrative
+await insertCycle(uid(915), "2026-10-05");
+await insertCycle(uid(916), "2026-10-06");
+await insertCycle(uid(917), "2026-10-07");
+check("narrative cycle #3: reports 5-7 do not require a narrative", true);
+
+// scenario 4: the 8th requires one again
+const blocked8 = await fails(() => insertCycle(uid(918), "2026-10-08"));
+check("narrative cycle #4: the 8th report is refused again without a narrative", /narrative_required/.test(blocked8 ?? ""), String(blocked8));
+await insertCycle(uid(918), "2026-10-08", { notes: "Rangkuman 8 sesi." });
+
+// scenario 5 + 6: a none-policy program (Aquanatal) -- narrative always optional,
+// including session 1, and it never blocks saving without one at any position
+await su();
+await db.exec(`
+  insert into public.class_slots (id, program_id, pelatih_id, label, day_of_week, start_time, capacity) values ('${uid(902)}','${AQUA}','${PB}','Private',1,'09:00',1);
+  insert into public.students (id, full_name, parent_id, program_id) values ('${uid(903)}','Aqua Cycle Test','${P1}','${AQUA}');
+  insert into public.schedules (student_id, slot_id) values ('${uid(903)}','${uid(902)}');
+`);
+const aquaEnr = (await q("select id from public.enrollments where student_id=$1", [uid(903)]))[0].id;
+const insertAqua = (id, date, notes = null) =>
+  db.query(
+    "insert into public.progress_reports (id, student_id, enrollment_id, program_id, pelatih_id, session_date, attendance, status, notes) values ($1,$2,$3,$4,current_setting('request.jwt.claim.sub')::uuid,$5,'hadir','final',$6)",
+    [id, uid(903), aquaEnr, AQUA, date, notes]
+  );
+await as(PB);
+check("narrative cycle #5: an optional narrative can still be written on session 1 of any program", (await fails(() => insertAqua(uid(920), "2026-10-01", "Catatan opsional sesi pertama."))) === null);
+await insertAqua(uid(921), "2026-10-02");
+await insertAqua(uid(922), "2026-10-03");
+check("narrative cycle #6: a none-policy program (Aquanatal) saves without a narrative at position 4 too", (await fails(() => insertAqua(uid(923), "2026-10-04"))) === null);
+
+// scenario 7: admin changes the policy -> only future reports are affected,
+// history (already-committed rows) is left untouched
+await as(ADMIN);
+await db.query("update public.programs set narrative_policy='every_2' where id=$1", [KIDS]);
+await su();
+const untouchedNotes = (await q("select notes from public.progress_reports where id=$1", [uid(911)]))[0].notes;
+check("narrative cycle #7: changing the policy does not rewrite historical report content", untouchedNotes === null);
+await as(PA);
+// count for cycleEnr is now 8 (all final/hadir since cutoff); position 9 is odd
+// under the NEW every_2 policy, so it must NOT require a narrative...
+check("narrative cycle #7b: the next report follows the NEW policy immediately", (await fails(() => insertCycle(uid(924), "2026-10-09"))) === null);
+// ...but position 10 does.
+const blocked10 = await fails(() => insertCycle(uid(925), "2026-10-10"));
+check("narrative cycle #7c: position 10 requires a narrative under the new every_2 policy", /narrative_required/.test(blocked10 ?? ""), String(blocked10));
+await su();
+await db.query("update public.programs set narrative_policy='every_4' where id=$1", [KIDS]);
+
+// scenario 8: reassigning the pengajar (same enrollment, admin changes
+// class_slots.pelatih_id like applySlotChangeAction's "mode: all") never
+// resets the cycle count -- it only ever depends on enrollment_id.
+await su();
+await db.exec(`
+  insert into public.class_slots (id, program_id, pelatih_id, label, day_of_week, start_time, capacity) values ('${uid(904)}','${ADULT}','${PA}','Private',5,'14:00',1);
+  insert into public.students (id, full_name, parent_id, program_id) values ('${uid(905)}','Handover Cycle Test','${P1}','${ADULT}');
+  insert into public.schedules (student_id, slot_id) values ('${uid(905)}','${uid(904)}');
+  update public.programs set narrative_policy='every_4' where id='${ADULT}';
+`);
+const handoverEnr = (await q("select id from public.enrollments where student_id=$1", [uid(905)]))[0].id;
+const insertHandover = (id, date, notes = null) =>
+  db.query(
+    "insert into public.progress_reports (id, student_id, enrollment_id, program_id, pelatih_id, session_date, attendance, status, notes) values ($1,$2,$3,$4,current_setting('request.jwt.claim.sub')::uuid,$5,'hadir','final',$6)",
+    [id, uid(905), handoverEnr, ADULT, date, notes]
+  );
+await as(PA);
+await insertHandover(uid(930), "2026-10-01");
+await insertHandover(uid(931), "2026-10-02");
+await su();
+await db.query("update public.class_slots set pelatih_id=$1 where id=$2", [PB, uid(904)]);
+await as(PB);
+const blockedAfterHandover = await fails(() => insertHandover(uid(932), "2026-10-03"));
+check("narrative cycle #8a: position 3 after a pengajar switch still doesn't require a narrative (count carried over)", blockedAfterHandover === null, String(blockedAfterHandover));
+const blockedAt4AfterHandover = await fails(() => insertHandover(uid(933), "2026-10-04"));
+check("narrative cycle #8b: the NEW pengajar's report still hits position 4 -- the switch never reset the count", /narrative_required/.test(blockedAt4AfterHandover ?? ""), String(blockedAt4AfterHandover));
+
+// RLS: drafts are private to their author
+await as(PA);
+await insertCycle(uid(940), "2026-10-11", { status: "draft" });
+await as(PB);
+check("narrative cycle: an unrelated pengajar cannot see PA's draft", (await q("select id from public.progress_reports where id=$1", [uid(940)])).length === 0);
+await as(P1);
+check("narrative cycle: a parent never sees a draft report, even for their own child", (await q("select id from public.progress_reports where id=$1", [uid(940)])).length === 0);
+await as(PA);
+check("narrative cycle: the author still sees their own draft", (await q("select id from public.progress_reports where id=$1", [uid(940)])).length === 1);
+
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
 process.exit(failed.length ? 1 : 0);

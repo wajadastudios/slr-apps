@@ -1,5 +1,6 @@
 import { DAYS } from "@/lib/days";
 import { addDays, formatDayDate, toISODate } from "@/lib/week";
+import { countCycleReports, narrativeReminder, type NarrativePolicy } from "@/lib/narrative-cycle";
 
 export type Enrollment = {
   student: { id: string; full_name: string };
@@ -23,6 +24,7 @@ export type ReportLite = {
   attendance: string | null;
   next_focus: string | null;
   pelatih_id: string | null;
+  status: string | null;
 };
 
 export type SessionStatus = "belum" | "tersimpan" | "izin" | "sakit" | "mendatang";
@@ -42,6 +44,10 @@ export type StudentSession = {
   // who wrote THIS session's report (null: no report yet, or a legacy
   // report predating this column) -- decides "Lihat" vs "Edit Laporan".
   reportAuthorId: string | null;
+  // "2 laporan lagi menuju rangkuman perkembangan" etc. -- only set for an
+  // unwritten ("belum") session on a program whose narrative_policy isn't
+  // 'none' (src/lib/narrative-cycle.ts).
+  narrativeHint: string | null;
 };
 
 export type SessionItem = {
@@ -95,13 +101,15 @@ export function buildWeek(
   enrollments: Enrollment[],
   reports: ReportLite[],
   weekStart: Date,
-  todayIso: string
+  todayIso: string,
+  policyByProgram: Record<string, NarrativePolicy> = {}
 ): DaySchedule[] {
   // Everything is keyed by participant AND program: the same person can have
   // Adult Swim and Aquanatal sessions and their reports must never mix.
   const reportByKey = new Map<string, ReportLite>();
   const focusByEnrollment = new Map<string, string>();
   const hasReport = new Set<string>();
+  const reportsByEnrollment = new Map<string, ReportLite[]>();
   for (const r of reports) {
     const enrollment = `${r.student_id}|${r.program_id ?? ""}`;
     const key = `${enrollment}|${r.session_date}`;
@@ -110,6 +118,20 @@ export function buildWeek(
     if (!focusByEnrollment.has(enrollment) && r.next_focus?.trim()) {
       focusByEnrollment.set(enrollment, r.next_focus.trim());
     }
+    const list = reportsByEnrollment.get(enrollment) ?? [];
+    list.push(r);
+    reportsByEnrollment.set(enrollment, list);
+  }
+  // Fixed per enrollment (murid+program), not per displayed day -- the
+  // reminder is about the NEXT report overall, wherever it lands in the
+  // week. Computed lazily (below) so a student with zero reports yet still
+  // gets "wajib pada laporan ke-N" from position 1, not just once they have
+  // some history.
+  function narrativeHintFor(programId: string, enrollmentKey: string): string | null {
+    const policy = policyByProgram[programId] ?? "none";
+    if (policy === "none") return null;
+    const count = countCycleReports(reportsByEnrollment.get(enrollmentKey) ?? []);
+    return narrativeReminder(policy, count + 1);
   }
 
   const bySlot = new Map<string, Enrollment[]>();
@@ -131,15 +153,17 @@ export function buildWeek(
         .map((e) => {
           const enrollment = `${e.student.id}|${e.slot.program_id}`;
           const todaysReport = reportByKey.get(`${enrollment}|${iso}`);
+          const status = sessionStatus(todaysReport, iso, todayIso);
           return {
             studentId: e.student.id,
             programId: e.slot.program_id,
             name: e.student.full_name,
-            status: sessionStatus(todaysReport, iso, todayIso),
+            status,
             focus: focusByEnrollment.get(enrollment) ?? null,
             hasReport: hasReport.has(enrollment),
             date: iso,
             reportAuthorId: todaysReport?.pelatih_id ?? null,
+            narrativeHint: status === "belum" ? narrativeHintFor(e.slot.program_id, enrollment) : null,
           };
         })
         .sort((a, b) => a.name.localeCompare(b.name, "id"));

@@ -70,5 +70,34 @@ async function setRegistrationOpenImpl(formData: FormData) {
   redirect(back(id));
 }
 
+// Which sessions must carry a periodic narrative summary. Only touches
+// programs.narrative_policy: never rewrites past reports, and the trigger
+// that enforces it (0044_narrative_report_cycle.sql) only ever looks at the
+// policy in effect at the moment a report is finalized.
+async function saveNarrativePolicyImpl(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const policy = String(formData.get("narrative_policy") ?? "");
+  const valid = ["none", "every_4", "every_2", "every_1"];
+  if (!valid.includes(policy)) fail(id, "Perubahan belum tersimpan. Silakan coba lagi.");
+
+  const supabase = await createClient();
+  const { data: current } = await supabase.from("programs").select("narrative_policy").eq("id", id).maybeSingle();
+  if (!current) fail(id, "Perubahan belum tersimpan. Silakan coba lagi.");
+  if (current.narrative_policy === policy) redirect(back(id));
+
+  const { error } = await supabase.from("programs").update({ narrative_policy: policy }).eq("id", id);
+  if (error) fail(id, "Perubahan belum tersimpan. Silakan coba lagi.");
+
+  revalidatePath(back(id));
+  revalidatePath("/pelatih");
+  revalidatePath("/ortu");
+  redirect(back(id));
+}
+
 export const saveAudienceAction = safeAction(saveAudienceImpl, "Jalur pendaftaran program berhasil diperbarui.");
 export const setRegistrationOpenAction = safeAction(setRegistrationOpenImpl, "Status pendaftaran program diperbarui");
+export const saveNarrativePolicyAction = safeAction(
+  saveNarrativePolicyImpl,
+  "Kewajiban rangkuman naratif berhasil diperbarui."
+);

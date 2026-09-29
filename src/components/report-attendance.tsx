@@ -6,7 +6,13 @@ import { GlassSelect } from "@/components/ui/glass-select";
 // A missed session (izin / sakit) has no assessment. The attendance select and
 // the sections that depend on it share this state, so choosing "Izin" or
 // "Sakit" switches the indicator and record inputs off at once.
-const AbsentContext = createContext(false);
+export const AbsentContext = createContext(false);
+
+// Whether the currently-selected attendance is izin/sakit -- reactive to the
+// live AttendanceSelect choice, not just the value the form was loaded with.
+export function useIsAbsent(): boolean {
+  return useContext(AbsentContext);
+}
 const SetAttendanceContext = createContext<(value: string) => void>(() => {});
 
 export function AttendanceProvider({

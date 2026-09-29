@@ -47,8 +47,8 @@ const enrollments: Enrollment[] = [
 ];
 
 const reports: ReportLite[] = [
-  { student_id: "rara", program_id: "p-kids", session_date: "2026-09-14", attendance: "hadir", next_focus: "Meluncur", pelatih_id: null },
-  { student_id: "ica", program_id: "p-kids", session_date: "2026-09-21", attendance: "sakit", next_focus: null, pelatih_id: null },
+  { student_id: "rara", program_id: "p-kids", session_date: "2026-09-14", attendance: "hadir", next_focus: "Meluncur", pelatih_id: null, status: "final" },
+  { student_id: "ica", program_id: "p-kids", session_date: "2026-09-21", attendance: "sakit", next_focus: null, pelatih_id: null, status: "final" },
 ];
 
 test("time reads 15.00, not 15:00:00", () => {
@@ -115,8 +115,8 @@ test("focus line data: latest next_focus or 'has report' flag, nothing otherwise
 
 test("group progress counts written reports, including izin/sakit", () => {
   const groupReports: ReportLite[] = [
-    { student_id: "g0", program_id: "p-kids", session_date: "2026-09-21", attendance: "hadir", next_focus: null, pelatih_id: null },
-    { student_id: "g1", program_id: "p-kids", session_date: "2026-09-21", attendance: "izin", next_focus: null, pelatih_id: null },
+    { student_id: "g0", program_id: "p-kids", session_date: "2026-09-21", attendance: "hadir", next_focus: null, pelatih_id: null, status: "final" },
+    { student_id: "g1", program_id: "p-kids", session_date: "2026-09-21", attendance: "izin", next_focus: null, pelatih_id: null, status: "final" },
   ];
   const group = buildWeek(
     enrollments.map((e) => (e.slot.id === "s3" ? { ...e, slot: { ...e.slot, day_of_week: 1 } } : e)),

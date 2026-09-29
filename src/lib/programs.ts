@@ -2,6 +2,8 @@
 // (programs.assessment_type / records_mode); this file holds the fixed scales
 // and the wording that goes with them.
 
+import { type NarrativePolicy } from "@/lib/narrative-cycle";
+
 export type AssessmentType = "score_5" | "support_level" | "observation";
 export type RecordsMode = "medals" | "personal_goals" | "none";
 
@@ -13,17 +15,27 @@ export type ProgramMeta = {
   requires_acknowledgement: boolean;
   self_registration: boolean;
   template_version: number;
+  narrative_policy: NarrativePolicy;
 };
 
 export const PROGRAM_SELECT =
-  "id, name, assessment_type, records_mode, requires_acknowledgement, self_registration, template_version";
+  "id, name, assessment_type, records_mode, requires_acknowledgement, self_registration, template_version, narrative_policy";
 
 const ASSESSMENT_TYPES: AssessmentType[] = ["score_5", "support_level", "observation"];
 const RECORDS_MODES: RecordsMode[] = ["medals", "personal_goals", "none"];
+const NARRATIVE_POLICIES: NarrativePolicy[] = ["none", "every_4", "every_2", "every_1"];
+
+export const NARRATIVE_POLICY_LABEL: Record<NarrativePolicy, string> = {
+  none: "Tidak wajib otomatis",
+  every_4: "Wajib setiap 4 laporan",
+  every_2: "Wajib setiap 2 laporan",
+  every_1: "Wajib setiap laporan",
+};
 
 export function normalizeProgram(row: Partial<Record<keyof ProgramMeta, unknown>> & { id: string; name: string }): ProgramMeta {
   const at = row.assessment_type as AssessmentType;
   const rm = row.records_mode as RecordsMode;
+  const np = row.narrative_policy as NarrativePolicy;
   return {
     id: row.id,
     name: row.name,
@@ -32,6 +44,7 @@ export function normalizeProgram(row: Partial<Record<keyof ProgramMeta, unknown>
     requires_acknowledgement: row.requires_acknowledgement === true,
     self_registration: row.self_registration === true,
     template_version: typeof row.template_version === "number" ? row.template_version : 1,
+    narrative_policy: NARRATIVE_POLICIES.includes(np) ? np : "none",
   };
 }
 

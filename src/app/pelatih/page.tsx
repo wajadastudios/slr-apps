@@ -11,6 +11,7 @@ import {
   type Enrollment,
   type ReportLite,
 } from "@/lib/teaching-schedule";
+import type { NarrativePolicy } from "@/lib/narrative-cycle";
 
 // Same window as the pengganti page: two weeks back covers late reports,
 // two weeks ahead lets a pengajar look at what is coming.
@@ -94,7 +95,7 @@ export default async function PelatihDashboardPage({
       ),
     supabase
       .from("progress_reports")
-      .select("student_id, program_id, session_date, attendance, next_focus, updated_at, pelatih_id")
+      .select("student_id, program_id, session_date, attendance, next_focus, updated_at, pelatih_id, status")
       .order("session_date", { ascending: false })
       .order("updated_at", { ascending: false }),
   ]);
@@ -128,12 +129,26 @@ export default async function PelatihDashboardPage({
   }
   const reportList = (reports ?? []) as ReportLite[];
 
+  const programIds = [...new Set(enrollments.map((e) => e.slot.program_id))];
+  const policyByProgram: Record<string, NarrativePolicy> = {};
+  if (programIds.length > 0) {
+    const { data: programRows } = await supabase
+      .from("programs")
+      .select("id, narrative_policy")
+      .in("id", programIds);
+    for (const p of (programRows ?? []) as { id: string; narrative_policy: NarrativePolicy }[]) {
+      policyByProgram[p.id] = p.narrative_policy;
+    }
+  }
+
   const today = jakartaToday();
   const todayIso = toISODate(today);
   const weekStart = startOfWeek(today, offset);
   const weekLabel = formatRange(weekStart, addDays(weekStart, 6));
 
-  const week = buildWeek(enrollments, reportList, weekStart, todayIso).filter((d) => d.items.length > 0);
+  const week = buildWeek(enrollments, reportList, weekStart, todayIso, policyByProgram).filter(
+    (d) => d.items.length > 0
+  );
 
   // Current week: today gets its own section; when today is empty the next
   // day with sessions (possibly next week) takes the spotlight instead.
@@ -142,7 +157,9 @@ export default async function PelatihDashboardPage({
   if (offset === 0 && !todayDay && enrollments.length > 0) {
     spotlight =
       week.find((d) => d.iso > todayIso) ??
-      buildWeek(enrollments, reportList, startOfWeek(today, 1), todayIso).find((d) => d.items.length > 0);
+      buildWeek(enrollments, reportList, startOfWeek(today, 1), todayIso, policyByProgram).find(
+        (d) => d.items.length > 0
+      );
   }
 
   const upcoming = offset === 0 ? week.filter((d) => d.iso > todayIso && d.iso !== spotlight?.iso) : [];
