@@ -819,6 +819,14 @@ check("narrative cycle: a parent never sees a draft report, even for their own c
 await as(PA);
 check("narrative cycle: the author still sees their own draft", (await q("select id from public.progress_reports where id=$1", [uid(940)])).length === 1);
 
+// ---------- health_check() (0045) ----------
+await anon();
+check("health_check(): the anon role the health route uses gets 'ok'", (await q("select public.health_check() r"))[0].r === "ok");
+await as(PA);
+check("health_check(): a logged-in user cannot call it (not a general entry point)", (await fails(() => db.query("select public.health_check()"))) !== null);
+await su();
+check("health_check() is not security definer", (await q("select prosecdef from pg_proc where proname='health_check'"))[0].prosecdef === false);
+
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
 process.exit(failed.length ? 1 : 0);

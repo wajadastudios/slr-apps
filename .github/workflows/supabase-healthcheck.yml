@@ -1,0 +1,45 @@
+name: Supabase health-check
+
+# Keeps the Supabase Free project from looking inactive. Temporary measure --
+# see README ("Health-check Supabase").
+on:
+  schedule:
+    # 01:00 UTC = 08:00 WIB (Asia/Jakarta is UTC+7 year-round, no DST).
+    # GitHub may start scheduled runs a few minutes late.
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call health-check endpoint
+        env:
+          HEALTHCHECK_URL: ${{ secrets.SLR_HEALTHCHECK_URL }}
+          HEALTHCHECK_SECRET: ${{ secrets.SLR_HEALTHCHECK_SECRET }}
+        run: |
+          set -u
+          if [ -z "$HEALTHCHECK_URL" ] || [ -z "$HEALTHCHECK_SECRET" ]; then
+            echo "::error::Health-check secrets are not configured."
+            exit 1
+          fi
+
+          # The token goes in through curl's stdin config, never on the command
+          # line; the response body is discarded so nothing from it can reach the log.
+          status=$(
+            printf 'header = "Authorization: Bearer %s"\n' "$HEALTHCHECK_SECRET" |
+              curl --config - --silent --output /dev/null --write-out '%{http_code}' \
+                --max-time 30 --retry 2 --retry-delay 15 --retry-all-errors \
+                "$HEALTHCHECK_URL" || true
+          )
+
+          case "$status" in
+            2??) echo "Health-check OK." ;;
+            *)
+              echo "::error::Health-check failed (HTTP ${status:-none})."
+              exit 1
+              ;;
+          esac
