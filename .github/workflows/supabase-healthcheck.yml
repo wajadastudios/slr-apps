@@ -1,4 +1,4 @@
-﻿name: Supabase health-check
+name: Supabase health-check
 
 # Keeps the Supabase Free project from looking inactive. Temporary measure --
 # see README ("Health-check Supabase").
@@ -42,11 +42,16 @@ jobs:
 
           # The response body is discarded so nothing from it can reach the log
           # (GitHub also masks the token if it ever appeared).
+          # Retries are done here, not with curl's --retry: combined with
+          # --output it aborted with "curl exit 23" and hid the real status.
           set +e
-          status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            --max-time 30 --retry 2 --retry-delay 15 --retry-all-errors \
-            -H "Authorization: Bearer ${token}" "$url")
-          curl_exit=$?
+          for attempt in 1 2 3; do
+            status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              --max-time 30 -H "Authorization: Bearer ${token}" "$url")
+            curl_exit=$?
+            case "$status" in 2??) break ;; esac
+            [ "$attempt" -lt 3 ] && sleep 15
+          done
           set -e
 
           case "$status" in
