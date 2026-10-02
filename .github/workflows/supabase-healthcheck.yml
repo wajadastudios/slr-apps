@@ -1,4 +1,4 @@
-name: Supabase health-check
+﻿name: Supabase health-check
 
 # Keeps the Supabase Free project from looking inactive. Temporary measure --
 # see README ("Health-check Supabase").
@@ -22,24 +22,37 @@ jobs:
           HEALTHCHECK_SECRET: ${{ secrets.SLR_HEALTHCHECK_SECRET }}
         run: |
           set -u
-          if [ -z "$HEALTHCHECK_URL" ] || [ -z "$HEALTHCHECK_SECRET" ]; then
+
+          # Pasted secrets often carry a stray newline or space; strip all
+          # whitespace so it can never break the request.
+          url=$(printf '%s' "$HEALTHCHECK_URL" | tr -d '[:space:]')
+          token=$(printf '%s' "$HEALTHCHECK_SECRET" | tr -d '[:space:]')
+
+          if [ -z "$url" ] || [ -z "$token" ]; then
             echo "::error::Health-check secrets are not configured."
             exit 1
           fi
+          case "$url" in
+            https://*) ;;
+            *)
+              echo "::error::SLR_HEALTHCHECK_URL must start with https://"
+              exit 1
+              ;;
+          esac
 
-          # The token goes in through curl's stdin config, never on the command
-          # line; the response body is discarded so nothing from it can reach the log.
-          status=$(
-            printf 'header = "Authorization: Bearer %s"\n' "$HEALTHCHECK_SECRET" |
-              curl --config - --silent --output /dev/null --write-out '%{http_code}' \
-                --max-time 30 --retry 2 --retry-delay 15 --retry-all-errors \
-                "$HEALTHCHECK_URL" || true
-          )
+          # The response body is discarded so nothing from it can reach the log
+          # (GitHub also masks the token if it ever appeared).
+          set +e
+          status=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --max-time 30 --retry 2 --retry-delay 15 --retry-all-errors \
+            -H "Authorization: Bearer ${token}" "$url")
+          curl_exit=$?
+          set -e
 
           case "$status" in
             2??) echo "Health-check OK." ;;
             *)
-              echo "::error::Health-check failed (HTTP ${status:-none})."
+              echo "::error::Health-check failed (HTTP ${status:-none}, curl exit ${curl_exit})."
               exit 1
               ;;
           esac
