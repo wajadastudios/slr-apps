@@ -59,21 +59,25 @@ export default async function AnakDetailPage({
   const { tab: tabParam, program: programParam } = await searchParams;
   const supabase = await createClient();
 
-  // RLS (parent_owns_student) already scopes this to the caller's own
-  // children — an empty result means access denied.
-  const { data: student } = await supabase
-    .from("students")
-    .select("id, full_name, nickname, birth_date, next_package_preference_id, is_self, kind, user_id")
-    .eq("id", studentId)
-    .single();
+  // Both only need the id from the URL, so they load together.
+  // RLS (parent_owns_student) already scopes the student to the caller's own
+  // children — an empty result means access denied (and the enrollments
+  // query is RLS-scoped the same way).
+  const [{ data: student }, allEnrollments] = await Promise.all([
+    supabase
+      .from("students")
+      .select("id, full_name, nickname, birth_date, next_package_preference_id, is_self, kind, user_id")
+      .eq("id", studentId)
+      .single(),
+    // The page follows ONE enrollment (program) at a time; reports, indicators,
+    // records and progress of the other programs are never mixed in.
+    loadEnrollments(supabase, [studentId]),
+  ]);
 
   if (!student) {
     redirect("/ortu");
   }
 
-  // The page follows ONE enrollment (program) at a time; reports, indicators,
-  // records and progress of the other programs are never mixed in.
-  const allEnrollments = await loadEnrollments(supabase, [studentId]);
   const live = allEnrollments.filter((e) => isLive(e.status));
   const enrollment = pickEnrollment(live, programParam);
   if (!enrollment) {
@@ -421,8 +425,7 @@ export default async function AnakDetailPage({
         </GlassCard>
       )}
 
-      <ChildTabs studentId={studentId} programId={program.id} tabs={tabs} active={tab} />
-
+      <ChildTabs studentId={studentId} programId={program.id} tabs={tabs} active={tab}>
       {(tab === "laporan" || tab === "catatan") && reportsTab}
 
       {tab === "perkembangan" && (
@@ -443,6 +446,7 @@ export default async function AnakDetailPage({
       )}
 
       {tab === "target" && goalsMode && <PersonalGoalsView goals={goals} entries={goalEntries} />}
+      </ChildTabs>
     </div>
   );
 }

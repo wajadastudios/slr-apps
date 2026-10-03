@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/create-account";
+import { requireRole } from "@/lib/require-role";
 import { jakartaToday, toISODate } from "@/lib/week";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
@@ -12,7 +12,7 @@ import { resolvePeriod } from "@/lib/finance/shared";
 type Params = { from?: string; to?: string; program?: string; location?: string };
 
 export default async function ExportKeuanganPage({ searchParams }: { searchParams: Promise<Params> }) {
-  await requireAdmin();
+  await requireRole("admin");
   const sp = await searchParams;
   const supabase = await createClient();
   const todayISO = toISODate(jakartaToday());

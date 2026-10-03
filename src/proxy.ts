@@ -46,6 +46,15 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  // Signed in. Protected areas enforce role AND active status in their own
+  // layouts (requireRole in src/lib/require-role.ts), which already load the
+  // profile — so the proxy no longer queries it on every request and every
+  // link prefetch. Only /login needs the role here, to send a signed-in
+  // visitor to their home (or show the "deactivated" notice).
+  if (pathname !== "/login") {
+    return response;
+  }
+
   const { data: profile } = await supabase
     .from("users")
     .select("role, active")
@@ -55,34 +64,21 @@ export async function proxy(request: NextRequest) {
   const role = profile?.role as string | undefined;
   const home = role ? ROLE_HOME[role] : undefined;
 
-  // A deactivated account keeps a valid Supabase session, so the block has
-  // to live here rather than at sign-in. /login stays reachable so they can
-  // actually see why they are locked out.
+  // A deactivated account keeps a valid Supabase session; /login stays
+  // reachable so they can see why they are locked out.
   if (profile?.active === false) {
-    if (pathname === "/login") return response;
-    const url = new URL("/login", request.url);
-    url.searchParams.set("nonaktif", "1");
-    return NextResponse.redirect(url);
+    return response;
   }
 
-  if (pathname === "/login") {
-    // Already signed in: honor ?next= if it points back into this account's
-    // own area (never off to another role's pages, never off-site), else
-    // fall back to the role home -- same destination the login page's own
-    // client-side redirect would have picked, for the case this route is
-    // hit directly (e.g. a stale bookmark) rather than through the form.
-    const next = request.nextUrl.searchParams.get("next");
-    const safeNext = next && home && next.startsWith(home) ? next : null;
-    const url = new URL(safeNext ?? home ?? "/", request.url);
-    return NextResponse.redirect(url);
-  }
-
-  if (isProtected && (!home || !pathname.startsWith(home))) {
-    const url = new URL(home ?? "/login", request.url);
-    return NextResponse.redirect(url);
-  }
-
-  return response;
+  // Already signed in: honor ?next= if it points back into this account's
+  // own area (never off to another role's pages, never off-site), else
+  // fall back to the role home -- same destination the login page's own
+  // client-side redirect would have picked, for the case this route is
+  // hit directly (e.g. a stale bookmark) rather than through the form.
+  const next = request.nextUrl.searchParams.get("next");
+  const safeNext = next && home && next.startsWith(home) ? next : null;
+  const url = new URL(safeNext ?? home ?? "/", request.url);
+  return NextResponse.redirect(url);
 }
 
 export const config = {

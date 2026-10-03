@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { REMEMBER_COOKIE_NAME } from "@/lib/supabase/remember";
+import { timedFetch } from "@/lib/perf";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -10,6 +11,7 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookieOptions: { secure: process.env.NODE_ENV === "production" },
+      global: { fetch: timedFetch("proxy") },
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -27,9 +29,11 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() refreshes an expired session like getUser() does, but
+  // verifies the (ES256-signed) JWT locally instead of calling Supabase Auth
+  // on every request — including every link prefetch.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ? { id: data.claims.sub } : null;
 
   // "Remember me" enforcement. `@supabase/ssr` forces its own session
   // cookie to live ~400 days on every write, so that cookie alone can't

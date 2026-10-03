@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { DayAccordion, FocusDay } from "@/components/teaching-schedule";
-import { requirePelatih } from "@/lib/create-account";
+import { requireRole } from "@/lib/require-role";
 import { addDays, formatRange, jakartaToday, startOfWeek, toISODate } from "@/lib/week";
 import { GHOST_BUTTON } from "@/lib/ui-classes";
 import {
@@ -84,14 +84,17 @@ export default async function PelatihDashboardPage({
     ? Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, Math.trunc(rawOffset)))
     : 0;
 
-  const session = await requirePelatih();
   const supabase = await createClient();
 
-  const [{ data: rows }, { data: reports }] = await Promise.all([
+  // Session (memoised, shared with the layout) and the data load together.
+  // The program's narrative policy comes embedded with the schedule rows, so
+  // there is no follow-up query for it.
+  const [session, { data: rows }, { data: reports }] = await Promise.all([
+    requireRole("pelatih"),
     supabase
       .from("schedules")
       .select(
-        "id, student:student_id(id, full_name), slot:slot_id(id, label, location, day_of_week, start_time, program_id, programs:program_id(name))"
+        "id, student:student_id(id, full_name), slot:slot_id(id, label, location, day_of_week, start_time, program_id, programs:program_id(name, narrative_policy))"
       ),
     supabase
       .from("progress_reports")
@@ -129,16 +132,9 @@ export default async function PelatihDashboardPage({
   }
   const reportList = (reports ?? []) as ReportLite[];
 
-  const programIds = [...new Set(enrollments.map((e) => e.slot.program_id))];
   const policyByProgram: Record<string, NarrativePolicy> = {};
-  if (programIds.length > 0) {
-    const { data: programRows } = await supabase
-      .from("programs")
-      .select("id, narrative_policy")
-      .in("id", programIds);
-    for (const p of (programRows ?? []) as { id: string; narrative_policy: NarrativePolicy }[]) {
-      policyByProgram[p.id] = p.narrative_policy;
-    }
+  for (const row of (rows ?? []) as unknown as { slot: { program_id: string; programs: { narrative_policy: NarrativePolicy } | null } | null }[]) {
+    if (row.slot?.programs) policyByProgram[row.slot.program_id] = row.slot.programs.narrative_policy;
   }
 
   const today = jakartaToday();

@@ -21,7 +21,7 @@ import { computeLatestAchievement, latestAttendedReport, latestNextFocus } from 
 import { formGroups, relevantGroupIds, resolveReportIndicators } from "@/lib/indicators";
 import { loadIndicatorConfig } from "@/lib/indicator-loader";
 import { loadMilestones } from "@/lib/milestone-loader";
-import { requirePelatih } from "@/lib/create-account";
+import { requireRole } from "@/lib/require-role";
 import { formatAge } from "@/lib/performance";
 import { formatShortDate } from "@/lib/format-date";
 import { jakartaToday, toISODate } from "@/lib/week";
@@ -71,22 +71,23 @@ export default async function MuridReportPage({
   const { studentId } = await params;
   const { error, tanggal, program: programParam } = await searchParams;
   const supabase = await createClient();
-  const session = await requirePelatih();
-
-  // RLS (pelatih_teaches_student) already scopes this to students this
-  // pelatih actually teaches — an empty result means access denied.
-  const { data: student } = await supabase
-    .from("students")
-    .select("id, full_name, birth_date")
-    .eq("id", studentId)
-    .single();
+  // Independent lookups run together (one round-trip instead of four):
+  // session (memoised, shared with the layout), the student, this pengajar's
+  // enrollments, and the (small) programs table.
+  const [session, { data: student }, { data: mine }, { data: allPrograms }] = await Promise.all([
+    requireRole("pelatih"),
+    // RLS (pelatih_teaches_student) already scopes this to students this
+    // pelatih actually teaches — an empty result means access denied.
+    supabase.from("students").select("id, full_name, birth_date").eq("id", studentId).single(),
+    // Only the enrollments (programs) assigned to this pengajar, with class access.
+    supabase.rpc("pelatih_enrollments"),
+    supabase.from("programs").select(PROGRAM_SELECT),
+  ]);
 
   if (!student) {
     redirect("/pelatih");
   }
 
-  // Only the enrollments (programs) assigned to this pengajar, with class access.
-  const { data: mine } = await supabase.rpc("pelatih_enrollments");
   const myEnrollments = ((mine ?? []) as MyEnrollment[]).filter(
     (e) => e.student_id === studentId && hasClassAccess(e.status)
   );
@@ -98,14 +99,8 @@ export default async function MuridReportPage({
     myEnrollments.find((e) => e.program_id === programParam) ??
     (myEnrollments.length === 1 ? myEnrollments[0] : null);
 
-  const { data: programRows } = await supabase
-    .from("programs")
-    .select(PROGRAM_SELECT)
-    .in(
-      "id",
-      myEnrollments.map((e) => e.program_id)
-    );
-  const programs = (programRows ?? []).map(normalizeProgram);
+  const myProgramIds = new Set(myEnrollments.map((e) => e.program_id));
+  const programs = (allPrograms ?? []).filter((p) => myProgramIds.has(p.id)).map(normalizeProgram);
 
   // One person, several programs: choose which class to write for.
   if (!enrollment) {
@@ -175,17 +170,32 @@ export default async function MuridReportPage({
     target: Number(g.target),
   }));
 
-  let goalEntries: GoalEntry[] = [];
-  if (goalsMode && goals.length > 0) {
-    const { data } = await supabase
-      .from("personal_goal_entries")
-      .select("id, goal_id, value, recorded_at, note")
-      .in(
-        "goal_id",
-        goals.map((g) => g.id)
-      );
-    goalEntries = ((data ?? []) as GoalEntry[]).map((e) => ({ ...e, value: Number(e.value) }));
-  }
+  // Revision history for "Riwayat perubahan": only fetched for reports the
+  // viewer themself wrote (activity_log RLS only exposes those anyway --
+  // see 0043_report_history_and_corrections.sql). Fetched together with the
+  // goal entries — both only depend on the batch above.
+  const ownReportIds = reports.filter((r) => r.pelatih_id === session.user.id).map((r) => r.id);
+  const [goalEntriesRes, logRes] = await Promise.all([
+    goalsMode && goals.length > 0
+      ? supabase
+          .from("personal_goal_entries")
+          .select("id, goal_id, value, recorded_at, note")
+          .in(
+            "goal_id",
+            goals.map((g) => g.id)
+          )
+      : Promise.resolve({ data: [] as GoalEntry[] }),
+    ownReportIds.length > 0
+      ? supabase
+          .from("activity_log")
+          .select("entity_id, created_at, actor_name, changes")
+          .eq("entity_type", "progress_reports")
+          .eq("action", "update")
+          .in("entity_id", ownReportIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
+  ]);
+  const goalEntries: GoalEntry[] = ((goalEntriesRes.data ?? []) as GoalEntry[]).map((e) => ({ ...e, value: Number(e.value) }));
 
   const nextSessionNumber = reports.length + 1;
   // Jakarta calendar date (not UTC), or the session date the dashboard sent us
@@ -221,20 +231,9 @@ export default async function MuridReportPage({
     (r) => r.session_date === today && r.pelatih_id === session.user.id && r.status === "draft"
   );
 
-  // Revision history for "Riwayat perubahan": only fetched for reports the
-  // viewer themself wrote (activity_log RLS only exposes those anyway --
-  // see 0043_report_history_and_corrections.sql).
-  const ownReportIds = reports.filter((r) => r.pelatih_id === session.user.id).map((r) => r.id);
   const revisionsByReport = new Map<string, ReportRevision[]>();
-  if (ownReportIds.length > 0) {
-    const { data: logRows } = await supabase
-      .from("activity_log")
-      .select("entity_id, created_at, actor_name, changes")
-      .eq("entity_type", "progress_reports")
-      .eq("action", "update")
-      .in("entity_id", ownReportIds)
-      .order("created_at", { ascending: false });
-    for (const row of (logRows ?? []) as {
+  {
+    for (const row of (logRes.data ?? []) as {
       entity_id: string;
       created_at: string;
       actor_name: string | null;

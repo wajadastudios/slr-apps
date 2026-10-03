@@ -124,11 +124,16 @@ async function offerScheduleImpl(formData: FormData) {
 
   const { data: slot } = await supabase
     .from("class_slots")
-    .select("id, program_id, capacity, day_of_week, start_time, duration_minutes, location")
+    .select("id, program_id, capacity, day_of_week, start_time, duration_minutes, location, is_test")
     .eq("id", slotId)
     .maybeSingle();
   if (!slot || slot.program_id !== enrollment.program_id) {
     fail(id, "Jadwal ini bukan untuk program pendaftar.");
+  }
+  // A [TEST]/QA slot may only be offered to a test participant.
+  if (slot.is_test) {
+    const { data: who } = await supabase.from("students").select("is_test").eq("id", enrollment.student_id).maybeSingle();
+    if (!who?.is_test) fail(id, "Jadwal [TEST] hanya untuk akun test, tidak dapat ditawarkan ke pendaftar.");
   }
 
   // The participant must be free at that time: an offer that overlaps a class

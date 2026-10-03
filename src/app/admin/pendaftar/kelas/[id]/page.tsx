@@ -99,7 +99,7 @@ export default async function EnrollmentDetailPage({
   const { data: e } = await supabase
     .from("enrollments")
     .select(
-      "id, status, source, program_id, student_id, slot_id, offered_slot_id, offer_token, offer_expires_at, preferred_schedule, preferred_location, decision_note, acknowledged_at, acknowledgement_version, adjustment_note, created_at, report_access_granted_to_requester, billing_mode, billing_contact_user_id, student:student_id(full_name, parent_id, gender, phone, birth_date, relationship, kind, user_id), program:program_id(name, requires_acknowledgement)"
+      "id, status, source, program_id, student_id, slot_id, offered_slot_id, offer_token, offer_expires_at, preferred_schedule, preferred_location, decision_note, acknowledged_at, acknowledgement_version, adjustment_note, created_at, report_access_granted_to_requester, billing_mode, billing_contact_user_id, student:student_id(full_name, parent_id, gender, phone, birth_date, relationship, kind, user_id, is_test), program:program_id(name, requires_acknowledgement)"
     )
     .eq("id", id)
     .maybeSingle();
@@ -112,6 +112,7 @@ export default async function EnrollmentDetailPage({
     phone: string | null;
     birth_date: string | null;
     relationship: string | null;
+    is_test?: boolean;
     kind: string;
     user_id: string | null;
   } | null;
@@ -127,7 +128,7 @@ export default async function EnrollmentDetailPage({
       .maybeSingle(),
     supabase
       .from("class_slots")
-      .select("id, label, location, day_of_week, start_time, capacity")
+      .select("id, label, location, day_of_week, start_time, capacity, is_test")
       .eq("program_id", e.program_id)
       .order("day_of_week")
       .order("start_time"),
@@ -141,7 +142,11 @@ export default async function EnrollmentDetailPage({
   for (const a of (availability ?? []) as { slot_id: string; filled: number }[]) {
     filled.set(a.slot_id, Number(a.filled));
   }
-  const slotList = (slots ?? []) as SlotRow[];
+  // [TEST]/QA slots are only ever offered to test participants, so a real
+  // family can never receive a "[TEST] Lokasi Kolam" offer.
+  const slotList = ((slots ?? []) as (SlotRow & { is_test?: boolean })[]).filter(
+    (s) => !s.is_test || student?.is_test === true || s.id === e.offered_slot_id
+  );
   const slotName = (s: SlotRow) =>
     `${DAYS[s.day_of_week]} · ${s.start_time.slice(0, 5).replace(":", ".")}${s.label ? ` · ${s.label}` : ""}${
       s.location ? ` · ${s.location}` : ""
