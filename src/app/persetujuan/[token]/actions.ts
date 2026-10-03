@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getUserWithRole } from "@/lib/auth";
+import { getVerifiedUserWithRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 // How long an approved substitute keeps access after the session. Long
@@ -20,7 +20,7 @@ function accessUntil(sessionDate: string): string {
 }
 
 async function decide(token: string, approve: boolean) {
-  const session = await getUserWithRole();
+  const session = await getVerifiedUserWithRole();
   if (!session) redirect(`/login?next=/persetujuan/${token}`);
 
   const supabase = await createClient();

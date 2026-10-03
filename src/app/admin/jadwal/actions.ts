@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 import { blocking, participantConflicts, warnings, type SlotContext } from "@/lib/admin/schedule-rules";
-import { loadSlotContexts, parseSlotInput, planSlot, syncEnrollmentSlot } from "@/lib/admin/slot-service";
+import { loadSlotContexts, parseSlotInput, planSlot, syncEnrollmentSlot, withTestSlotFlag } from "@/lib/admin/slot-service";
 
 function dest(formData: FormData, fallback = "/admin/jadwal"): string {
   const to = String(formData.get("return") ?? "");
@@ -43,7 +43,12 @@ async function addParticipantImpl(formData: FormData) {
     fail(to, "Sesi ini sudah penuh. Pilih sesi lain atau naikkan kapasitas.");
   }
 
-  const { data: person } = await supabase.from("students").select("full_name").eq("id", student_id).maybeSingle();
+  const [{ data: person }, { data: slotFlag }] = await Promise.all([
+    supabase.from("students").select("full_name, is_test").eq("id", student_id).maybeSingle(),
+    supabase.from("class_slots").select("is_test").eq("id", slot_id).maybeSingle(),
+  ]);
+  // A real participant is never placed in a [TEST]/QA slot.
+  if (slotFlag?.is_test && !person?.is_test) fail(to, "Sesi [TEST] hanya untuk peserta test.");
   const theirs = rows
     .filter((r) => r.student_id === student_id)
     .map((r) => slots.find((s) => s.id === r.slot_id))
@@ -155,7 +160,7 @@ async function saveSlotChangeImpl(formData: FormData) {
     redirect(`/admin/jadwal/${slot_id}/ubah?${carry(formData).toString()}&konfirmasi=1`);
   }
 
-  const { error } = await supabase.from("class_slots").update(parsed.value).eq("id", slot_id);
+  const { error } = await supabase.from("class_slots").update(await withTestSlotFlag(supabase, parsed.value)).eq("id", slot_id);
   if (error) fail(to, "Sesi belum dapat diperbarui.");
   refresh(slot_id);
   redirect(to);
@@ -187,7 +192,7 @@ async function applySlotChangeImpl(formData: FormData) {
         `${stuck.map((s) => s.issues[0].message).join(" ")} Pilih peserta tertentu untuk dipindahkan, atau batalkan.`
       );
     }
-    const { error } = await supabase.from("class_slots").update(parsed.value).eq("id", slot_id);
+    const { error } = await supabase.from("class_slots").update(await withTestSlotFlag(supabase, parsed.value)).eq("id", slot_id);
     if (error) fail(to, "Sesi belum dapat diperbarui.");
     refresh(slot_id);
     redirect(to);
@@ -208,7 +213,7 @@ async function applySlotChangeImpl(formData: FormData) {
   if (newHard.length > 0) fail(`/admin/jadwal/${slot_id}/ubah?${carry(formData).toString()}`, newHard.map((c) => c.message).join(" "));
 
   // the current session may only keep going if it is not identical to the new one
-  const { data: created, error: createError } = await supabase.from("class_slots").insert(parsed.value).select("id").single();
+  const { data: created, error: createError } = await supabase.from("class_slots").insert(await withTestSlotFlag(supabase, parsed.value)).select("id").single();
   if (createError || !created) fail(to, "Sesi baru belum dapat dibuat.");
 
   const { error: moveError } = await supabase

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/create-account";
+import { requireRole } from "@/lib/require-role";
 import { jakartaToday, toISODate } from "@/lib/week";
 import { GlassCard } from "@/components/ui/glass-card";
 import { PageHeader, StatTile } from "@/components/admin/ui";
@@ -15,7 +15,7 @@ import { computeRingkasanTotals, groupCashFlowBy, monthlyTrend, type CashFlowEnt
 type Params = { from?: string; to?: string; program?: string; location?: string; test?: string };
 
 export default async function KeuanganRingkasanPage({ searchParams }: { searchParams: Promise<Params> }) {
-  const session = await requireAdmin();
+  const session = await requireRole("admin");
   const sp = await searchParams;
   const supabase = await createClient();
   const todayISO = toISODate(jakartaToday());

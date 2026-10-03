@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { getUserWithRole } from "@/lib/auth";
+import { requireRole } from "@/lib/require-role";
 import { WaterBg } from "@/components/water-bg";
 import { AdminSidebar } from "./admin-sidebar";
 
@@ -8,11 +7,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getUserWithRole();
-
-  if (!session || session.role !== "admin") {
-    redirect("/login");
-  }
+  const session = await requireRole("admin");
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4 lg:flex-row lg:gap-6 lg:p-6">

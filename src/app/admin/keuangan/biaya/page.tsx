@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/create-account";
+import { requireRole } from "@/lib/require-role";
 import { jakartaToday, toISODate } from "@/lib/week";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
@@ -22,7 +22,7 @@ const STATUS_TONE: Record<ExpensePaymentStatus, "neutral" | "warn" | "ok" | "dan
 type Params = { q?: string; category?: string; status?: string; edit?: string; error?: string };
 
 export default async function BiayaPage({ searchParams }: { searchParams: Promise<Params> }) {
-  await requireAdmin();
+  await requireRole("admin");
   const sp = await searchParams;
   const supabase = await createClient();
   const todayISO = toISODate(jakartaToday());

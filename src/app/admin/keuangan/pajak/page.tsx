@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/create-account";
+import { requireRole } from "@/lib/require-role";
 import { jakartaToday, toISODate } from "@/lib/week";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassInput } from "@/components/ui/glass-input";
@@ -18,7 +18,7 @@ import { saveEntityProfileAction, createTaxSettingAction, updateTaxSettingStatus
 type Params = { section?: string; from?: string; to?: string; error?: string };
 
 export default async function PajakPage({ searchParams }: { searchParams: Promise<Params> }) {
-  const session = await requireAdmin();
+  const session = await requireRole("admin");
   const sp = await searchParams;
   const section = ["profil", "pengaturan", "laporan"].includes(sp.section ?? "") ? (sp.section as string) : "profil";
   const supabase = await createClient();

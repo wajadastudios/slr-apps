@@ -33,9 +33,11 @@ export default async function OrtuDashboardPage({
 }) {
   const { error, child_added, terdaftar, terhubung } = await searchParams;
   const supabase = await createClient();
-  const session = await getUserWithRole();
 
+  // The session is memoised (the layout already resolved it); it loads
+  // alongside the page data instead of before it.
   const [
+    session,
     { data: children },
     invoices,
     billingByEnrollment,
@@ -44,6 +46,7 @@ export default async function OrtuDashboardPage({
     { data: pelatihNames },
     registration,
   ] = await Promise.all([
+    getUserWithRole(),
     supabase.from("students").select("id, full_name, nickname, is_self, kind, user_id, gender").order("full_name"),
     loadInvoiceSummaries(supabase),
     loadEnrollmentBilling(supabase),

@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { getUserWithRole } from "@/lib/auth";
+import { requireRole } from "@/lib/require-role";
 import { WaterBg } from "@/components/water-bg";
 import { PortalSidebar } from "@/components/portal-sidebar";
 
@@ -21,11 +20,7 @@ export default async function PelatihLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getUserWithRole();
-
-  if (!session || session.role !== "pelatih") {
-    redirect("/login");
-  }
+  const session = await requireRole("pelatih");
 
   const userLabel = session.fullName
     ? session.title

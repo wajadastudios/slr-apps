@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 import { blocking, warnings } from "@/lib/admin/schedule-rules";
-import { parseSlotInput, planSlot } from "@/lib/admin/slot-service";
+import { parseSlotInput, planSlot, withTestSlotFlag } from "@/lib/admin/slot-service";
 
 function withError(to: string, message: string): string {
   return `${to}${to.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`;
@@ -42,7 +42,7 @@ async function createSlotActionImpl(formData: FormData) {
     );
   }
 
-  const { error } = await supabase.from("class_slots").insert(parsed.value);
+  const { error } = await supabase.from("class_slots").insert(await withTestSlotFlag(supabase, parsed.value));
   if (error) {
     redirect(
       withError(

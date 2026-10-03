@@ -20,6 +20,22 @@ export type SlotInput = {
   capacity: number;
 };
 
+/**
+ * A slot taught by a test (@tesfitur / is_test) coach is QA data: flag it
+ * is_test so it stays hidden from the landing page, registration and real
+ * accounts (see 0045_hide_test_data_from_public.sql). Only ever sets the
+ * flag, never clears one. If users.is_test does not exist yet (0045 not
+ * applied) the value is returned unchanged.
+ */
+export async function withTestSlotFlag<T extends { pelatih_id: string }>(
+  supabase: SupabaseClient,
+  value: T
+): Promise<T & { is_test?: boolean }> {
+  const { data, error } = await supabase.from("users").select("is_test").eq("id", value.pelatih_id).maybeSingle();
+  if (error || !data?.is_test) return value;
+  return { ...value, is_test: true };
+}
+
 export function parseSlotInput(formData: FormData): { ok: true; value: SlotInput } | { ok: false; error: string } {
   const program_id = String(formData.get("program_id") ?? "");
   const pelatih_id = String(formData.get("pelatih_id") ?? "");

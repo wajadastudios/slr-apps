@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { requireAdmin } from "@/lib/create-account";
+import { requireRole } from "@/lib/require-role";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Badge, PageHeader, StatTile, EmptyState } from "@/components/admin/ui";
 import { ADMIN_CTA } from "@/lib/ui-classes";
@@ -11,7 +11,7 @@ import { isOverdue } from "@/lib/admin/quota";
 const STATUS_LABEL: Record<string, string> = { sent: "Menunggu pembayaran", processing: "Menunggu verifikasi" };
 
 export default async function KeuanganTagihanPage() {
-  await requireAdmin();
+  await requireRole("admin");
   const supabase = await createClient();
 
   const [{ data: receivables }, { data: overdueSetting }] = await Promise.all([

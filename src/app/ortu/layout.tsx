@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { getUserWithRole } from "@/lib/auth";
+import { requireRole } from "@/lib/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { WaterBg } from "@/components/water-bg";
 import { PortalSidebar } from "@/components/portal-sidebar";
@@ -9,11 +8,7 @@ export default async function OrtuLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getUserWithRole();
-
-  if (!session || session.role !== "ortu") {
-    redirect("/login");
-  }
+  const session = await requireRole("ortu");
 
   // Until a class is scheduled (or an invoice was issued) a participant only
   // needs the registration status and account settings, so "Tagihan" stays

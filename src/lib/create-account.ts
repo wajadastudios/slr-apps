@@ -1,9 +1,10 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getUserWithRole } from "@/lib/auth";
+import { getVerifiedUserWithRole } from "@/lib/auth";
 
+// Used by server actions (mutations): verified against Supabase Auth.
 export async function requireAdmin() {
-  const session = await getUserWithRole();
+  const session = await getVerifiedUserWithRole();
   if (!session || session.role !== "admin") {
     throw new Error("Unauthorized");
   }
@@ -11,7 +12,7 @@ export async function requireAdmin() {
 }
 
 export async function requirePelatih() {
-  const session = await getUserWithRole();
+  const session = await getVerifiedUserWithRole();
   if (!session || session.role !== "pelatih") {
     throw new Error("Unauthorized");
   }

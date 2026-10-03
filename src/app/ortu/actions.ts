@@ -4,7 +4,7 @@ import { safeAction } from "@/lib/safe-action";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getUserWithRole } from "@/lib/auth";
+import { getVerifiedUserWithRole } from "@/lib/auth";
 import { offerOutcomeMessage } from "@/lib/enrollment";
 import { notifyOfferOutcome } from "@/lib/enrollment-server";
 import { parseChildRequest, parseEnrollmentRequest } from "@/lib/registration-input";
@@ -15,7 +15,7 @@ import { submitChildRegistration, submitEnrollmentRequest } from "@/lib/enrollme
 // and no class access until admin has offered a slot and it was approved. A
 // child is booked straight into a free slot of a children's program.
 async function requestEnrollmentActionImpl(formData: FormData) {
-  const session = await getUserWithRole();
+  const session = await getVerifiedUserWithRole();
   if (!session || session.role !== "ortu") {
     redirect("/login");
   }
@@ -78,7 +78,7 @@ async function requestEnrollmentActionImpl(formData: FormData) {
 
 // Answer (approve / decline) a schedule the admin offered.
 async function respondScheduleOfferActionImpl(formData: FormData) {
-  const session = await getUserWithRole();
+  const session = await getVerifiedUserWithRole();
   if (!session || session.role !== "ortu") {
     redirect("/login");
   }
@@ -106,7 +106,7 @@ async function respondScheduleOfferActionImpl(formData: FormData) {
 }
 
 async function cancelEnrollmentActionImpl(formData: FormData) {
-  const session = await getUserWithRole();
+  const session = await getVerifiedUserWithRole();
   if (!session || session.role !== "ortu") {
     redirect("/login");
   }

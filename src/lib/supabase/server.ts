@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { timedFetch } from "@/lib/perf";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -9,6 +10,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookieOptions: { secure: process.env.NODE_ENV === "production" },
+      global: { fetch: timedFetch("server") },
       cookies: {
         getAll() {
           return cookieStore.getAll();
