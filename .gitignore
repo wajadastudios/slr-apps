@@ -14,3 +14,6 @@ Thumbs.db
 # gitignored) for what these are and how to use them.
 /HANDOFF-CODEX-QA-TEST.md
 /scripts/test-seed/
+
+# Data backups (contain personal data) -- never committed
+/backups/
