@@ -12,6 +12,13 @@ const EASE: Record<Variant, string> = {
   ortu: "ease-[cubic-bezier(0.22,1,0.36,1)]",
 };
 
+// Parent area: 260 ms -- quick enough to feel direct, slow enough to read
+// as one smooth motion.
+const DURATION: Record<Variant, string> = {
+  landing: "duration-300",
+  ortu: "duration-[260ms]",
+};
+
 const LIFT_CLOSED: Record<Variant, string> = {
   landing: "-translate-y-[6px]",
   ortu: "-translate-y-2",
@@ -32,7 +39,8 @@ export function AccordionChevron({
       className={cn(
         "flex shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/60 text-[#35C5D0] shadow-[0_2px_8px_rgba(23,38,61,0.10)] backdrop-blur-md",
         size === "sm" ? "h-8 w-8" : "h-9 w-9",
-        "transition-[transform,box-shadow,background-color] duration-300 motion-reduce:transition-none",
+        "transition-[transform,box-shadow,background-color] motion-reduce:transition-none",
+        DURATION[variant],
         EASE[variant],
         open &&
           "rotate-180 bg-white/85 shadow-[0_0_0_4px_rgba(53,197,208,0.14),0_0_16px_rgba(53,197,208,0.45)]"
@@ -105,7 +113,8 @@ export function AccordionItem({
         aria-labelledby={buttonId}
         inert={!open}
         className={cn(
-          "grid transition-[grid-template-rows,opacity,transform] duration-300 motion-reduce:transition-none",
+          "grid transition-[grid-template-rows,opacity,transform] motion-reduce:transition-none",
+          DURATION[variant],
           EASE[variant],
           open
             ? "translate-y-0 grid-rows-[1fr] opacity-100"
