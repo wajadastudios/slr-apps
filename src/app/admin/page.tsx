@@ -8,6 +8,9 @@ import { buildQueue, missingReports, type QueueCard } from "@/lib/admin/queue";
 import { describeActivity, type ActivityRow } from "@/lib/admin/activity";
 import { dayName, formatClock, formatDateTime } from "@/lib/admin/format";
 import { jakartaToday, toISODate } from "@/lib/week";
+import { awaitsQuotaDecision } from "@/lib/progress";
+import { resolveIzinTerpakaiRate, type RateRow } from "@/lib/payroll";
+import { formatShortDate } from "@/lib/format-date";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -80,7 +83,15 @@ export default async function AdminDashboardPage() {
   const supabase = await createClient();
   const data = await loadAdminData(supabase);
 
-  const [{ data: pendingTrials }, { data: activityRows }, { count: pelatihCount }, { count: programCount }] =
+  const [
+    { data: pendingTrials },
+    { data: activityRows },
+    { count: pelatihCount },
+    { count: programCount },
+    { data: usedIzinRows },
+    { data: rateRows },
+    { data: paidPayrollRows },
+  ] =
     await Promise.all([
       supabase.from("registrations").select("id, child_name, parent_name, created_at").eq("status", "pending").order("created_at"),
       supabase
@@ -90,6 +101,10 @@ export default async function AdminDashboardPage() {
         .limit(8),
       supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "pelatih").eq("active", true),
       supabase.from("programs").select("id", { count: "exact", head: true }).eq("active", true),
+      // "Izin — sesi terpakai" (0046): sessions whose coach rate is not set yet
+      supabase.from("progress_reports").select("pelatih_id, session_date").eq("attendance", "izin").eq("quota_decision", "used"),
+      supabase.from("pelatih_rates").select("pelatih_id, rate_hadir, rate_izin_sakit, rate_izin_terpakai, effective_from"),
+      supabase.from("payroll_payments").select("pelatih_id, period_year, period_month").eq("status", "dibayar"),
     ]);
 
   const slotMap = new Map(data.slots.map((s) => [s.id, s]));
@@ -113,6 +128,61 @@ export default async function AdminDashboardPage() {
     threshold: data.threshold,
     pelatihNames: data.pelatihNames,
   });
+
+  // Late izin the coach reported, waiting for the admin's decision.
+  const pendingIzin = data.reports.filter(awaitsQuotaDecision);
+  if (pendingIzin.length > 0) {
+    cards.push({
+      key: "izin-mendadak",
+      urgency: 1,
+      tone: "warn",
+      title: "Izin mendadak menunggu keputusan",
+      description: "Kabar izin diterima setelah pengajar tiba di kolam. Tetapkan sesi terpakai atau izin biasa sebelum tagihan dan gaji diproses.",
+      count: pendingIzin.length,
+      cta: "Putuskan",
+      href: "/admin/laporan",
+      items: pendingIzin.slice(0, 3).map((r) => ({
+        label: data.studentNames.get(r.student_id) ?? "Murid",
+        meta: formatShortDate(r.session_date),
+        href: "/admin/laporan",
+      })),
+    });
+  }
+
+  // Used izin sessions in a period not paid yet whose coach has no "sesi
+  // terpakai" rate: their payroll cannot be approved or transferred.
+  const paidPeriods = new Set((paidPayrollRows ?? []).map((p) => `${p.pelatih_id}|${p.period_year}|${p.period_month}`));
+  const ratesByCoach = new Map<string, RateRow[]>();
+  for (const r of (rateRows ?? []) as (RateRow & { pelatih_id: string })[]) {
+    const list = ratesByCoach.get(r.pelatih_id) ?? [];
+    list.push(r);
+    ratesByCoach.set(r.pelatih_id, list);
+  }
+  const unratedByCoach = new Map<string, number>();
+  for (const r of (usedIzinRows ?? []) as { pelatih_id: string; session_date: string }[]) {
+    const [y, m] = r.session_date.split("-").map(Number);
+    if (paidPeriods.has(`${r.pelatih_id}|${y}|${m}`)) continue;
+    if (resolveIzinTerpakaiRate(ratesByCoach.get(r.pelatih_id) ?? [], r.session_date) != null) continue;
+    unratedByCoach.set(r.pelatih_id, (unratedByCoach.get(r.pelatih_id) ?? 0) + 1);
+  }
+  if (unratedByCoach.size > 0) {
+    cards.push({
+      key: "tarif-sesi-terpakai",
+      urgency: 1,
+      tone: "danger",
+      title: "Tarif sesi terpakai belum diisi",
+      description: "Gaji pengajar ini tidak dapat disetujui atau ditransfer sampai tarif sesi terpakai diisi.",
+      count: [...unratedByCoach.values()].reduce((a, b) => a + b, 0),
+      cta: "Isi tarif",
+      href: "/admin/pelatih",
+      items: [...unratedByCoach].slice(0, 3).map(([id, n]) => ({
+        label: data.pelatihNames.get(id) ?? "Pengajar",
+        meta: `${n} sesi`,
+        href: "/admin/pelatih",
+      })),
+    });
+  }
+  cards.sort((a, b) => a.urgency - b.urgency);
 
   // old-style trial registrations belong to the same first step: review
   const trials = pendingTrials ?? [];

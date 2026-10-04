@@ -16,7 +16,7 @@ import { formatAge, formatMetricLabel, formatMetricValue, type PerformanceRecord
 import { genderLabel } from "@/lib/registration-input";
 import { loadMilestones } from "@/lib/milestone-loader";
 import { computeQuota, invoiceProblem, isOverdue, paidSessionsOf, quotaLine, PROBLEM_TEXT } from "@/lib/admin/quota";
-import { countAttendedSessions } from "@/lib/progress";
+import { countAttendedSessions, countIzinTerpakai, countUsedSessions } from "@/lib/progress";
 import { describeActivity, type ActivityRow } from "@/lib/admin/activity";
 import { coachName, dayName, formatClock, formatDate, formatDateTime, formatRange, rupiah } from "@/lib/admin/format";
 import { PRICE_SOURCE_LABEL, DISCOUNT_TYPE_LABEL, type PriceSource } from "@/lib/pricing";
@@ -133,7 +133,7 @@ export default async function MuridDetailPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("progress_reports")
-      .select("id, enrollment_id, program_id, session_date, attendance, session_number, notes, next_focus, updated_at, pelatih:pelatih_id(full_name, title)")
+      .select("id, enrollment_id, program_id, session_date, attendance, late_notice, quota_decision, session_number, notes, next_focus, updated_at, pelatih:pelatih_id(full_name, title)")
       .eq("student_id", id)
       .order("session_date", { ascending: false })
       .order("updated_at", { ascending: false }),
@@ -191,11 +191,15 @@ export default async function MuridDetailPage({
   const live = enrollments.filter((e) => e.status !== "cancelled" && e.status !== "rejected");
   const slotOfEnrollment = (e: Enr) => slots.find((s) => s.program_id === e.program?.id);
 
-  const quotaOf = (e: Enr) =>
-    computeQuota(
+  const quotaOf = (e: Enr) => {
+    const theirs = reports.filter((r) => r.enrollment_id === e.id);
+    return computeQuota(
       paidSessionsOf(invoices.filter((i) => i.enrollment_id === e.id)),
-      countAttendedSessions(reports.filter((r) => r.enrollment_id === e.id))
+      countUsedSessions(theirs),
+      countAttendedSessions(theirs),
+      countIzinTerpakai(theirs)
     );
+  };
 
   const activeProgramFilter = sp.program ?? "";
   const back = `/admin/murid/${id}?tab=${tab}`;
@@ -324,7 +328,7 @@ export default async function MuridDetailPage({
                   </p>
                   {q.overdrawn > 0 && (
                     <p role="status" className="rounded-xl bg-[#FFF1CC] px-3 py-2 text-sm text-[#7A5400]">
-                      Peringatan administrasi: kehadiran ({q.attended}) melebihi kuota lunas ({q.bought}). Data lama tidak diubah.
+                      Peringatan administrasi: sesi terpakai ({q.used}) melebihi kuota lunas ({q.bought}). Data lama tidak diubah.
                     </p>
                   )}
                   {problem && <p className="rounded-xl bg-[#FFE3EA] px-3 py-2 text-sm text-[#A3183C]">{PROBLEM_TEXT[problem]}</p>}

@@ -134,6 +134,13 @@ async function setPelatihRateActionImpl(formData: FormData) {
   const pelatih_id = String(formData.get("pelatih_id") ?? "");
   const rate_hadir = Number(formData.get("rate_hadir") ?? "");
   const rate_izin_sakit = Number(formData.get("rate_izin_sakit") ?? "0") || 0;
+  // Optional: empty keeps the coach's previous "sesi terpakai" rate (see
+  // resolveIzinTerpakaiRate in lib/payroll.ts).
+  const terpakaiRaw = String(formData.get("rate_izin_terpakai") ?? "").trim();
+  const rate_izin_terpakai = terpakaiRaw === "" ? null : Number(terpakaiRaw);
+  if (rate_izin_terpakai !== null && (!Number.isFinite(rate_izin_terpakai) || rate_izin_terpakai < 0)) {
+    redirect(`/admin/pelatih?error=${encodeURIComponent("Tarif sesi terpakai harus berupa angka yang valid.")}`);
+  }
   const effective_from =
     String(formData.get("effective_from") ?? "").trim() ||
     new Date().toISOString().slice(0, 10);
@@ -155,6 +162,7 @@ async function setPelatihRateActionImpl(formData: FormData) {
     pelatih_id,
     rate_hadir,
     rate_izin_sakit,
+    rate_izin_terpakai,
     effective_from,
     created_by: session.user.id,
   });

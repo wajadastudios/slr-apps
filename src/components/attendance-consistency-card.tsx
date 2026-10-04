@@ -4,6 +4,7 @@ type Report = {
   session_date: string;
   session_number: number | null;
   attendance: string | null;
+  quota_decision?: string | null;
 };
 
 const STATUS: Record<string, { label: string; dot: string }> = {
@@ -11,6 +12,7 @@ const STATUS: Record<string, { label: string; dot: string }> = {
   izin: { label: "Izin", dot: "bg-[#FFC800]" },
   sakit: { label: "Sakit", dot: "bg-[#FF8A65]" },
 };
+const IZIN_TERPAKAI = { label: "Izin — sesi terpakai", dot: "bg-[#C79A00]" };
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("id-ID", {
@@ -37,6 +39,7 @@ export function AttendanceConsistencyCard({ reports }: { reports: Report[] }) {
   const hadir = count("hadir");
   const izin = count("izin");
   const sakit = count("sakit");
+  const terpakai = chronological.filter((r) => r.attendance === "izin" && r.quota_decision === "used").length;
   const percent = Math.round((hadir / total) * 100);
 
   return (
@@ -48,7 +51,7 @@ export function AttendanceConsistencyCard({ reports }: { reports: Report[] }) {
           </h2>
           <p className="text-sm text-slate-600">
             Hadir {hadir} dari {total} sesi
-            {izin > 0 ? ` · ${izin} izin` : ""}
+            {izin > 0 ? ` · ${izin} izin${terpakai > 0 ? ` (${terpakai} sesi terpakai)` : ""}` : ""}
             {sakit > 0 ? ` · ${sakit} sakit` : ""}
           </p>
         </div>
@@ -59,7 +62,8 @@ export function AttendanceConsistencyCard({ reports }: { reports: Report[] }) {
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {chronological.map((r, i) => {
-          const status = STATUS[r.attendance ?? ""] ?? STATUS.hadir;
+          const status =
+            r.attendance === "izin" && r.quota_decision === "used" ? IZIN_TERPAKAI : (STATUS[r.attendance ?? ""] ?? STATUS.hadir);
           return (
             <span
               key={i}

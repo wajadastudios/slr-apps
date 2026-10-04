@@ -52,7 +52,7 @@ export default async function OrtuDashboardPage({
     loadEnrollmentBilling(supabase),
     supabase
       .from("progress_reports")
-      .select("student_id, program_id, session_date, session_number, attendance, notes, updated_at")
+      .select("student_id, program_id, session_date, session_number, attendance, late_notice, quota_decision, notes, updated_at")
       // updated_at breaks ties within the same session_date (two reports
       // entered the same day) and also reflects an edit to an older report
       // -- session_date alone (a date, no time) can't do either.

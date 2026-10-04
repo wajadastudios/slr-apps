@@ -6,7 +6,29 @@ import { safeAction } from "@/lib/safe-action";
 import { requireAdmin } from "@/lib/create-account";
 import { createClient } from "@/lib/supabase/server";
 import { sendWhatsApp } from "@/lib/whatsapp";
-import { MONTH_NAMES } from "@/lib/payroll";
+import { computeGaji, MONTH_NAMES, payrollBlocker, periodBounds } from "@/lib/payroll";
+
+// Recomputed on the server (never trusted from the page): a payroll may not
+// be approved or transferred while an "izin — sesi terpakai" has no rate or
+// a late izin is still undecided (0046_izin_sesi_terpakai.sql).
+async function payrollBlockerFor(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  pelatih_id: string,
+  year: number,
+  month: number
+): Promise<string | null> {
+  const { start, end } = periodBounds(year, month);
+  const [{ data: reports }, { data: rates }] = await Promise.all([
+    supabase
+      .from("progress_reports")
+      .select("session_date, attendance, late_notice, quota_decision")
+      .eq("pelatih_id", pelatih_id)
+      .gte("session_date", start)
+      .lt("session_date", end),
+    supabase.from("pelatih_rates").select("rate_hadir, rate_izin_sakit, rate_izin_terpakai, effective_from").eq("pelatih_id", pelatih_id),
+  ]);
+  return payrollBlocker(computeGaji(reports ?? [], rates ?? []));
+}
 
 // Proof photo is uploaded client-side straight to Supabase Storage (same
 // reason as media-ads: stays under the Vercel Server Action body cap),
@@ -48,6 +70,8 @@ export async function markPayrollPaidAction(input: {
   if (existing && existing.status === "draft") {
     throw new Error("Gaji ini masih draft -- setujui dulu sebelum dibayar.");
   }
+  const blocker = await payrollBlockerFor(supabase, input.pelatih_id, input.period_year, input.period_month);
+  if (blocker) throw new Error(blocker);
 
   const netAmount = existing ? Number(existing.net_amount ?? existing.gross_amount ?? input.amount) : input.amount;
 
@@ -174,6 +198,15 @@ async function approveActionImpl(formData: FormData) {
   const returnTo = backTo(formData);
   const id = String(formData.get("id") ?? "");
   const supabase = await createClient();
+  const { data: row } = await supabase
+    .from("payroll_payments")
+    .select("pelatih_id, period_year, period_month")
+    .eq("id", id)
+    .maybeSingle();
+  if (row) {
+    const blocker = await payrollBlockerFor(supabase, row.pelatih_id, row.period_year, row.period_month);
+    if (blocker) redirect(withError(returnTo, blocker));
+  }
   const { error } = await supabase.from("payroll_payments").update({ status: "disetujui" }).eq("id", id).eq("status", "draft");
   if (error) redirect(withError(returnTo, error.message));
   revalidatePath("/admin/gaji");

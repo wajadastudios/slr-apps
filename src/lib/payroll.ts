@@ -11,12 +11,16 @@
 export type RateRow = {
   rate_hadir: number;
   rate_izin_sakit: number;
+  // "Izin — sesi terpakai" (0046): set per coach by an admin; null = not set
+  rate_izin_terpakai?: number | null;
   effective_from: string; // YYYY-MM-DD
 };
 
 export type ReportForPayroll = {
   session_date: string; // YYYY-MM-DD
   attendance: string | null;
+  late_notice?: boolean | null;
+  quota_decision?: string | null;
 };
 
 export function resolveRateForDate(
@@ -31,12 +35,38 @@ export function resolveRateForDate(
   return best;
 }
 
+// The used-izin rate is resolved on its own: the newest row that actually
+// sets it, in effect on the session's date. A later rate change that leaves
+// it empty therefore keeps the previous value instead of erasing it.
+export function resolveIzinTerpakaiRate(rates: RateRow[], date: string): number | null {
+  let best: RateRow | null = null;
+  for (const rate of rates) {
+    if (rate.rate_izin_terpakai == null || rate.effective_from > date) continue;
+    if (!best || rate.effective_from > best.effective_from) best = rate;
+  }
+  return best ? Number(best.rate_izin_terpakai) : null;
+}
+
 export function computeGaji(
   reports: ReportForPayroll[],
   rates: RateRow[]
-): { hadirCount: number; izinSakitCount: number; total: number; unratedCount: number } {
+): {
+  hadirCount: number;
+  izinSakitCount: number;
+  total: number;
+  unratedCount: number;
+  /** izin an admin counted as a used session, paid at rate_izin_terpakai */
+  izinTerpakaiCount: number;
+  /** ...of which no rate_izin_terpakai is set yet: NOT paid until it is */
+  izinTerpakaiUnratedCount: number;
+  /** late-notice izin still waiting for the admin's decision */
+  pendingDecisionCount: number;
+} {
   let hadirCount = 0;
   let izinSakitCount = 0;
+  let izinTerpakaiCount = 0;
+  let izinTerpakaiUnratedCount = 0;
+  let pendingDecisionCount = 0;
   let total = 0;
   // Sessions that really happened (a real report row -- duplicates are
   // already prevented upstream by progress_reports' own unique(enrollment_
@@ -56,13 +86,35 @@ export function computeGaji(
     if (report.attendance === "hadir") {
       hadirCount += 1;
       total += rate.rate_hadir;
+    } else if (report.attendance === "izin" && report.quota_decision === "used") {
+      izinTerpakaiCount += 1;
+      // Never silently Rp0: an unset rate is flagged and blocks the transfer.
+      const terpakaiRate = resolveIzinTerpakaiRate(rates, report.session_date);
+      if (terpakaiRate == null) izinTerpakaiUnratedCount += 1;
+      else total += terpakaiRate;
     } else {
+      // A late izin not decided yet is paid like any izin for now, and flagged.
+      if (report.attendance === "izin" && report.late_notice && !report.quota_decision) pendingDecisionCount += 1;
       izinSakitCount += 1;
       total += rate.rate_izin_sakit;
     }
   }
 
-  return { hadirCount, izinSakitCount, total, unratedCount };
+  return { hadirCount, izinSakitCount, total, unratedCount, izinTerpakaiCount, izinTerpakaiUnratedCount, pendingDecisionCount };
+}
+
+/**
+ * Why a payroll must not be approved/transferred yet, or null. Shown on the
+ * payroll page and enforced again server-side before approval and transfer.
+ */
+export function payrollBlocker(g: { izinTerpakaiUnratedCount: number; pendingDecisionCount: number }): string | null {
+  if (g.izinTerpakaiUnratedCount > 0) {
+    return `Tarif sesi terpakai belum diisi untuk ${g.izinTerpakaiUnratedCount} sesi. Isi tarifnya di halaman pengajar (dengan "Berlaku Mulai" paling lambat tanggal sesi tersebut) sebelum gaji disetujui atau ditransfer.`;
+  }
+  if (g.pendingDecisionCount > 0) {
+    return `${g.pendingDecisionCount} izin mendadak belum diputuskan (sesi terpakai atau izin biasa). Putuskan di halaman Laporan sebelum gaji disetujui atau ditransfer.`;
+  }
+  return null;
 }
 
 export type ReferredStudent = {

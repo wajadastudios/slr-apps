@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GHOST_BUTTON } from "@/lib/ui-classes";
-import { attendanceLabel, childHref, type ReportPreview } from "@/lib/report-preview";
+import { attendanceText, childHref, type ReportPreview } from "@/lib/report-preview";
 import type { CardLinks } from "@/lib/programs";
 import type { RecordSummary } from "@/lib/record-summary";
 import { MEDAL_NAME, TierMedal } from "@/components/ui/tier-medal";
@@ -61,7 +61,7 @@ export function ParentChildCard({
   billingNote?: BillingNote | null;
 }) {
   const [nextMain, ...nextRest] = (nextSessionLabel ?? "").split(" · ");
-  const attendance = attendanceLabel(preview?.attendance);
+  const attendance = attendanceText(preview, "parent");
 
   return (
     <GlassCard id={`anak-${studentId}-${programId}`} className="flex scroll-mt-6 flex-col gap-4 !bg-white/85">

@@ -3,7 +3,8 @@ import { rupiah } from "./format";
 // Quota rules (one place, so the dashboard, the billing page and the
 // participant page can never disagree):
 //   * only invoices with status "paid" add sessions
-//   * every attended session ("hadir") uses one
+//   * every attended session ("hadir") uses one, and so does a late-notice
+//     izin an admin counted as used ("izin terpakai", see lib/progress.ts)
 //   * anything else -- draft, approved, sent, processing -- adds nothing
 
 export type InvoiceLite = {
@@ -20,18 +21,24 @@ export type InvoiceLite = {
 
 export type Quota = {
   bought: number;
+  /** sessions used from the package: hadir + izin terpakai */
+  used: number;
+  /** sessions attended (hadir) */
   attended: number;
+  izinTerpakai: number;
   remaining: number;
-  // attended more than was bought: old data, shown as a warning, never fixed silently
+  // used more than was bought: old data, shown as a warning, never fixed silently
   overdrawn: number;
 };
 
-export function computeQuota(paidSessions: number, attended: number): Quota {
+export function computeQuota(paidSessions: number, used: number, attended = used, izinTerpakai = 0): Quota {
   return {
     bought: paidSessions,
+    used,
     attended,
-    remaining: Math.max(0, paidSessions - attended),
-    overdrawn: Math.max(0, attended - paidSessions),
+    izinTerpakai,
+    remaining: Math.max(0, paidSessions - used),
+    overdrawn: Math.max(0, used - paidSessions),
   };
 }
 
@@ -40,7 +47,8 @@ export function paidSessionsOf(invoices: Pick<InvoiceLite, "status" | "sessions_
 }
 
 export function quotaLine(q: Quota): string {
-  return `Kuota dibeli: ${q.bought} sesi · Sudah hadir: ${q.attended} · Sisa: ${q.remaining} sesi`;
+  const detail = q.izinTerpakai > 0 ? ` (${q.attended} hadir, ${q.izinTerpakai} izin terpakai)` : "";
+  return `Kuota dibeli: ${q.bought} sesi · Terpakai: ${q.used}${detail} · Sisa: ${q.remaining} sesi`;
 }
 
 export const OPEN_INVOICE = ["draft", "approved", "sent", "processing"] as const;
