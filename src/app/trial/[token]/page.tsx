@@ -4,6 +4,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { WaterBg } from "@/components/water-bg";
 import { TrialPaymentForm } from "@/components/trial-payment-form";
+import { QrisPayment } from "@/components/qris-payment";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-xl font-bold text-[#17263D]";
 
@@ -105,16 +106,7 @@ export default async function TrialPaymentPage({
         </p>
       ) : (
         <>
-          {qrisImageUrl && (
-            <div className="mt-3 flex flex-col items-center gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={qrisImageUrl}
-                alt="QRIS Sari Les Renang"
-                className="w-40 rounded-xl border border-white/40 bg-white object-contain"
-              />
-            </div>
-          )}
+          {qrisImageUrl && <QrisPayment imageUrl={qrisImageUrl} />}
           {bankTransferInfo && (
             <p className="mt-3 whitespace-pre-line text-sm text-slate-700">
               {bankTransferInfo}
