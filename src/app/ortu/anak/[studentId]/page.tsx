@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
-import { ProgressTrend } from "@/components/progress-trend";
+import { ProgressOverview, ProgressTrend } from "@/components/progress-trend";
 import { LatestReportCard, ReportHistoryCard, type ReportRow } from "@/components/report-history-card";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
 import { RecordUnlockCard } from "@/components/record-unlock-card";
@@ -483,6 +483,8 @@ function ProgressTab({
 
   return (
     <>
+      <ProgressOverview indicatorConfig={indicatorConfig} reports={reports} />
+
       {achievement && (
         <GlassCard className="!bg-gradient-to-br !from-[#E9FBF3] !to-white">
           <p className="text-xs font-medium text-slate-600">Pencapaian terakhir</p>

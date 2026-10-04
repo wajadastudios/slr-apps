@@ -5,13 +5,19 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { isAbsent } from "@/lib/progress";
 import { LockIcon, LOCKED_HINT } from "@/components/ui/lock-icon";
 import { AccordionItem } from "@/components/ui/accordion";
-import { allKeys, displayName, type IndicatorConfig } from "@/lib/indicators";
+import { type IndicatorConfig } from "@/lib/indicators";
+import {
+  computeMastery,
+  type MasteryOverview,
+  type SkillProgress,
+} from "@/lib/skill-mastery";
 
 type Report = {
   session_date: string;
   session_number: number | null;
   attendance?: string | null;
   notes?: string | null;
+  next_focus?: string | null;
   scores: Record<string, number> | null;
 };
 
@@ -40,6 +46,11 @@ const X_MAX = 92;
 const Y_TOP = 24;
 const Y_BOTTOM = 82;
 const STEP_WIDTH = 5;
+
+// Status colours. Always paired with a text label, never colour alone.
+const MINT_PILL = "border-[#BFEBD5] bg-[#E6F9EF] text-[#1E7A55]";
+const TRAINING_PILL = "border-[#35C5D0]/35 bg-[#35C5D0]/12 text-[#0F7C86]";
+const NOT_STARTED_PILL = "border-[#CBD5E1]/80 bg-[#EEF2F7] text-[#56657C]";
 
 function scoreToY(score: number) {
   return Y_BOTTOM - (score / 5) * (Y_BOTTOM - Y_TOP);
@@ -134,9 +145,46 @@ function stepPath(points: SessionEvent[]) {
   return d;
 }
 
-function SkillRibbon({ name, events }: { name: string; events: SessionEvent[] }) {
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className ?? "h-3 w-3"}
+      aria-hidden="true"
+    >
+      <path d="M3.5 8.5l3 3 6-7" />
+    </svg>
+  );
+}
+
+function MasteredBadge() {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${MINT_PILL}`}
+    >
+      <CheckIcon />
+      Sudah dikuasai
+    </span>
+  );
+}
+
+function SkillRibbon({
+  name,
+  events,
+  progress,
+}: {
+  name: string;
+  events: SessionEvent[];
+  progress: SkillProgress;
+}) {
   const gradientId = useId().replace(/:/g, "");
   const [active, setActive] = useState<number | null>(null);
+  const mastered = progress.status === "mastered";
 
   const scored = events.filter((e) => e.score !== null);
   const latest = scored[scored.length - 1];
@@ -147,17 +195,57 @@ function SkillRibbon({ name, events }: { name: string; events: SessionEvent[] })
   const tooltipAlign =
     activeEvent !== null && activeEvent.x > 50 ? "left-1" : "right-1";
 
+  // Label sits to the left of the end marker so it never runs off the card.
+  const endLabelRight = `${100 - latest.x}%`;
+
   return (
     <div>
-      <p className="mb-1 text-sm text-slate-700">{name}</p>
+      <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <p className={`text-sm ${mastered ? "text-slate-600" : "font-medium text-[#17263D]"}`}>
+          {name}
+        </p>
+        {mastered ? (
+          <MasteredBadge />
+        ) : (
+          <span
+            className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${TRAINING_PILL}`}
+          >
+            Sedang dilatih
+          </span>
+        )}
+      </div>
+      {mastered ? (
+        <p className="mb-1 text-xs leading-relaxed text-[#2F6F57]">
+          Konsisten mendapat 5/5 dalam {progress.streak} penilaian terakhir. Siap
+          melanjutkan ke kemampuan berikutnya.
+        </p>
+      ) : (
+        progress.afterMastered && (
+          <p className="mb-1 text-xs text-slate-500">
+            Tahap berikutnya setelah {progress.afterMastered}
+          </p>
+        )
+      )}
       <div
-        className="relative h-24"
+        className={`relative ${mastered ? "h-16" : "h-24"}`}
         onClick={() => setActive(null)}
         onMouseLeave={() => setActive(null)}
       >
-        <span className="sr-only">
-          Skor terbaru {latest.score} dari 5 setelah {scored.length} sesi.
-        </span>
+        <div className="sr-only">
+          <p>
+            Skor terbaru {latest.score} dari 5 setelah {scored.length} penilaian
+            {mastered ? ", sudah dikuasai" : ""}.
+          </p>
+          <ul>
+            {events.map((e, i) => (
+              <li key={i}>
+                {formatDate(e.date)}
+                {e.sessionNumber ? `, sesi ${e.sessionNumber}` : ""}:{" "}
+                {e.score !== null ? `skor ${e.score} dari 5` : `${e.marker}, tidak dinilai`}
+              </li>
+            ))}
+          </ul>
+        </div>
 
         <svg
           viewBox="0 0 100 100"
@@ -167,7 +255,7 @@ function SkillRibbon({ name, events }: { name: string; events: SessionEvent[] })
         >
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#35C5D0" stopOpacity="0.22" />
+              <stop offset="0%" stopColor="#35C5D0" stopOpacity={mastered ? "0.08" : "0.22"} />
               <stop offset="100%" stopColor="#35C5D0" stopOpacity="0" />
             </linearGradient>
           </defs>
@@ -179,7 +267,7 @@ function SkillRibbon({ name, events }: { name: string; events: SessionEvent[] })
               y1={y}
               y2={y}
               stroke="#35C5D0"
-              strokeOpacity="0.1"
+              strokeOpacity={mastered ? "0.06" : "0.1"}
               strokeDasharray="2 3"
               vectorEffect="non-scaling-stroke"
             />
@@ -191,11 +279,16 @@ function SkillRibbon({ name, events }: { name: string; events: SessionEvent[] })
                 d={line}
                 fill="none"
                 stroke="#35C5D0"
-                strokeWidth="1.5"
+                strokeWidth={mastered ? "1" : "1.5"}
+                strokeOpacity={mastered ? "0.55" : "1"}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 vectorEffect="non-scaling-stroke"
-                style={{ filter: "drop-shadow(0 0 3px rgba(53,197,208,0.6))" }}
+                style={
+                  mastered
+                    ? undefined
+                    : { filter: "drop-shadow(0 0 3px rgba(53,197,208,0.6))" }
+                }
               />
             </>
           )}
@@ -220,21 +313,23 @@ function SkillRibbon({ name, events }: { name: string; events: SessionEvent[] })
           );
         })}
 
-        {/* Pause / dip markers */}
-        {events.map((e, i) =>
-          e.marker ? (
-            <div
-              key={`m${i}`}
-              className="pointer-events-none absolute flex -translate-x-1/2 flex-col items-center"
-              style={{ left: `${e.x}%`, top: `${e.y}%`, marginTop: -4 }}
-            >
-              <span className="h-1.5 w-1.5 rounded-full border border-[#FFC800] bg-[#FFF8E1]" />
-              <span className="mt-0.5 whitespace-nowrap text-[8px] font-medium leading-none text-[#a67c00]/80">
-                {e.marker}
-              </span>
-            </div>
-          ) : null
-        )}
+        {/* Pause / dip markers -- a mastered skill is shown as one calm
+            line with a single end marker, no per-session points. */}
+        {!mastered &&
+          events.map((e, i) =>
+            e.marker ? (
+              <div
+                key={`m${i}`}
+                className="pointer-events-none absolute flex -translate-x-1/2 flex-col items-center"
+                style={{ left: `${e.x}%`, top: `${e.y}%`, marginTop: -4 }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full border border-[#FFC800] bg-[#FFF8E1]" />
+                <span className="mt-0.5 whitespace-nowrap text-[8px] font-medium leading-none text-[#a67c00]/80">
+                  {e.marker}
+                </span>
+              </div>
+            ) : null
+          )}
 
         {/* Hovered point */}
         {activeEvent && (
@@ -252,24 +347,48 @@ function SkillRibbon({ name, events }: { name: string; events: SessionEvent[] })
           </>
         )}
 
-        {/* Latest value: glass orb + label */}
-        <div
-          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
-          style={{ left: `${latest.x}%`, top: `${latest.y}%` }}
-        >
-          <span
-            className="block h-4 w-4 rounded-full border border-white/90"
-            style={{
-              background:
-                "radial-gradient(circle at 30% 30%, #ffffff 0%, #b8f1f5 35%, #35C5D0 100%)",
-              boxShadow:
-                "0 0 12px rgba(53,197,208,0.8), 0 0 0 5px rgba(53,197,208,0.18)",
-            }}
-          />
-          <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap text-sm font-bold text-[#17263D]">
-            {latest.score}/5
-          </span>
-        </div>
+        {/* Latest value */}
+        {mastered ? (
+          <>
+            <span
+              className="pointer-events-none absolute flex h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/90 text-white"
+              style={{
+                left: `${latest.x}%`,
+                top: `${latest.y}%`,
+                background:
+                  "radial-gradient(circle at 30% 30%, #8fe6ec 0%, #35C5D0 70%)",
+                boxShadow:
+                  "0 0 10px rgba(53,197,208,0.55), 0 0 0 5px rgba(53,197,208,0.14)",
+              }}
+            >
+              <CheckIcon className="h-2.5 w-2.5" />
+            </span>
+            <span
+              className="pointer-events-none absolute -translate-y-1/2 whitespace-nowrap pr-4 text-[11px] font-semibold text-[#1E7A55]"
+              style={{ right: endLabelRight, top: `${latest.y - 18}%` }}
+            >
+              5/5 &middot; Dikuasai
+            </span>
+          </>
+        ) : (
+          <div
+            className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+            style={{ left: `${latest.x}%`, top: `${latest.y}%` }}
+          >
+            <span
+              className="block h-4 w-4 rounded-full border border-white/90"
+              style={{
+                background:
+                  "radial-gradient(circle at 30% 30%, #ffffff 0%, #b8f1f5 35%, #35C5D0 100%)",
+                boxShadow:
+                  "0 0 12px rgba(53,197,208,0.8), 0 0 0 5px rgba(53,197,208,0.18)",
+              }}
+            />
+            <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap text-sm font-bold text-[#17263D]">
+              {latest.score}/5
+            </span>
+          </div>
+        )}
 
         {activeEvent && (
           <div
@@ -301,7 +420,7 @@ function SkillRibbon({ name, events }: { name: string; events: SessionEvent[] })
 
 const CHIP_STEP = 6;
 
-function LockedSkills({ skills }: { skills: { key: string; name: string }[] }) {
+function NotStartedSkills({ skills }: { skills: SkillProgress[] }) {
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(CHIP_STEP);
   if (skills.length === 0) return null;
@@ -318,9 +437,9 @@ function LockedSkills({ skills }: { skills: { key: string; name: string }[] }) {
       className="mt-4 rounded-2xl border border-white/60 bg-white/45"
       headerClassName="min-h-12 rounded-2xl px-3 py-1.5"
       header={
-        <span className="flex items-center gap-1.5 text-sm font-medium text-slate-600">
+        <span className="flex items-center gap-1.5 text-sm font-medium text-[#56657C]">
           <LockIcon className="h-4 w-4" />
-          {skills.length} indikator belum dibuka
+          {skills.length} indikator belum mulai
         </span>
       }
     >
@@ -330,7 +449,7 @@ function LockedSkills({ skills }: { skills: { key: string; name: string }[] }) {
             <span
               key={skill.key}
               title={LOCKED_HINT}
-              className="flex items-center gap-1 rounded-full border border-slate-200/70 bg-white/60 px-2.5 py-1 text-xs text-slate-500"
+              className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${NOT_STARTED_PILL}`}
             >
               <LockIcon className="h-3 w-3" />
               {skill.name}
@@ -351,13 +470,11 @@ function LockedSkills({ skills }: { skills: { key: string; name: string }[] }) {
   );
 }
 
+type Ribbon = { progress: SkillProgress; events: SessionEvent[] };
+
 const MAIN_RIBBONS = 6;
 
-function MoreRibbons({
-  items,
-}: {
-  items: { skill: string; name: string; events: SessionEvent[] }[];
-}) {
+function MoreRibbons({ items }: { items: Ribbon[] }) {
   const [open, setOpen] = useState(false);
   if (items.length === 0) return null;
 
@@ -371,7 +488,7 @@ function MoreRibbons({
       headerClassName="min-h-12 rounded-2xl px-3 py-1.5"
       header={
         <span className="text-sm font-medium text-[#17263D]">
-          Lihat semua indikator
+          Lihat indikator lain yang sedang dilatih
           <span className="ml-1.5 text-xs font-normal text-slate-500">
             &middot; {items.length} lainnya
           </span>
@@ -379,11 +496,86 @@ function MoreRibbons({
       }
     >
       <div className="grid gap-x-6 gap-y-5 px-3 pb-4 pt-2 sm:grid-cols-2">
-        {items.map(({ skill, name, events }) => (
-          <SkillRibbon key={skill} name={name} events={events} />
+        {items.map(({ progress, events }) => (
+          <SkillRibbon key={progress.key} name={progress.name} events={events} progress={progress} />
         ))}
       </div>
     </AccordionItem>
+  );
+}
+
+function MasteredSkills({ items }: { items: Ribbon[] }) {
+  const [open, setOpen] = useState(false);
+  if (items.length === 0) return null;
+
+  return (
+    <AccordionItem
+      variant="ortu"
+      chevronSize="sm"
+      open={open}
+      onToggle={() => setOpen((v) => !v)}
+      className="mt-4 rounded-2xl border border-[#BFEBD5]/80 bg-[#F1FBF6]/70"
+      headerClassName="min-h-12 rounded-2xl px-3 py-1.5"
+      header={
+        <span className="flex items-center gap-2 text-sm font-medium text-[#1E7A55]">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#D3F3E2]">
+            <CheckIcon />
+          </span>
+          Kemampuan yang sudah dikuasai ({items.length})
+        </span>
+      }
+    >
+      <div className="grid gap-x-6 gap-y-5 px-3 pb-4 pt-2 sm:grid-cols-2">
+        {items.map(({ progress, events }) => (
+          <SkillRibbon key={progress.key} name={progress.name} events={events} progress={progress} />
+        ))}
+      </div>
+    </AccordionItem>
+  );
+}
+
+// Small summary at the top of the progress tab: what is mastered, what is
+// being trained, and the coach's next focus when written. No global
+// percentage on purpose.
+export function ProgressOverview({
+  indicatorConfig,
+  reports,
+}: {
+  indicatorConfig: IndicatorConfig;
+  reports: Report[];
+}) {
+  const overview = computeMastery(indicatorConfig, reports);
+  return <ProgressOverviewCard overview={overview} />;
+}
+
+function ProgressOverviewCard({ overview }: { overview: MasteryOverview }) {
+  const { mastered, training, nextFocus } = overview;
+  if (mastered.length === 0 && training.length === 0 && !nextFocus) return null;
+
+  return (
+    <GlassCard tone="soft" className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div className={`rounded-2xl border px-3 py-2 ${MINT_PILL}`}>
+          <p className="flex items-center gap-1.5 text-lg font-bold leading-tight">
+            <CheckIcon className="h-4 w-4" />
+            {mastered.length}
+          </p>
+          <p className="text-xs font-medium">indikator sudah dikuasai</p>
+        </div>
+        <div className={`rounded-2xl border px-3 py-2 ${TRAINING_PILL}`}>
+          <p className="text-lg font-bold leading-tight">{training.length}</p>
+          <p className="text-xs font-medium">indikator sedang dilatih</p>
+        </div>
+      </div>
+      {nextFocus && (
+        <div className="rounded-2xl border border-white/60 bg-white/55 px-3 py-2.5">
+          <p className="text-xs font-medium text-slate-500">
+            Fokus latihan berikutnya &middot; dari pengajar
+          </p>
+          <p className="mt-0.5 text-sm font-semibold text-[#17263D]">{nextFocus}</p>
+        </div>
+      )}
+    </GlassCard>
   );
 }
 
@@ -394,6 +586,16 @@ export function ProgressTrend({
   indicatorConfig: IndicatorConfig;
   reports: Report[];
 }) {
+  if (reports.length === 0) {
+    return (
+      <GlassCard>
+        <p className="text-sm text-slate-600">
+          Belum ada data skor untuk ditampilkan sebagai tren.
+        </p>
+      </GlassCard>
+    );
+  }
+
   const chronological = [...reports].sort(
     (a, b) =>
       new Date(a.session_date).getTime() - new Date(b.session_date).getTime()
@@ -405,35 +607,15 @@ export function ProgressTrend({
   const minT = Math.min(...times);
   const maxT = Math.max(...times);
 
-  const all = allKeys(indicatorConfig).map((skill) => ({
-    skill,
-    name: displayName(indicatorConfig, skill),
-    events: buildEvents(skill, chronological, minT, maxT),
-  }));
-
-  // A skill still at 0 (or never scored) hasn't been "opened" yet -- a flat
-  // line at the floor says nothing, so those collapse into a chip list
-  // instead of taking up a chart each.
-  const isOpened = (events: SessionEvent[]) => {
-    const scored = events.filter((e) => e.score !== null);
-    return scored.length > 0 && scored[scored.length - 1].score! > 0;
-  };
-  const skills = all.filter((s) => isOpened(s.events));
-  // Only still-active indicators count as "not opened yet"; a deactivated one
-  // with no scores is simply gone from the parent's view.
-  const lockedSkills = all
-    .filter((s) => !isOpened(s.events) && indicatorConfig.byKey[s.skill]?.active)
-    .map((s) => ({ key: s.skill, name: s.name }));
-
-  if (reports.length === 0) {
-    return (
-      <GlassCard>
-        <p className="text-sm text-slate-600">
-          Belum ada data skor untuk ditampilkan sebagai tren.
-        </p>
-      </GlassCard>
-    );
-  }
+  const overview = computeMastery(indicatorConfig, reports);
+  const ribbon = (progress: SkillProgress): Ribbon => ({
+    progress,
+    events: buildEvents(progress.key, chronological, minT, maxT),
+  });
+  // Being trained first (curriculum order), then not started, and the
+  // mastered ones tucked away in their own section.
+  const training = overview.training.map(ribbon);
+  const mastered = overview.mastered.map(ribbon);
 
   return (
     <GlassCard className="relative">
@@ -453,13 +635,20 @@ export function ProgressTrend({
           Sumbu waktu mengikuti tanggal sesi. Sesi izin/sakit ditandai dan tidak
           menurunkan skor.
         </p>
-        <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-          {skills.slice(0, MAIN_RIBBONS).map(({ skill, name, events }) => (
-            <SkillRibbon key={skill} name={name} events={events} />
-          ))}
-        </div>
-        <MoreRibbons items={skills.slice(MAIN_RIBBONS)} />
-        <LockedSkills skills={lockedSkills} />
+        {training.length > 0 ? (
+          <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+            {training.slice(0, MAIN_RIBBONS).map(({ progress, events }) => (
+              <SkillRibbon key={progress.key} name={progress.name} events={events} progress={progress} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-600">
+            Belum ada indikator yang sedang dilatih saat ini.
+          </p>
+        )}
+        <MoreRibbons items={training.slice(MAIN_RIBBONS)} />
+        <NotStartedSkills skills={overview.notStarted} />
+        <MasteredSkills items={mastered} />
       </div>
     </GlassCard>
   );
