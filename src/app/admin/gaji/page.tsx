@@ -9,6 +9,7 @@ import { Badge } from "@/components/admin/ui";
 import { KeuanganTabs } from "../keuangan/keuangan-tabs";
 import {
   computeGaji,
+  payrollBlocker,
   computeReferralCommission,
   periodBounds,
   MONTH_NAMES,
@@ -77,10 +78,10 @@ export default async function AdminGajiPage({
       .order("full_name"),
     supabase
       .from("pelatih_rates")
-      .select("pelatih_id, rate_hadir, rate_izin_sakit, effective_from"),
+      .select("pelatih_id, rate_hadir, rate_izin_sakit, rate_izin_terpakai, effective_from"),
     supabase
       .from("progress_reports")
-      .select("pelatih_id, student_id, session_date, attendance")
+      .select("pelatih_id, student_id, session_date, attendance, late_notice, quota_decision")
       .gte("session_date", start)
       .lt("session_date", end),
     supabase
@@ -184,12 +185,21 @@ export default async function AdminGajiPage({
                   , lalu tampilkan ulang periode ini.
                 </p>
               )}
+              {payrollBlocker(gaji) && (
+                <p role="alert" className="rounded-xl bg-[#FFF1CC] px-3 py-2 text-xs font-medium text-[#7A5400]">
+                  ⚠️ {payrollBlocker(gaji)}{" "}
+                  <a href={gaji.izinTerpakaiUnratedCount > 0 ? "/admin/pelatih" : "/admin/laporan"} className="underline">
+                    {gaji.izinTerpakaiUnratedCount > 0 ? "Isi tarif" : "Buka keputusan"}
+                  </a>
+                </p>
+              )}
               <DataRow
                 primary={pelatih.title ? `${pelatih.title} ${pelatih.full_name}` : pelatih.full_name}
                 secondary={
                   <>
                     Gaji Mengajar: {formatRupiah(gaji.total)} ({gaji.hadirCount} hadir
-                    {gaji.izinSakitCount > 0 ? `, ${gaji.izinSakitCount} izin/sakit` : ""}) &middot;
+                    {gaji.izinSakitCount > 0 ? `, ${gaji.izinSakitCount} izin/sakit` : ""}
+                    {gaji.izinTerpakaiCount > 0 ? `, ${gaji.izinTerpakaiCount} sesi terpakai` : ""}) &middot;
                     Komisi Referral: {formatRupiah(commission)}
                     {pelatih.bank_info ? ` · Rekening: ${pelatih.bank_info}` : ""}
                   </>

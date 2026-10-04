@@ -133,7 +133,7 @@ test("only paid invoices add sessions; sent, draft and processing add nothing", 
 test("attendance uses up the quota and the line explains it", () => {
   const q = computeQuota(30, 25);
   assert.equal(q.remaining, 5);
-  assert.equal(quotaLine(q), "Kuota dibeli: 30 sesi · Sudah hadir: 25 · Sisa: 5 sesi");
+  assert.equal(quotaLine(q), "Kuota dibeli: 30 sesi · Terpakai: 25 · Sisa: 5 sesi");
 });
 
 test("attendance above the quota is a warning, never silently corrected", () => {

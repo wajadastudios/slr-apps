@@ -1,12 +1,13 @@
 import { GlassCard } from "@/components/ui/glass-card";
 import { formatShortDate } from "@/lib/format-date";
-import { attendanceLabel } from "@/lib/report-preview";
+import { attendanceText } from "@/lib/report-preview";
 import { countAttendedSessions } from "@/lib/progress";
 
 type Session = {
   session_date: string;
   session_number: number | null;
   attendance: string | null;
+  quota_decision?: string | null;
   notes: string | null;
   next_focus: string | null;
 };
@@ -47,7 +48,7 @@ export function ClassJourneyCard({ reports }: { reports: Session[] }) {
                     {r.session_number ? `Sesi ${r.session_number} · ` : ""}
                     {formatShortDate(r.session_date)}
                     <span className="ml-2 rounded-full bg-[#EEF9FB] px-2 py-0.5 text-xs font-medium text-[#1597A3]">
-                      {attendanceLabel(r.attendance) ?? "-"}
+                      {attendanceText(r, "parent") ?? "-"}
                     </span>
                   </p>
                   {r.notes && <p className="mt-0.5 line-clamp-2 text-sm text-slate-600">{r.notes}</p>}

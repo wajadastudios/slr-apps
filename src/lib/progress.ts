@@ -21,6 +21,40 @@ export function countAttendedSessions(
   return days.size;
 }
 
+// ---------- "Izin — sesi terpakai" (0046_izin_sesi_terpakai.sql) ----------
+// A session USES one session of the paid package when the participant
+// attended, or when an admin decided that a late-notice izin (cancelled
+// after the coach had arrived) counts. Attendance for progress stays
+// hadir-only (countAttendedSessions above).
+export type QuotaReport = {
+  attendance?: string | null;
+  session_date: string;
+  late_notice?: boolean | null;
+  quota_decision?: string | null;
+};
+
+export function usesQuota(r: QuotaReport): boolean {
+  return r.attendance === "hadir" || (r.attendance === "izin" && r.quota_decision === "used");
+}
+
+/** A coach reported a late izin and no admin has decided yet. */
+export function awaitsQuotaDecision(r: QuotaReport): boolean {
+  return r.attendance === "izin" && r.late_notice === true && !r.quota_decision;
+}
+
+/** Distinct session days that used the package (hadir + izin terpakai). */
+export function countUsedSessions(reports: QuotaReport[]): number {
+  const days = new Set<string>();
+  for (const r of reports) if (usesQuota(r)) days.add(r.session_date);
+  return days.size;
+}
+
+export function countIzinTerpakai(reports: QuotaReport[]): number {
+  const days = new Set<string>();
+  for (const r of reports) if (r.attendance === "izin" && r.quota_decision === "used") days.add(r.session_date);
+  return days.size;
+}
+
 // Skill scores describe what the child can do, so a session they missed
 // (izin/sakit) says nothing about that -- progress is read from the newest
 // session they actually attended. Expects reports newest-first.
@@ -99,7 +133,12 @@ export function computeNextSession(
 }
 
 export type SessionQuota = {
+  /** sessions attended (progress) */
   hadir: number;
+  /** sessions used from the package: hadir + izin terpakai */
+  used: number;
+  /** izin sessions an admin counted as used */
+  izinTerpakai: number;
   total: number;
   remaining: number;
 };
@@ -109,21 +148,27 @@ export type SessionQuota = {
 // must not count until it flips to "paid".
 export function computeSessionQuota(
   invoices: { status: string; sessions_count: number }[],
-  reports: { attendance: string | null; session_date: string }[]
+  reports: QuotaReport[]
 ): SessionQuota {
   const hadir = countAttendedSessions(reports);
+  const used = countUsedSessions(reports);
+  const izinTerpakai = countIzinTerpakai(reports);
   const total = invoices
     .filter((i) => i.status === "paid")
     .reduce((sum, i) => sum + i.sessions_count, 0);
-  return { hadir, total, remaining: Math.max(0, total - hadir) };
+  return { hadir, used, izinTerpakai, total, remaining: Math.max(0, total - used) };
 }
 
+// The quota line shows sessions USED -- the number the invoice is based on --
+// with the attended/izin-terpakai breakdown, so "Sisa 0" next to a new bill
+// always adds up for the parent.
 export function formatSessionQuota(q: SessionQuota): { value: string; note: string } {
+  const breakdown = q.izinTerpakai > 0 ? `${q.hadir} hadir · ${q.izinTerpakai} izin terpakai` : `${q.hadir} sesi diikuti`;
   if (q.total === 0) {
-    return { value: `${q.hadir} sesi diikuti`, note: "Belum ada paket lunas" };
+    return { value: breakdown, note: "Belum ada paket lunas" };
   }
   return {
-    value: `${q.hadir} / ${q.total} sesi diikuti`,
+    value: `${q.used} / ${q.total} terpakai · ${breakdown}`,
     note: `Sisa ${q.remaining} sesi`,
   };
 }

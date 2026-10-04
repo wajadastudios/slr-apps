@@ -6,7 +6,7 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
 import { DeleteConfirm } from "@/components/admin/impact-confirm";
 import { AccountEditor } from "@/components/account-editor";
-import { resolveRateForDate } from "@/lib/payroll";
+import { resolveIzinTerpakaiRate, resolveRateForDate } from "@/lib/payroll";
 import {
   createPelatihAction,
   updatePelatihAccountAction,
@@ -39,14 +39,14 @@ export default async function PelatihPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("pelatih_rates")
-      .select("pelatih_id, rate_hadir, rate_izin_sakit, effective_from")
+      .select("pelatih_id, rate_hadir, rate_izin_sakit, rate_izin_terpakai, effective_from")
       .order("effective_from", { ascending: false }),
   ]);
 
   const today = new Date().toISOString().slice(0, 10);
   const ratesByPelatih = new Map<
     string,
-    { rate_hadir: number; rate_izin_sakit: number; effective_from: string }[]
+    { rate_hadir: number; rate_izin_sakit: number; rate_izin_terpakai?: number | null; effective_from: string }[]
   >();
   for (const r of rateRows ?? []) {
     const list = ratesByPelatih.get(r.pelatih_id) ?? [];
@@ -121,6 +121,11 @@ export default async function PelatihPage({
             <GlassInput name="rate_izin_sakit" type="number" min={0} defaultValue={0} />
           </div>
           <div className="flex flex-col gap-1.5">
+            <label className="text-sm text-slate-800">Rate Sesi Terpakai</label>
+            <GlassInput name="rate_izin_terpakai" type="number" min={0} placeholder="Kosongkan = tidak berubah" />
+            <p className="text-[11px] text-slate-500">Izin mendadak (kabar setelah pengajar tiba) yang ditetapkan admin sebagai sesi terpakai.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Berlaku Mulai</label>
             <GlassInput name="effective_from" type="date" defaultValue={today} />
           </div>
@@ -171,7 +176,10 @@ export default async function PelatihPage({
                           rate.rate_izin_sakit
                             ? ` / izin-sakit ${formatRupiah(rate.rate_izin_sakit)}`
                             : ""
-                        }`
+                        }${(() => {
+                          const terpakai = resolveIzinTerpakaiRate(ratesByPelatih.get(p.id) ?? [], today);
+                          return terpakai != null ? ` / sesi terpakai ${formatRupiah(terpakai)}` : " / sesi terpakai belum diatur";
+                        })()}`
                       : " · Rate belum diatur";
                   })()}
                 </>

@@ -12,7 +12,7 @@ import { SkillScoresField } from "@/components/skill-scores-field";
 import { ParentIndicatorSummary } from "@/components/parent-indicator-summary";
 import { ParentLevelSummary } from "@/components/parent-level-summary";
 import { LevelScoresField } from "@/components/level-scores-field";
-import { AttendanceProvider, AttendanceSelect, PresentOnly } from "@/components/report-attendance";
+import { AttendanceProvider, AttendanceSelect, LateNoticeField, PresentOnly } from "@/components/report-attendance";
 import { NarrativeField } from "@/components/narrative-field";
 import { summarizeLevelGroups } from "@/lib/level-summary";
 import { levelLabel, levelsFor, usesStars, type AssessmentType } from "@/lib/programs";
@@ -29,6 +29,7 @@ import { isAbsent } from "@/lib/progress";
 import { summarizeReportGroups } from "@/lib/report-summary";
 import { GHOST_BUTTON } from "@/lib/ui-classes";
 import { ToastForm } from "@/components/ui/toast-form";
+import { attendanceText, isIzinTerpakai, IZIN_TERPAKAI_NOTE } from "@/lib/report-preview";
 import type { ActionState } from "@/lib/action-result";
 
 const ATTENDANCE_LABEL: Record<string, string> = {
@@ -55,6 +56,9 @@ export type ReportRow = {
   session_date: string;
   session_number: number | null;
   attendance: string | null;
+  // "Izin — sesi terpakai" (0046): coach's late-notice answer + admin decision
+  late_notice?: boolean | null;
+  quota_decision?: string | null;
   scores: unknown;
   notes: string | null;
   next_focus: string | null;
@@ -343,6 +347,7 @@ function ReportEntry({
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-600">Kehadiran</label>
               <AttendanceSelect initial={report.attendance ?? "hadir"} />
+              <LateNoticeField initial={report.late_notice === true} />
             </div>
           </div>
 
@@ -434,14 +439,17 @@ function ReportEntry({
           )}
           <span
             className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              ATTENDANCE_COLOR[report.attendance ?? ""] ??
-              "bg-slate-200 text-slate-700"
+              isIzinTerpakai(report)
+                ? "bg-[#FFC800]/25 text-[#7a5c00]"
+                : (ATTENDANCE_COLOR[report.attendance ?? ""] ?? "bg-slate-200 text-slate-700")
             }`}
           >
-            {ATTENDANCE_LABEL[report.attendance ?? ""] ?? report.attendance}
+            {attendanceText(report, parentView ? "parent" : "staff") ?? report.attendance}
           </span>
         </div>
       </div>
+
+      {isIzinTerpakai(report) && <p className="mt-2 text-xs text-slate-600">{IZIN_TERPAKAI_NOTE}</p>}
 
       {report.substitute_for && (
         <div className="mt-2">

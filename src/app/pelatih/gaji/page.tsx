@@ -34,11 +34,11 @@ export default async function PelatihGajiPage() {
   ] = await Promise.all([
     supabase
       .from("pelatih_rates")
-      .select("rate_hadir, rate_izin_sakit, effective_from")
+      .select("rate_hadir, rate_izin_sakit, rate_izin_terpakai, effective_from")
       .eq("pelatih_id", pelatihId),
     supabase
       .from("progress_reports")
-      .select("student_id, session_date, attendance")
+      .select("student_id, session_date, attendance, late_notice, quota_decision")
       .eq("pelatih_id", pelatihId)
       .gte("session_date", start)
       .lt("session_date", end),
@@ -103,7 +103,8 @@ export default async function PelatihGajiPage() {
         </div>
         <p className="text-sm text-slate-600">
           Gaji Mengajar: {formatRupiah(gaji.total)} ({gaji.hadirCount} hadir
-          {gaji.izinSakitCount > 0 ? `, ${gaji.izinSakitCount} izin/sakit` : ""}) · Komisi
+          {gaji.izinSakitCount > 0 ? `, ${gaji.izinSakitCount} izin/sakit` : ""}
+          {gaji.izinTerpakaiCount > 0 ? `, ${gaji.izinTerpakaiCount} sesi terpakai` : ""}) · Komisi
           Referral: {formatRupiah(commission)}
         </p>
         {gaji.unratedCount > 0 && (

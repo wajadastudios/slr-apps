@@ -1,4 +1,5 @@
 import { computeQuota, billingReason, invoiceProblem, isOpenInvoice, paidSessionsOf, type BillingReason, type InvoiceLite, type InvoiceProblem, type Quota } from "./quota";
+import { countAttendedSessions, countIzinTerpakai, countUsedSessions } from "@/lib/progress";
 import { existingConflicts, type SlotContext } from "./schedule-rules";
 import { coachName, dayName, formatClock, slotFill } from "./format";
 
@@ -19,7 +20,7 @@ export type QEnrollment = {
 };
 
 export type QSchedule = { student_id: string; slot_id: string; created_at: string };
-export type QReport = { student_id: string; program_id: string | null; session_date: string; attendance: string | null; enrollment_id: string | null };
+export type QReport = { student_id: string; program_id: string | null; session_date: string; attendance: string | null; enrollment_id: string | null; late_notice?: boolean | null; quota_decision?: string | null };
 
 // ---------- quota per enrollment ----------
 export type EnrollmentBillingInfo = {
@@ -38,19 +39,15 @@ export function enrollmentBilling(
   reports: QReport[],
   threshold: number
 ): EnrollmentBillingInfo[] {
-  // Distinct session_date per enrollment, not raw row count: keeps quota
-  // resilient to any duplicate report row, matching countAttendedSessions()
-  // used everywhere else this same "hadir" count feeds a quota display.
-  const hadirDaysByEnrollment = new Map<string, Set<string>>();
+  // Same rules as every other quota display (lib/progress.ts): distinct
+  // session days, and "used" = hadir + izin terpakai.
+  const reportsByEnrollment = new Map<string, QReport[]>();
   for (const r of reports) {
-    if (r.attendance !== "hadir" || !r.enrollment_id) continue;
-    const days = hadirDaysByEnrollment.get(r.enrollment_id) ?? new Set<string>();
-    days.add(r.session_date);
-    hadirDaysByEnrollment.set(r.enrollment_id, days);
+    if (!r.enrollment_id) continue;
+    const list = reportsByEnrollment.get(r.enrollment_id) ?? [];
+    list.push(r);
+    reportsByEnrollment.set(r.enrollment_id, list);
   }
-  const hadirByEnrollment = new Map<string, number>(
-    [...hadirDaysByEnrollment].map(([id, days]) => [id, days.size])
-  );
   const byEnrollment = new Map<string, InvoiceLite[]>();
   for (const i of invoices) {
     if (!i.enrollment_id) continue;
@@ -60,7 +57,8 @@ export function enrollmentBilling(
   }
   return enrollments.map((e) => {
     const mine = byEnrollment.get(e.id) ?? [];
-    const quota = computeQuota(paidSessionsOf(mine), hadirByEnrollment.get(e.id) ?? 0);
+    const theirs = reportsByEnrollment.get(e.id) ?? [];
+    const quota = computeQuota(paidSessionsOf(mine), countUsedSessions(theirs), countAttendedSessions(theirs), countIzinTerpakai(theirs));
     const open = mine.filter((i) => isOpenInvoice(i.status));
     // only a class that has started needs a bill
     const reason = HAS_CLASS.includes(e.status) ? billingReason(quota, threshold, open.length > 0) : null;

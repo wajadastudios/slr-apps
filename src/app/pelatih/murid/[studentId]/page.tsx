@@ -7,7 +7,7 @@ import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassButton } from "@/components/ui/glass-button";
 import { SkillScoresField } from "@/components/skill-scores-field";
 import { LevelScoresField } from "@/components/level-scores-field";
-import { AttendanceProvider, AttendanceSelect, PresentOnly } from "@/components/report-attendance";
+import { AttendanceProvider, AttendanceSelect, LateNoticeField, PresentOnly } from "@/components/report-attendance";
 import { PerformanceRecordField } from "@/components/performance-record-field";
 import { PerformanceRecordsManager } from "@/components/performance-records-manager";
 import { PersonalGoalsManager } from "@/components/personal-goals";
@@ -163,7 +163,8 @@ export default async function MuridReportPage({
   })[];
   const reports: ReportRow[] = rawReports.map((r) => ({ ...r, author_name: r.author?.full_name ?? null }));
   const performanceRecords = recordsRes.data ?? [];
-  const quota = quotaRes.data?.[0] as { total_sessions: number; attended: number; remaining: number } | undefined;
+  // `used` = hadir + izin terpakai (0046); older databases return only `attended`.
+  const quota = quotaRes.data?.[0] as { total_sessions: number; attended: number; used?: number; remaining: number } | undefined;
   const goals = ((goalsRes.data ?? []) as PersonalGoal[]).map((g) => ({
     ...g,
     baseline: g.baseline === null ? null : Number(g.baseline),
@@ -361,9 +362,12 @@ export default async function MuridReportPage({
             )}
             {quota && (
               <div>
-                <dt className="text-[11px] font-medium text-slate-500">Sesi dibeli / hadir / tersisa</dt>
+                <dt className="text-[11px] font-medium text-slate-500">Sesi dibeli / terpakai / tersisa</dt>
                 <dd className="text-sm text-[#17263D]">
-                  {quota.total_sessions} / {quota.attended} / {quota.remaining}
+                  {quota.total_sessions} / {quota.used ?? quota.attended} / {quota.remaining}
+                  {(quota.used ?? quota.attended) > quota.attended && (
+                    <span className="text-xs text-slate-500"> ({quota.attended} hadir)</span>
+                  )}
                 </dd>
               </div>
             )}
@@ -411,6 +415,7 @@ export default async function MuridReportPage({
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm text-slate-800">Kehadiran</label>
                 <AttendanceSelect initial={todayDraft?.attendance ?? "hadir"} />
+                <LateNoticeField initial={todayDraft?.late_notice === true} />
               </div>
             </div>
 

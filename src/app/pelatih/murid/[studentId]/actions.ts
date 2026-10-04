@@ -14,6 +14,18 @@ import { insertRecords } from "@/lib/record-db";
 import { parseRecordInput, type RecordInput } from "@/lib/record-input";
 import { PROGRAM_SELECT, normalizeProgram, type ProgramMeta } from "@/lib/programs";
 import { parseScoresPayload, scorableKeys, sessionAllowsAssessment } from "@/lib/report-scores";
+
+const LATE_NOTICE_REQUIRED = "Pilih kapan kabar izin diterima.";
+
+// "Izin" requires the coach to say when the family's message arrived
+// (see LateNoticeField). Returns null when that answer is missing.
+function parseLateNotice(attendance: string, formData: FormData): boolean | null {
+  if (attendance !== "izin") return false;
+  const answer = String(formData.get("late_notice") ?? "");
+  if (answer === "after") return true;
+  if (answer === "before") return false;
+  return null;
+}
 import { hasClassAccess, type EnrollmentStatus } from "@/lib/enrollment";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
@@ -170,6 +182,8 @@ async function createReportActionImpl(formData: FormData) {
   if (!student_id || !enrollment_id || !session_date || !attendance) {
     redirect(back(student_id, "", "Tanggal dan kehadiran wajib diisi."));
   }
+  const late_notice = parseLateNotice(attendance, formData);
+  if (late_notice === null) redirect(back(student_id, "", LATE_NOTICE_REQUIRED));
 
   const supabase = await createClient();
 
@@ -229,6 +243,7 @@ async function createReportActionImpl(formData: FormData) {
       session_date,
       session_number,
       attendance,
+      late_notice,
       scores,
       notes,
       media_urls,
@@ -299,6 +314,8 @@ async function updateReportActionImpl(formData: FormData) {
   if (!report_id || !student_id || !session_date || !attendance) {
     redirect(back(student_id, "", "Tanggal dan kehadiran wajib diisi."));
   }
+  const late_notice = parseLateNotice(attendance, formData);
+  if (late_notice === null) redirect(back(student_id, "", LATE_NOTICE_REQUIRED));
 
   const supabase = await createClient();
 
@@ -357,6 +374,7 @@ async function updateReportActionImpl(formData: FormData) {
       session_date,
       session_number,
       attendance,
+      late_notice,
       scores,
       notes,
       media_urls,

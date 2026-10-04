@@ -68,7 +68,7 @@ export async function loadAdminData(supabase: SupabaseClient): Promise<AdminData
       "invoices",
       "id, student_id, enrollment_id, status, sessions_count, amount, package_name, created_at, sent_at"
     ),
-    selectAll<QReport>(supabase, "progress_reports", "student_id, program_id, session_date, attendance, enrollment_id", "session_date"),
+    selectAll<QReport>(supabase, "progress_reports", "student_id, program_id, session_date, attendance, enrollment_id, late_notice, quota_decision", "session_date"),
     selectAll<QSchedule>(supabase, "schedules", "student_id, slot_id, created_at"),
     supabase
       .from("class_slots")

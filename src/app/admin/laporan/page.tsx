@@ -30,6 +30,7 @@ import {
   deleteGoalEntryAction,
 } from "./goal-actions";
 import { resolveReportCorrectionAction } from "./correction-actions";
+import { decideQuotaAction } from "./quota-actions";
 import { formatShortDate } from "@/lib/format-date";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
@@ -52,14 +53,35 @@ export default async function AdminLaporanPage({
   const { id, error } = await searchParams;
   const supabase = await createClient();
 
-  const { data: pendingCorrectionRows } = await supabase
-    .from("report_corrections")
-    .select(
-      "id, reason, created_at, report:report_id(id, session_date, enrollment_id, student:student_id(full_name)), reporter:reported_by(full_name)"
-    )
-    .eq("status", "pending")
-    .order("created_at", { ascending: false });
+  const [{ data: pendingCorrectionRows }, { data: pendingQuotaRows }] = await Promise.all([
+    supabase
+      .from("report_corrections")
+      .select(
+        "id, reason, created_at, report:report_id(id, session_date, enrollment_id, student:student_id(full_name)), reporter:reported_by(full_name)"
+      )
+      .eq("status", "pending")
+      .order("created_at", { ascending: false }),
+    // Late-notice izin waiting for an admin decision (0046). Before that
+    // migration runs the columns do not exist and this simply returns nothing.
+    supabase
+      .from("progress_reports")
+      .select("id, session_date, session_number, enrollment_id, student:student_id(full_name), program:program_id(name), pelatih:pelatih_id(full_name)")
+      .eq("attendance", "izin")
+      .eq("late_notice", true)
+      .is("quota_decision", null)
+      .eq("status", "final")
+      .order("session_date", { ascending: true }),
+  ]);
   const pendingCorrections = (pendingCorrectionRows ?? []) as unknown as PendingCorrection[];
+  const pendingQuota = (pendingQuotaRows ?? []) as unknown as {
+    id: string;
+    session_date: string;
+    session_number: number | null;
+    enrollment_id: string | null;
+    student: { full_name: string } | null;
+    program: { name: string } | null;
+    pelatih: { full_name: string } | null;
+  }[];
 
   const { data: rows } = await supabase
     .from("enrollments")
@@ -203,6 +225,60 @@ export default async function AdminLaporanPage({
           Laporan belum diisi
         </a>
       </GlassCard>
+
+      {pendingQuota.length > 0 && (
+        <GlassCard className="!border-[#FFC800]/50 !bg-[#FFF8E1]/70">
+          <h2 className={`mb-1 ${HEADING}`}>
+            Perlu keputusan: sesi terpakai?
+            <span className="ml-2 rounded-full bg-[#FFC800]/30 px-2.5 py-0.5 text-xs font-semibold text-[#6b5200]">
+              {pendingQuota.length}
+            </span>
+          </h2>
+          <p className="mb-3 text-sm text-slate-600">
+            Pengajar melaporkan izin yang kabarnya diterima setelah pengajar tiba di kolam. &ldquo;Sesi terpakai&rdquo;
+            mengurangi kuota paket dan dibayar ke pengajar dengan tarif sesi terpakai; &ldquo;Izin biasa&rdquo; tidak.
+          </p>
+          <ul className="flex flex-col gap-3">
+            {pendingQuota.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/60 bg-white/60 p-3">
+                <div>
+                  <p className="text-sm font-semibold text-[#17263D]">
+                    {r.student?.full_name ?? "Murid"} &middot; {r.program?.name ?? "-"}
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    {r.session_number ? `Sesi ${r.session_number} · ` : ""}
+                    {formatShortDate(r.session_date)} &middot; dilaporkan {r.pelatih?.full_name ?? "pengajar"}
+                    {r.enrollment_id && (
+                      <>
+                        {" · "}
+                        <a href={`/admin/laporan?id=${r.enrollment_id}`} className="font-medium text-[#1597A3] underline">
+                          Lihat laporan
+                        </a>
+                      </>
+                    )}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <ToastForm action={decideQuotaAction}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <input type="hidden" name="decision" value="used" />
+                    <GlassButton type="submit" className="!bg-[#0E7C89] px-3 py-1.5 text-xs !text-white hover:!bg-[#0A6570]">
+                      Tetapkan sesi terpakai
+                    </GlassButton>
+                  </ToastForm>
+                  <ToastForm action={decideQuotaAction}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <input type="hidden" name="decision" value="not_used" />
+                    <GlassButton type="submit" className="px-3 py-1.5 text-xs">
+                      Tetap izin biasa
+                    </GlassButton>
+                  </ToastForm>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      )}
 
       {pendingCorrections.length > 0 && (
         <GlassCard className="!border-[#FFC800]/50 !bg-[#FFF8E1]/70">
