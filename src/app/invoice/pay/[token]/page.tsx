@@ -74,10 +74,10 @@ export default async function PublicInvoicePaymentPage({
         <p>
           <span className="text-slate-500">Nomor Invoice:</span> {invoice.out_invoice_number}
         </p>
-        {invoice.out_due_at && (
+        {invoice.out_due_at && ["sent", "processing"].includes(invoice.out_status) && (
           <p>
             <span className="text-slate-500">Jatuh tempo:</span>{" "}
-            {new Date(invoice.out_due_at).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+            {new Date(invoice.out_due_at).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Jakarta" })}
           </p>
         )}
       </div>

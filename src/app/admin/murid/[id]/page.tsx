@@ -550,7 +550,7 @@ export default async function MuridDetailPage({
                     </div>
                     {["sent", "processing", "paid"].includes(inv.status) && (
                       <div className="flex flex-wrap items-center gap-2">
-                        <CopyButton value={`${origin}/invoice/pay/${inv.public_token ?? inv.id}`} label="Salin link pembayaran" className="px-3 py-1.5 text-xs" />
+                        {inv.public_token && <CopyButton value={`${origin}/invoice/pay/${inv.public_token}`} label="Salin link pembayaran" className="px-3 py-1.5 text-xs" />}
                         {["sent", "processing"].includes(inv.status) && (
                           <ToastForm action={resendInvoiceAction} pendingLabel="Mengirim...">
                             <input type="hidden" name="invoice_id" value={inv.id} />

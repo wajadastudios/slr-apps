@@ -1,21 +1,38 @@
+import { normalizePhone } from "@/lib/registration-input";
+
 export function InvoiceShareLinks({
   origin,
   publicToken,
   studentName,
+  status,
   parentEmail,
+  parentPhone,
 }: {
   origin: string;
   // The unguessable public link, not the plain invoice id -- so whoever
   // this gets shared to (WhatsApp, email) can open and pay it without being
-  // logged in. See 0040_audit_fixes.sql / get_public_invoice.
-  publicToken: string;
+  // logged in. See 0040_audit_fixes.sql / get_public_invoice. Without a
+  // token there is no working link, so nothing is offered.
+  publicToken: string | null;
   studentName: string;
-  parentEmail?: string;
+  status?: string;
+  parentEmail?: string | null;
+  parentPhone?: string | null;
 }) {
+  if (!publicToken) {
+    return <p className="text-xs text-slate-500">Link invoice belum tersedia.</p>;
+  }
+
   const pageUrl = `${origin}/invoice/pay/${publicToken}`;
   const pdfUrl = `${origin}/invoice/pay/${publicToken}/pdf`;
-  const message = `Invoice les renang untuk ${studentName}: ${pageUrl}`;
-  const waHref = `https://wa.me/?text=${encodeURIComponent(message)}`;
+  const message =
+    status === "paid"
+      ? `Invoice les renang (lunas) untuk ${studentName}: ${pageUrl}`
+      : `Invoice les renang untuk ${studentName}: ${pageUrl}`;
+  // With the payer's number WhatsApp opens their chat directly; without it
+  // WhatsApp asks which chat to send to.
+  const phone = parentPhone ? normalizePhone(parentPhone) : null;
+  const waHref = `https://wa.me/${phone ?? ""}?text=${encodeURIComponent(message)}`;
   const mailHref = `mailto:${parentEmail ?? ""}?subject=${encodeURIComponent(
     `Invoice Les Renang - ${studentName}`
   )}&body=${encodeURIComponent(message)}`;

@@ -50,14 +50,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
       email: getSetting("email"),
       invoiceNumber: invoice.out_invoice_number,
       status: invoice.out_status,
-      sentAt: invoice.out_sent_at ? new Date(invoice.out_sent_at).toLocaleDateString("id-ID") : null,
+      sentAt: invoice.out_sent_at ? new Date(invoice.out_sent_at).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" }) : null,
       studentName: invoice.out_student_name,
       // The public link deliberately never reveals who the billing account
       // is -- the logged-in PDF route shows the parent's name here, this
       // one shows the participant's own name again rather than leak it.
       parentName: invoice.out_student_name,
       packageName: invoice.out_package_name,
-      createdAt: new Date(invoice.out_created_at).toLocaleDateString("id-ID"),
+      createdAt: new Date(invoice.out_created_at).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" }),
       sessionsCount: invoice.out_sessions_count,
       amount: invoice.out_amount,
       basePrice: invoice.out_base_price,
