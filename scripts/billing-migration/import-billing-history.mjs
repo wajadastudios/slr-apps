@@ -19,6 +19,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import ExcelJS from "exceljs";
 import { createClient } from "@supabase/supabase-js";
@@ -270,6 +271,8 @@ if (EXECUTE) {
         paid_at: r.status === "paid" ? `${r.payDate}T00:00:00+07:00` : null,
         invoice_number: number,
         migration_code: r.code,
+        // every non-draft invoice needs its public link (page, PDF, WhatsApp, email)
+        public_token: randomBytes(32).toString("hex"),
         internal_note: noteParts.join(" "),
         is_test: false,
       })

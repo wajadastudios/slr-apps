@@ -49,13 +49,13 @@ export async function GET(
       invoiceNumber: invoice.invoice_number,
       status: invoice.status,
       sentAt: invoice.sent_at
-        ? new Date(invoice.sent_at).toLocaleDateString("id-ID")
+        ? new Date(invoice.sent_at).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })
         : null,
       studentName: student?.full_name ?? "-",
       parentName: student?.parent?.full_name ?? "-",
       packageName: invoice.package_name,
       createdAt: invoice.created_at
-        ? new Date(invoice.created_at).toLocaleDateString("id-ID")
+        ? new Date(invoice.created_at).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta" })
         : null,
       sessionsCount: invoice.sessions_count,
       amount: invoice.amount,

@@ -38,8 +38,9 @@ export default async function OrtuTagihanPage() {
         secondary={
           <InvoiceShareLinks
             origin={origin}
-            publicToken={inv.public_token ?? inv.id}
+            publicToken={inv.public_token}
             studentName={student?.full_name ?? ""}
+            status={inv.status}
           />
         }
         action={
