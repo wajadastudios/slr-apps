@@ -19,7 +19,7 @@ function toDateOnly(iso: string | null | undefined): string {
 export async function syncPaidInvoicesToCashFlow(supabase: Db, actorId: string | null): Promise<number> {
   const { data: paid } = await supabase
     .from("invoices")
-    .select("id, amount, created_at, sent_at, student_id, enrollment_id, payment_method, is_test")
+    .select("id, amount, created_at, sent_at, paid_at, student_id, enrollment_id, payment_method, is_test")
     .eq("status", "paid");
   if (!paid || paid.length === 0) return 0;
 
@@ -53,7 +53,9 @@ export async function syncPaidInvoicesToCashFlow(supabase: Db, actorId: string |
     const programId = i.enrollment_id ? (programByEnrollment.get(i.enrollment_id) ?? null) : null;
     const location = programId ? (locationByStudentProgram.get(`${i.student_id}:${programId}`) ?? null) : null;
     return {
-      entry_date: toDateOnly(i.sent_at ?? i.created_at),
+      // Income is dated when it was actually paid (0047); older invoices
+      // without paid_at fall back to the date they were sent/created.
+      entry_date: toDateOnly(i.paid_at ?? i.sent_at ?? i.created_at),
       direction: "masuk" as const,
       category: "pembayaran_murid" as const,
       amount: i.amount,

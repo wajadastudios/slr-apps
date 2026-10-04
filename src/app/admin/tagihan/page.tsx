@@ -71,6 +71,7 @@ type InvoiceRow = {
   public_token: string | null;
   created_at: string;
   sent_at: string | null;
+  paid_at?: string | null;
   student: { full_name: string } | null;
   billing: { full_name: string | null; email: string } | null;
 };
@@ -87,7 +88,7 @@ export default async function TagihanPage({ searchParams }: { searchParams: Prom
     selectAll<InvoiceRow>(
       supabase,
       "invoices",
-      "id, student_id, enrollment_id, package_name, sessions_count, amount, base_price, discount_amount, discount_type, price_source, override_reason, supersedes_invoice_id, superseded_by_invoice_id, status, payment_method, payment_proof_url, invoice_number, public_token, created_at, sent_at, student:student_id(full_name), billing:billing_account_id(full_name, email)"
+      "id, student_id, enrollment_id, package_name, sessions_count, amount, base_price, discount_amount, discount_type, price_source, override_reason, supersedes_invoice_id, superseded_by_invoice_id, status, payment_method, payment_proof_url, invoice_number, public_token, created_at, sent_at, paid_at, student:student_id(full_name), billing:billing_account_id(full_name, email)"
     ),
     supabase.from("program_packages").select("id, program_id, name, sessions_count, price").eq("active", true).order("sessions_count"),
     supabase.from("students").select("id, next_package_preference_id"),
@@ -162,7 +163,8 @@ export default async function TagihanPage({ searchParams }: { searchParams: Prom
               &mdash; {inv.package_name} ({inv.sessions_count} sesi) · {rupiah(inv.amount)}
             </p>
             <p className="text-xs text-slate-500">
-              {enr?.programName ?? "Tanpa pendaftaran"} · Penanggung bayar: {inv.billing?.full_name ?? "-"} · {inv.invoice_number ?? "Draft"} · {formatDate(inv.created_at)}
+              {enr?.programName ?? "Tanpa pendaftaran"} · Penanggung bayar: {inv.billing?.full_name ?? "-"} · {inv.invoice_number ?? "Draft"} · Ditagih {formatDate(inv.created_at)}
+              {inv.status === "paid" && inv.paid_at ? ` · Lunas ${formatDate(inv.paid_at)}` : ""}
             </p>
             {(inv.base_price != null || inv.discount_amount > 0) && (
               <p className="text-xs text-slate-500">
