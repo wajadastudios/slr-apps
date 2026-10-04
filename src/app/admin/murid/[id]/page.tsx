@@ -127,7 +127,7 @@ export default async function MuridDetailPage({
     supabase
       .from("invoices")
       .select(
-        "id, enrollment_id, status, sessions_count, amount, base_price, discount_amount, discount_type, price_source, package_name, created_at, sent_at, invoice_number, public_token, supersedes_invoice_id, superseded_by_invoice_id, billing:billing_account_id(full_name, email)"
+        "id, enrollment_id, status, sessions_count, amount, base_price, discount_amount, discount_type, price_source, package_name, created_at, sent_at, paid_at, invoice_number, public_token, supersedes_invoice_id, superseded_by_invoice_id, billing:billing_account_id(full_name, email)"
       )
       .eq("student_id", id)
       .order("created_at", { ascending: false }),
@@ -529,7 +529,8 @@ export default async function MuridDetailPage({
                         {inv.package_name} ({inv.sessions_count} sesi) · {rupiah(inv.amount ?? 0)}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {inv.invoice_number ?? "Draft"} · {enr?.program?.name ?? "Tanpa pendaftaran"} · Penagih: {billing?.full_name ?? "-"} · {formatDate(inv.created_at)}
+                        {inv.invoice_number ?? "Draft"} · {enr?.program?.name ?? "Tanpa pendaftaran"} · Penagih: {billing?.full_name ?? "-"} · Ditagih {formatDate(inv.created_at)}
+                        {inv.status === "paid" && inv.paid_at ? ` · Lunas ${formatDate(inv.paid_at)}` : ""}
                       </p>
                       {(inv.base_price != null || inv.discount_amount > 0) && (
                         <p className="text-xs text-slate-500">

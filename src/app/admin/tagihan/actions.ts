@@ -518,7 +518,7 @@ async function markPaidActionImpl(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase
     .from("invoices")
-    .update({ status: "paid" })
+    .update({ status: "paid", paid_at: new Date().toISOString() })
     .eq("id", invoice_id);
 
   if (error) {

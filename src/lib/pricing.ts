@@ -145,12 +145,13 @@ export async function lockEnrollmentPriceIfMissing(
   });
 }
 
-export type PriceSource = "package" | "enrollment_lock" | "override";
+export type PriceSource = "package" | "enrollment_lock" | "override" | "migration";
 
 export const PRICE_SOURCE_LABEL: Record<PriceSource, string> = {
   package: "Harga terbaru",
   enrollment_lock: "Harga peserta",
   override: "Override admin",
+  migration: "Riwayat (migrasi Excel)",
 };
 
 export const DISCOUNT_TYPE_LABEL: Record<string, string> = {
