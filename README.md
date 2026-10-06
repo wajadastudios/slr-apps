@@ -28,3 +28,8 @@ Workflow juga bisa dijalankan manual: GitHub -> Actions -> "Supabase health-chec
 
 Catatan: GitHub menonaktifkan workflow terjadwal otomatis pada repo publik yang tidak ada aktivitas selama 60 hari; cek tab Actions sesekali.
 
+
+## Kurikulum Level
+
+Penilaian enam skill dengan level per gaya dan tes kemampuan (Kids Swim, di belakang saklar admin). Lihat [docs/kurikulum-level.md](docs/kurikulum-level.md).
+

@@ -59,6 +59,20 @@ export default async function ProgramSetupPage({
     .eq("program_id", program.id)
     .not("status", "in", "(cancelled,rejected)");
 
+  // Level curriculum (only programs that were given one by migration 0049):
+  // the card below links to its management. A missing column/table (migration
+  // not run yet) simply hides it.
+  const [{ count: curriculumIndicators }, { data: modeRow }] = await Promise.all([
+    supabase
+      .from("indicators")
+      .select("id", { count: "exact", head: true })
+      .eq("program_id", program.id)
+      .not("seed_key", "is", null),
+    supabase.from("programs").select("curriculum_mode").eq("id", program.id).maybeSingle(),
+  ]);
+  const hasCurriculum = (curriculumIndicators ?? 0) > 0;
+  const curriculumOn = modeRow?.curriculum_mode === "levels_v1";
+
   const input = await loadReadiness(supabase, program);
   const steps = programChecklist(input);
   const blockers = readyBlockers(input);
@@ -114,6 +128,25 @@ export default async function ProgramSetupPage({
           action={saveNarrativePolicyAction}
         />
       </GlassCard>
+
+      {hasCurriculum && (
+        <GlassCard className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className={HEADING}>Kurikulum Level</h2>
+            <p className="text-sm text-slate-600">
+              {curriculumOn
+                ? "Aktif: pengajar menilai dengan enam skill, level per gaya, dan tes kemampuan."
+                : "Siap tetapi belum diaktifkan. Penilaian lama tetap berjalan sampai Anda mengaktifkannya."}
+            </p>
+          </div>
+          <Link
+            href={`/admin/penilaian?program=${program.id}&tab=kurikulum`}
+            className={`inline-flex min-h-10 items-center rounded-2xl border px-4 text-sm font-semibold ${curriculumOn ? SECONDARY_BUTTON : ADMIN_CTA}`}
+          >
+            {curriculumOn ? "Kelola kurikulum" : "Tinjau & aktifkan"}
+          </Link>
+        </GlassCard>
+      )}
 
       <GlassCard className="flex flex-col gap-1">
         <h2 className={`mb-2 ${HEADING}`}>Langkah penyiapan</h2>
