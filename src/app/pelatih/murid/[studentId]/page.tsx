@@ -612,7 +612,7 @@ export default async function MuridReportPage({
         cyclePositions={cyclePositions}
         draftNarrativeDue={narrativeDue}
         curriculum={curriculumData}
-        editHref={(id) => `/pelatih/murid/${studentId}?program=${program.id}&edit=${id}#form-laporan`}
+        editBase={`/pelatih/murid/${studentId}?program=${program.id}`}
       />
     </div>
   );

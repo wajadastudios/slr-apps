@@ -270,7 +270,7 @@ function ReportEntry({
   cyclePosition,
   draftNarrativeDue,
   curriculum,
-  editHref,
+  editBase,
 }: {
   report: ReportRow;
   studentId: string;
@@ -278,7 +278,8 @@ function ReportEntry({
   parentView: boolean;
   editable: boolean;
   curriculum?: CurriculumData | null;
-  editHref?: (reportId: string) => string;
+  // base URL of the form page; "&edit=<id>" is appended for a curriculum report
+  editBase?: string;
   viewerId?: string | null;
   updateAction?: ReportAction;
   deleteAction?: ReportAction;
@@ -306,7 +307,7 @@ function ReportEntry({
   const isCurriculumReport = !!curriculum && report.curriculum_version != null;
   const isPreCurriculum = !!curriculum && report.curriculum_version == null;
   const canEdit = editable && (viewerId == null || report.pelatih_id === viewerId);
-  const canEditHere = canEdit && !isPreCurriculum && (!isCurriculumReport || !!editHref);
+  const canEditHere = canEdit && !isPreCurriculum && (!isCurriculumReport || !!editBase);
   const isOthersReport = viewerId != null && report.pelatih_id != null && report.pelatih_id !== viewerId;
 
   const scores = (report.scores as Record<string, number>) ?? {};
@@ -605,9 +606,9 @@ function ReportEntry({
 
       {canEdit && (
         <div className="mt-3 flex justify-end gap-2 border-t border-white/30 pt-2">
-          {isCurriculumReport && editHref && canEditHere ? (
+          {isCurriculumReport && editBase && canEditHere ? (
             <Link
-              href={editHref(report.id)}
+              href={`${editBase}&edit=${report.id}#form-laporan`}
               className="rounded-xl border border-white/40 bg-white/40 px-3 py-1.5 text-xs font-medium text-[#17263D] transition-colors hover:bg-white/60 active:bg-white/70"
             >
               Edit
@@ -664,13 +665,14 @@ export function ReportHistoryCard({
   cyclePositions,
   draftNarrativeDue,
   curriculum,
-  editHref,
+  editBase,
   id,
   title = "Riwayat Laporan",
 }: {
   // Level-curriculum programs only: how to render and edit curriculum reports.
   curriculum?: CurriculumData | null;
-  editHref?: (reportId: string) => string;
+  // base URL of the form page; "&edit=<id>" is appended for a curriculum report
+  editBase?: string;
   reports: ReportRow[];
   indicatorConfig: IndicatorConfig;
   // anchor for deep links (e.g. #riwayat-laporan) and the card heading
@@ -742,7 +744,7 @@ export function ReportHistoryCard({
             cyclePosition={cyclePositions?.get(r.id)}
             draftNarrativeDue={draftNarrativeDue}
             curriculum={curriculum}
-            editHref={editHref}
+            editBase={editBase}
           />
         ))}
       </div>
