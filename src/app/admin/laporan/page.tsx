@@ -11,6 +11,8 @@ import { RecordUnlockCard } from "@/components/record-unlock-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { StarScoreLegend } from "@/components/star-score-legend";
 import { computeLatestAchievement } from "@/lib/progress";
+import { CurriculumProgress, StarMeaningCard } from "@/components/curriculum/progress-view";
+import { loadCurriculumData, loadCurriculumMode } from "@/lib/curriculum/loader";
 import { computeMilestoneStatuses } from "@/lib/milestones";
 import { formatAge } from "@/lib/performance";
 import { loadIndicatorConfig } from "@/lib/indicator-loader";
@@ -147,9 +149,15 @@ export default async function AdminLaporanPage({
     }
 
     const stars = usesStars(program.assessment_type);
+    // Level curriculum: the same read-only view the parent gets, instead of the
+    // old aggregates and medals.
+    const curriculumOn = stars && (await loadCurriculumMode(supabase, program.id)) === "levels_v1";
+    const curriculumData = curriculumOn
+      ? await loadCurriculumData(supabase, { programId: program.id, enrollmentId: selected.id })
+      : null;
     // A single percent score was dropped per product decision -- see the
     // same change in src/app/pelatih/murid/[studentId]/page.tsx.
-    const latestAchievement = stars ? computeLatestAchievement(reports, indicatorConfig) : null;
+    const latestAchievement = stars && !curriculumOn ? computeLatestAchievement(reports, indicatorConfig) : null;
     const age = formatAge(student.birth_date);
 
     body = (
@@ -166,7 +174,15 @@ export default async function AdminLaporanPage({
           )}
         </GlassCard>
 
-        {medals && (
+        {curriculumData && (
+          <CurriculumProgress
+            data={curriculumData}
+            audience="parent"
+            hasPreCurriculum={reports.some((r) => r.curriculum_version == null && r.attendance === "hadir")}
+          />
+        )}
+
+        {medals && !curriculumOn && (
           <>
             <RecordUnlockCard statuses={computeMilestoneStatuses(records, milestones)} />
             <PerformanceRecordsManager
@@ -196,16 +212,18 @@ export default async function AdminLaporanPage({
           />
         )}
 
-        {stars && (
+        {stars && !curriculumOn && (
           <>
             <AssessmentGuideCard indicatorConfig={indicatorConfig} />
             <StarScoreLegend />
           </>
         )}
+        {curriculumOn && <StarMeaningCard />}
 
         <ReportHistoryCard
           reports={reports}
           indicatorConfig={indicatorConfig}
+          curriculum={curriculumData}
           title={program.assessment_type === "observation" ? "Riwayat Catatan" : "Riwayat Laporan"}
         />
       </>

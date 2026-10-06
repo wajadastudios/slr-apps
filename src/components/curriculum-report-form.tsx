@@ -114,7 +114,7 @@ function IndicatorRow({
             role="radio"
             aria-checked={mode === m.value}
             onClick={() => onChange({ mode: m.value, score: m.value === "dinilai" ? item.score : null, reason: m.value === "na" ? item.reason : "" })}
-            className={`${CHIP} ${mode === m.value ? "bg-[#35C5D0] text-white shadow-[0_2px_8px_rgba(53,197,208,0.4)]" : "border border-white/70 bg-white/70 text-slate-700 hover:bg-[#35C5D0]/15"}`}
+            className={`${CHIP} ${mode === m.value ? "bg-[#35C5D0] text-white shadow-[0_2px_8px_rgba(53,197,208,0.4)]" : "border border-slate-300 bg-white text-slate-700 hover:bg-[#35C5D0]/15"}`}
           >
             {m.label}
           </button>
@@ -129,7 +129,7 @@ function IndicatorRow({
               type="button"
               onClick={() => onChange({ mode: "dinilai", score: 0, reason: "" })}
               aria-pressed={item.score === 0}
-              className={`${CHIP} ${item.score === 0 ? "bg-slate-700 text-white" : "border border-white/70 bg-white/70 text-slate-700"}`}
+              className={`${CHIP} ${item.score === 0 ? "bg-slate-700 text-white" : "border border-slate-300 bg-white text-slate-700"}`}
             >
               0 &middot; Belum mampu
             </button>
@@ -172,7 +172,7 @@ function TestFields({
           role="radio"
           aria-checked={value === v}
           onClick={() => onPick(v)}
-          className={`${CHIP} ${value === v ? "bg-[#35C5D0] text-white" : "border border-white/70 bg-white/70 text-slate-700"}`}
+          className={`${CHIP} ${value === v ? "bg-[#35C5D0] text-white" : "border border-slate-300 bg-white text-slate-700"}`}
         >
           {v ? "Ya" : "Tidak"}
         </button>
@@ -232,7 +232,7 @@ function TestFields({
               role="radio"
               aria-checked={state.assisted === o.v}
               onClick={() => set({ assisted: o.v })}
-              className={`${CHIP} ${state.assisted === o.v ? "bg-[#35C5D0] text-white" : "border border-white/70 bg-white/70 text-slate-700"}`}
+              className={`${CHIP} ${state.assisted === o.v ? "bg-[#35C5D0] text-white" : "border border-slate-300 bg-white text-slate-700"}`}
             >
               {o.label}
             </button>
@@ -384,7 +384,7 @@ function SkillPanel({
                 onClick={() =>
                   setState((s) => ({ ...s, skills: { ...s.skills, [skill.id]: { ...s.skills[skill.id], placementLevel: l } } }))
                 }
-                className={`${CHIP} ${ss.placementLevel === l ? "bg-[#35C5D0] text-white" : "border border-white/70 bg-white/80 text-slate-700"}`}
+                className={`${CHIP} ${ss.placementLevel === l ? "bg-[#35C5D0] text-white" : "border border-slate-300 bg-white text-slate-700"}`}
               >
                 Level {l} &mdash; {LEVEL_NAMES[l]}
               </button>
@@ -553,7 +553,7 @@ export function CurriculumReportForm({
                       type="button"
                       aria-pressed={on}
                       onClick={() => toggleSkill(s.id)}
-                      className={`${CHIP} min-h-11 ${on ? "bg-[#35C5D0] text-white shadow-[0_2px_8px_rgba(53,197,208,0.4)]" : "border border-white/70 bg-white/70 text-slate-700 hover:bg-[#35C5D0]/15"}`}
+                      className={`${CHIP} min-h-11 ${on ? "bg-[#35C5D0] text-white shadow-[0_2px_8px_rgba(53,197,208,0.4)]" : "border border-slate-300 bg-white text-slate-700 hover:bg-[#35C5D0]/15"}`}
                     >
                       {on ? "✓ " : ""}
                       {s.name}

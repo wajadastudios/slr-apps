@@ -7,6 +7,8 @@ import { DataRow } from "@/components/ui/data-row";
 import { ProgressOverview, ProgressTrend } from "@/components/progress-trend";
 import { LatestReportCard, ReportHistoryCard, type ReportRow } from "@/components/report-history-card";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
+import { AchievementsCard, CurriculumProgress, PersonalRecordsCard, StarMeaningCard } from "@/components/curriculum/progress-view";
+import { loadCurriculumData, loadCurriculumMode } from "@/lib/curriculum/loader";
 import { RecordUnlockCard } from "@/components/record-unlock-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { StarScoreLegend } from "@/components/star-score-legend";
@@ -170,7 +172,10 @@ export default async function AnakDetailPage({
     );
   }
 
-  const tabs = tabsFor(program);
+  // Level curriculum (Kids Swim after the admin switched it on): a separate
+  // progress and achievement view; every other program is untouched.
+  const curriculumOn = usesStars(program.assessment_type) && (await loadCurriculumMode(supabase, program.id)) === "levels_v1";
+  const tabs = tabsFor(program, curriculumOn);
   const tab = parseTab(tabParam, tabs);
   const medals = program.records_mode === "medals";
   const goalsMode = program.records_mode === "personal_goals";
@@ -274,13 +279,19 @@ export default async function AnakDetailPage({
   const [latestReport, ...olderReports] = reportsWithAuthor;
   const isObservation = program.assessment_type === "observation";
 
+  const curriculumData =
+    curriculumOn && (tab === "laporan" || tab === "perkembangan" || tab === "record")
+      ? await loadCurriculumData(supabase, { programId: program.id, enrollmentId: enrollment.id })
+      : null;
+  const hasPreCurriculum = curriculumOn && allReports.some((r) => r.curriculum_version == null && r.attendance === "hadir");
+
   // record / goals data only for the tab that needs it
   let records: PerformanceRecordRow[] = [];
   let milestones: Awaited<ReturnType<typeof loadMilestones>> = [];
   if (tab === "record" && medals) {
     const [recordsRes, ms] = await Promise.all([
       supabase.from("performance_records").select("*").eq("enrollment_id", enrollment.id),
-      loadMilestones(supabase, program.id),
+      curriculumOn ? Promise.resolve([]) : loadMilestones(supabase, program.id),
     ]);
     records = (recordsRes.data ?? []) as PerformanceRecordRow[];
     milestones = ms;
@@ -336,6 +347,7 @@ export default async function AnakDetailPage({
             title={isObservation ? "Catatan Sesi Terbaru" : "Laporan Terbaru"}
             anchorId={isObservation ? "catatan-terbaru" : "laporan-terbaru"}
             cyclePosition={cyclePositions.get(latestReport.id)}
+            curriculum={curriculumData}
           />
           {olderReports.length > 0 && (
             <ReportHistoryCard
@@ -345,6 +357,7 @@ export default async function AnakDetailPage({
               indicatorConfig={indicatorConfig}
               parentView
               cyclePositions={cyclePositions}
+              curriculum={curriculumData}
             />
           )}
         </>
@@ -428,7 +441,15 @@ export default async function AnakDetailPage({
       <ChildTabs studentId={studentId} programId={program.id} tabs={tabs} active={tab}>
       {(tab === "laporan" || tab === "catatan") && reportsTab}
 
-      {tab === "perkembangan" && (
+      {tab === "perkembangan" && curriculumOn && curriculumData && (
+        <>
+          <CurriculumProgress data={curriculumData} audience="parent" hasPreCurriculum={hasPreCurriculum} />
+          <AttendanceConsistencyCard reports={allReports} />
+          <StarMeaningCard />
+        </>
+      )}
+
+      {tab === "perkembangan" && !curriculumOn && (
         <ProgressTab
           program={program}
           reports={allReports}
@@ -438,7 +459,15 @@ export default async function AnakDetailPage({
 
       {tab === "perjalanan" && <ClassJourneyCard reports={allReports} />}
 
-      {tab === "record" && medals && (
+      {tab === "record" && curriculumOn && curriculumData && (
+        <>
+          <PersonalRecordsCard data={curriculumData} />
+          <AchievementsCard data={curriculumData} />
+          {medals && <PerformanceRecordsCard records={records} title="Rekor lama (sebelum kurikulum level)" />}
+        </>
+      )}
+
+      {tab === "record" && medals && !curriculumOn && (
         <>
           <RecordUnlockCard statuses={computeMilestoneStatuses(records, milestones)} />
           <PerformanceRecordsCard records={records} />

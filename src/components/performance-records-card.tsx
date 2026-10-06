@@ -14,8 +14,10 @@ import {
 // (Record Unlock) is the first thing a parent should see, this is the detail.
 export function PerformanceRecordsCard({
   records,
+  title = "Riwayat Rekor",
 }: {
   records: PerformanceRecordRow[];
+  title?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -47,7 +49,7 @@ export function PerformanceRecordsCard({
         headerClassName="min-h-16 rounded-3xl px-6 py-3"
         header={
           <span className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
-            Riwayat Rekor
+            {title}
             <span className="ml-2 text-sm font-normal text-slate-500">{records.length} catatan</span>
           </span>
         }

@@ -17,6 +17,9 @@ import { EvaluationSummary } from "@/components/evaluation-summary";
 import { ToastForm } from "@/components/ui/toast-form";
 import { MediaFileInput } from "@/components/media-file-input";
 import { CurriculumReportForm } from "@/components/curriculum-report-form";
+import { CurriculumProgress } from "@/components/curriculum/progress-view";
+import { PerformanceRecordsCard } from "@/components/performance-records-card";
+import { confirmLevelUpAction } from "./level-actions";
 import { loadCurriculumData, loadCurriculumMode, loadReportTestResults } from "@/lib/curriculum/loader";
 import { initialFormState, stateFromReport } from "@/lib/curriculum/form-state";
 import { computeMilestoneStatuses, formatMilestoneValue, pickNextTarget } from "@/lib/milestones";
@@ -538,6 +541,22 @@ export default async function MuridReportPage({
         </>
         )}
       </GlassCard>
+
+      {curriculumOn && curriculumData && (
+        <>
+          <CurriculumProgress
+            data={curriculumData}
+            audience="pelatih"
+            studentId={studentId}
+            enrollmentId={enrollment.id}
+            confirmAction={confirmLevelUpAction}
+            hasPreCurriculum={reports.some((r) => r.curriculum_version == null && r.attendance === "hadir")}
+          />
+          {medals && performanceRecords.length > 0 && (
+            <PerformanceRecordsCard records={performanceRecords} title="Rekor lama (sebelum kurikulum level)" />
+          )}
+        </>
+      )}
 
       {medals && !curriculumOn && (
         <>
