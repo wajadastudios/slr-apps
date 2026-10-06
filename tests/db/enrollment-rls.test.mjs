@@ -827,6 +827,156 @@ check("health_check(): a logged-in user cannot call it (not a general entry poin
 await su();
 check("health_check() is not security definer", (await q("select prosecdef from pg_proc where proname='health_check'"))[0].prosecdef === false);
 
+// ---------- level curriculum (0048 + 0049) ----------
+await su();
+const kidsActiveBefore = (await q("select key from public.indicators where program_id=$1 and active order by key", [KIDS])).map((r) => r.key);
+const seeded = (await q("select count(*)::int c from public.indicators where program_id=$1 and seed_key is not null", [KIDS]))[0].c;
+check("curriculum seed: 77 indicators for Kids Swim (6 Dasar + 8 Water Safety + 63 stroke-level)", seeded === 77, String(seeded));
+check(
+  "curriculum seed: new indicators start INACTIVE and legacy ones are untouched (nothing changes for users yet)",
+  (await q("select count(*)::int c from public.indicators where program_id=$1 and seed_key is not null and active and key not in ('Dasar - Adaptasi di Air')", [KIDS]))[0].c === 0 &&
+    kidsActiveBefore.includes("Gaya Bebas - Gerakan Kaki"),
+  JSON.stringify(kidsActiveBefore)
+);
+const adaptasi = (await q("select seed_key, description, level, active from public.indicators where program_id=$1 and key='Dasar - Adaptasi di Air'", [KIDS]))[0];
+check(
+  "curriculum seed: existing Dasar indicator keeps its key, gains rubric, stays active",
+  adaptasi?.seed_key === "k1_dasar_adaptasi_di_air" && !!adaptasi.description && adaptasi.level === null && adaptasi.active === true,
+  JSON.stringify(adaptasi)
+);
+check("curriculum seed: legacy stroke indicator is not renamed or deactivated", (await q("select label, active, seed_key from public.indicators where program_id=$1 and key='Gaya Bebas - Gerakan Kaki'", [KIDS]))[0].active === true);
+const slugs = (await q("select slug from public.indicator_groups where program_id=$1 and slug is not null order by sort_order", [KIDS])).map((r) => r.slug);
+check(
+  "curriculum seed: the six skills carry slugs (existing groups reused, not duplicated)",
+  slugs.length === 6 && (await q("select count(*)::int c from public.indicator_groups where program_id=$1", [KIDS]))[0].c === 6,
+  JSON.stringify(slugs)
+);
+check("curriculum seed: other programs got nothing", (await q("select count(*)::int c from public.indicators where seed_key is not null and program_id<>$1", [KIDS]))[0].c === 0);
+check(
+  "curriculum seed: 7 test types, 12 versioned targets, 14 rules",
+  (await q("select count(*)::int c from public.skill_test_types"))[0].c === 7 &&
+    (await q("select count(*)::int c from public.skill_test_targets"))[0].c === 12 &&
+    (await q("select count(*)::int c from public.skill_rules"))[0].c === 14
+);
+const bebasL2 = (await q("select g.id, g.target_value, g.version from public.skill_test_targets g join public.skill_test_types t on t.id=g.test_type_id where t.code='jarak_bebas' and g.level=2"))[0];
+check(
+  "curriculum seed: Bebas Level 2 target is 25 m and Kupu-kupu Level 1 is 5 m",
+  Number(bebasL2.target_value) === 25 &&
+    Number((await q("select g.target_value from public.skill_test_targets g join public.skill_test_types t on t.id=g.test_type_id where t.code='jarak_kupu' and g.level=1"))[0].target_value) === 5
+);
+check("curriculum seed: Floating/Treading/Rangkaian have no default target", (await q("select count(*)::int c from public.skill_test_targets g join public.skill_test_types t on t.id=g.test_type_id where t.measure<>'distance_m'"))[0].c === 0);
+
+// the switch: admin only, reversible, nothing deleted
+await as(PA);
+check("switch: a pengajar cannot switch the curriculum", /not authorized/.test((await fails(() => db.query("select public.set_curriculum_mode($1,'levels_v1')", [KIDS]))) ?? ""));
+await as(ADMIN);
+await db.query("select public.set_curriculum_mode($1,'levels_v1')", [KIDS]);
+await su();
+check(
+  "switch on: seeded curriculum is live, legacy indicators hidden but kept",
+  (await q("select count(*)::int c from public.indicators where program_id=$1 and active", [KIDS]))[0].c === 77 &&
+    (await q("select count(*)::int c from public.indicators where program_id=$1 and key='Gaya Bebas - Gerakan Kaki' and not active", [KIDS]))[0].c === 1
+);
+check("switch on: the program is marked levels_v1", (await q("select curriculum_mode from public.programs where id=$1", [KIDS]))[0].curriculum_mode === "levels_v1");
+await as(ADMIN);
+await db.query("select public.set_curriculum_mode($1,'legacy')", [KIDS]);
+await su();
+check("switch off restores exactly the previously active indicators", JSON.stringify((await q("select key from public.indicators where program_id=$1 and active order by key", [KIDS])).map((r) => r.key)) === JSON.stringify(kidsActiveBefore));
+await as(ADMIN);
+check("switch refuses a program that has no prepared curriculum", /not prepared/.test((await fails(() => db.query("select public.set_curriculum_mode($1,'levels_v1')", [ADULT]))) ?? ""));
+
+// results: saved atomically with the report, derived (never stored) achievements
+await su();
+const tt = Object.fromEntries((await q("select code, id from public.skill_test_types")).map((r) => [r.code, r.id]));
+const bebasGroup = (await q("select id from public.indicator_groups where program_id=$1 and slug='bebas'", [KIDS]))[0].id;
+const dadaGroup = (await q("select id from public.indicator_groups where program_id=$1 and slug='dada'", [KIDS]))[0].id;
+const punggungGroup = (await q("select id from public.indicator_groups where program_id=$1 and slug='punggung'", [KIDS]))[0].id;
+await as(PA);
+await db.query(
+  "insert into public.progress_reports (id, student_id, enrollment_id, pelatih_id, session_date, attendance, scores, curriculum_version, assessment_context, status) values ($1,$2,$3,$4,'2026-09-08','hadir',$5::jsonb,1,$6::jsonb,'final')",
+  [uid(1000), uid(100), rara.id, PA, JSON.stringify({ k1_bebas_l2_posisi_tubuh: 4, k1_bebas_l2_gerakan_kaki: 4 }), JSON.stringify({ skills: { [bebasGroup]: { level: 2 } }, na: {} })]
+);
+const test15 = [{ test_type_id: tt.jarak_bebas, level: 2, distance_m: 15, assisted: false, technique_met: true, validation: "divalidasi", conditions: "Kolam 25 m", notes: "napas tidak stabil setelah 15 m" }];
+await db.query("select public.save_report_tests($1,$2::jsonb)", [uid(1000), JSON.stringify(test15)]);
+await db.query("select public.save_report_tests($1,$2::jsonb)", [uid(1000), JSON.stringify(test15)]);
+const r15 = await q("select distance_m, target_id, validation from public.skill_test_results where progress_report_id=$1", [uid(1000)]);
+check("results: saving the same tests twice never duplicates (one row per report+test)", r15.length === 1);
+check("results: a 15 m result is stored as measured and pinned to the 25 m target row (not opened)", Number(r15[0].distance_m) === 15 && r15[0].target_id === bebasL2.id);
+await as(PB);
+check("results: tests can only be saved by the report's author (another pengajar cannot even see the report)", /not authorized|report not found/.test((await fails(() => db.query("select public.save_report_tests($1,$2::jsonb)", [uid(1000), JSON.stringify(test15)]))) ?? ""));
+await as(PA);
+check(
+  "results: direct duplicate insert for the same report+test is refused",
+  (await fails(() => db.query("insert into public.skill_test_results (progress_report_id, enrollment_id, student_id, test_type_id, level, distance_m) values ($1,$2,$3,$4,2,5)", [uid(1000), rara.id, uid(100), tt.jarak_bebas]))) !== null
+);
+check("results: a result must carry a measurement", (await fails(() => db.query("select public.save_report_tests($1,$2::jsonb)", [uid(1000), JSON.stringify([{ test_type_id: tt.jarak_bebas, level: 2 }])]))) !== null);
+await db.query("select public.save_report_tests($1,$2::jsonb)", [uid(1000), JSON.stringify(test15)]);
+
+// targets are immutable; a new standard is a new version and old results keep their meaning
+await as(ADMIN);
+check("targets: the value of an existing target cannot be rewritten", /target_immutable/.test((await fails(() => db.query("update public.skill_test_targets set target_value = 30 where id=$1", [bebasL2.id]))) ?? ""));
+await db.query("update public.skill_test_targets set active=false where id=$1", [bebasL2.id]);
+await db.query("insert into public.skill_test_targets (test_type_id, level, target_value, version, created_by) values ($1,2,30,2,$2)", [tt.jarak_bebas, ADMIN]);
+await as(PA);
+await db.query("select public.save_report_tests($1,$2::jsonb)", [uid(1000), JSON.stringify(test15)]);
+check("targets: editing the report keeps the ORIGINAL (25 m) target version", (await q("select target_id from public.skill_test_results where progress_report_id=$1", [uid(1000)]))[0].target_id === bebasL2.id);
+await db.query(
+  "insert into public.progress_reports (id, student_id, enrollment_id, pelatih_id, session_date, attendance, scores, curriculum_version, status) values ($1,$2,$3,$4,'2026-09-15','hadir','{}'::jsonb,1,'final')",
+  [uid(1001), uid(100), rara.id, PA]
+);
+await db.query("select public.save_report_tests($1,$2::jsonb)", [uid(1001), JSON.stringify([{ test_type_id: tt.jarak_bebas, level: 2, distance_m: 28, technique_met: true }])]);
+const v2 = (await q("select g.version from public.skill_test_results r join public.skill_test_targets g on g.id=r.target_id where r.progress_report_id=$1", [uid(1001)]))[0].version;
+check("targets: a NEW report is measured against the newest target version", v2 === 2);
+
+// visibility follows the report: parents never see drafts, strangers see nothing
+await su();
+await db.exec(`update public.progress_reports set status='draft' where id='${uid(1001)}'`);
+await as(P1);
+check("RLS: a parent sees results of final reports of their child", (await q("select id from public.skill_test_results where progress_report_id=$1", [uid(1000)])).length === 1);
+check("RLS: a parent never sees results of a DRAFT report", (await q("select id from public.skill_test_results where progress_report_id=$1", [uid(1001)])).length === 0);
+await as(P2);
+check("RLS: another family sees none", (await q("select id from public.skill_test_results")).length === 0);
+await as(PB);
+check("RLS: an unrelated pengajar sees none", (await q("select id from public.skill_test_results where enrollment_id=$1", [rara.id])).length === 0);
+await as(P1);
+await db.query("delete from public.skill_test_results");
+await su();
+check("RLS: a parent cannot delete results", (await q("select count(*)::int c from public.skill_test_results where progress_report_id=$1", [uid(1000)]))[0].c === 1);
+
+// deleting a report takes its results with it (no orphan achievements)
+await as(PA);
+await db.query("delete from public.progress_reports where id=$1", [uid(1001)]);
+await su();
+check("results: deleting a report removes its results (nothing left to fake an achievement)", (await q("select count(*)::int c from public.skill_test_results where progress_report_id=$1", [uid(1001)]))[0].c === 0);
+
+// level per stroke per child
+await as(PA);
+await db.query("insert into public.skill_level_events (enrollment_id, group_id, level, kind, confirmed_by, note) values ($1,$2,2,'placement',$3,'asesmen penempatan')", [rara.id, bebasGroup, PA]);
+check("levels: a placement can be recorded per stroke (Level 2 Bebas)", (await q("select level from public.skill_level_events where enrollment_id=$1 and group_id=$2", [rara.id, bebasGroup]))[0].level === 2);
+check(
+  "levels: a second placement for the same stroke is refused",
+  /placement_exists/.test((await fails(() => db.query("insert into public.skill_level_events (enrollment_id, group_id, level, kind, confirmed_by) values ($1,$2,1,'placement',$3)", [rara.id, bebasGroup, PA]))) ?? "")
+);
+check(
+  "levels: promotion cannot skip a level",
+  /promotion_must_follow/.test((await fails(() => db.query("insert into public.skill_level_events (enrollment_id, group_id, level, kind, confirmed_by) values ($1,$2,1,'promotion',$3)", [rara.id, bebasGroup, PA]))) ?? "")
+);
+await db.query("insert into public.skill_level_events (enrollment_id, group_id, level, kind, confirmed_by) values ($1,$2,1,'placement',$3)", [rara.id, dadaGroup, PA]);
+check("levels: Level 2 Bebas and Level 1 Dada coexist for the same child", (await q("select count(distinct group_id)::int c from public.skill_level_events where enrollment_id=$1", [rara.id]))[0].c === 2);
+await db.query("update public.skill_level_events set level=3");
+await db.query("delete from public.skill_level_events");
+await su();
+check("levels: a pengajar cannot rewrite or delete a recorded level", (await q("select count(*)::int c from public.skill_level_events where enrollment_id=$1 and level in (1,2)", [rara.id]))[0].c === 2);
+await as(PB);
+check(
+  "levels: a pengajar who does not teach the child cannot record one",
+  (await fails(() => db.query("insert into public.skill_level_events (enrollment_id, group_id, level, kind, confirmed_by) values ($1,$2,1,'placement',$3)", [rara.id, punggungGroup, PB]))) !== null
+);
+await as(P1);
+check("levels: the child's parent can read the levels", (await q("select id from public.skill_level_events where enrollment_id=$1", [rara.id])).length === 2);
+await as(P2);
+check("levels: another family cannot", (await q("select id from public.skill_level_events")).length === 0);
+
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
 process.exit(failed.length ? 1 : 0);
