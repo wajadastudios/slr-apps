@@ -17,6 +17,8 @@ import { GOAL_UNITS } from "@/lib/personal-goals";
 import { GHOST_BUTTON } from "@/lib/ui-classes";
 import { MilestoneWorkspace } from "../milestone/milestone-workspace";
 import { IndicatorWorkspace, type IndGroup } from "./indicator-workspace";
+import { CurriculumAdmin, type AdminSkill } from "./curriculum-admin";
+import { loadCurriculumMode } from "@/lib/curriculum/loader";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -35,7 +37,18 @@ export default async function PenilaianPage({
   const programs = (programRows ?? []).map((p) => ({ ...normalizeProgram(p), active: p.active !== false }));
 
   const program = programs.find((p) => p.id === programParam) ?? programs.find((p) => p.active) ?? programs[0];
-  const tab = tabParam === "rekor" ? "rekor" : "indikator";
+  // The level-curriculum tab only appears once its content has been prepared
+  // (migrations 0048 + 0049); a program without it behaves exactly as before.
+  const { count: seededCount, error: seededError } = program
+    ? await supabase
+        .from("indicators")
+        .select("id", { count: "exact", head: true })
+        .eq("program_id", program.id)
+        .not("seed_key", "is", null)
+    : { count: 0, error: null };
+  const hasCurriculum = !seededError && (seededCount ?? 0) > 0;
+  const curriculumMode = program && hasCurriculum ? await loadCurriculumMode(supabase, program.id) : "legacy";
+  const tab = tabParam === "rekor" ? "rekor" : tabParam === "kurikulum" && hasCurriculum ? "kurikulum" : "indikator";
 
   if (!program) {
     return (
@@ -106,13 +119,26 @@ export default async function PenilaianPage({
 
         <nav aria-label="Bagian penilaian" className="mt-3 inline-flex gap-1 rounded-2xl border border-white/60 bg-white/70 p-1">
           {tabLink("indikator", "Indikator")}
+          {hasCurriculum && tabLink("kurikulum", "Kurikulum Level")}
           {tabLink("rekor", "Rekor & Milestone")}
         </nav>
         {error && <p className="mt-3 text-sm text-red-700">{decodeURIComponent(error)}</p>}
       </GlassCard>
 
+      {tab === "kurikulum" && (
+        <CurriculumTab programId={program.id} programName={program.name} mode={curriculumMode} />
+      )}
+
       {tab === "indikator" && (
         <>
+          {curriculumMode === "levels_v1" && (
+            <GlassCard tone="soft">
+              <p className="text-sm text-slate-700">
+                Program ini memakai <strong>kurikulum level</strong>. Indikator di bawah adalah daftar lengkap termasuk indikator lama
+                yang disembunyikan. Atur rubrik, level, dan target di tab <strong>Kurikulum Level</strong>.
+              </p>
+            </GlassCard>
+          )}
           {levels && (
             <GlassCard tone="soft">
               <p className="text-sm font-semibold text-[#17263D]">Skala penilaian (tetap)</p>
@@ -143,6 +169,92 @@ export default async function PenilaianPage({
       )}
     </div>
   );
+}
+
+async function CurriculumTab({
+  programId,
+  programName,
+  mode,
+}: {
+  programId: string;
+  programName: string;
+  mode: "legacy" | "levels_v1";
+}) {
+  const supabase = await createClient();
+  const { data: groups } = await supabase
+    .from("indicator_groups")
+    .select("id, name, slug, has_levels, sort_order")
+    .eq("program_id", programId)
+    .not("slug", "is", null)
+    .order("sort_order");
+  const ids = (groups ?? []).map((g) => g.id as string);
+  const [indRes, ruleRes, typeRes] = await Promise.all([
+    supabase
+      .from("indicators")
+      .select("id, group_id, level, label, description, rubric, required, active, sort_order")
+      .eq("program_id", programId)
+      .not("seed_key", "is", null),
+    ids.length
+      ? supabase.from("skill_rules").select("group_id, level, mastery_min_score, min_evidence_sessions, requires_test").in("group_id", ids)
+      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    supabase.from("skill_test_types").select("id, group_id, label, measure, level_specific, active, sort_order").eq("program_id", programId),
+  ]);
+  const typeIds = (typeRes.data ?? []).map((t) => t.id as string);
+  const { data: targetRows } = typeIds.length
+    ? await supabase
+        .from("skill_test_targets")
+        .select("id, test_type_id, level, target_value, requires_unassisted, requires_technique, version, active")
+        .in("test_type_id", typeIds)
+    : { data: [] as Record<string, unknown>[] };
+
+  const skills: AdminSkill[] = (groups ?? []).map((g) => ({
+    id: g.id as string,
+    name: g.name as string,
+    hasLevels: g.has_levels === true,
+    rules: (ruleRes.data ?? [])
+      .filter((r) => r.group_id === g.id)
+      .map((r) => ({
+        level: r.level === null ? null : Number(r.level),
+        masteryMinScore: Number(r.mastery_min_score),
+        minEvidenceSessions: Number(r.min_evidence_sessions),
+        requiresTest: r.requires_test === true,
+      })),
+    indicators: (indRes.data ?? [])
+      .filter((i) => i.group_id === g.id)
+      .map((i) => ({
+        id: i.id as string,
+        level: i.level === null ? null : Number(i.level),
+        label: i.label as string,
+        description: (i.description as string | null) ?? null,
+        rubric: (i.rubric as string | null) ?? null,
+        required: i.required !== false,
+        active: i.active === true,
+        sortOrder: Number(i.sort_order ?? 0),
+      })),
+    tests: (typeRes.data ?? [])
+      .filter((t) => t.group_id === g.id)
+      .sort((a, b) => Number(a.sort_order) - Number(b.sort_order))
+      .map((t) => ({
+        id: t.id as string,
+        label: t.label as string,
+        measure: t.measure as "distance_m" | "duration_s" | "checklist",
+        levelSpecific: t.level_specific === true,
+        active: t.active !== false,
+        targets: (targetRows ?? [])
+          .filter((x) => x.test_type_id === t.id)
+          .map((x) => ({
+            id: x.id as string,
+            level: x.level === null ? null : Number(x.level),
+            value: Number(x.target_value),
+            requiresUnassisted: x.requires_unassisted !== false,
+            requiresTechnique: x.requires_technique !== false,
+            version: Number(x.version),
+            active: x.active !== false,
+          })),
+      })),
+  }));
+
+  return <CurriculumAdmin key={programId} programId={programId} programName={programName} mode={mode} skills={skills} />;
 }
 
 async function IndicatorTab({ programId, sel }: { programId: string; sel?: string }) {
