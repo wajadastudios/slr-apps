@@ -16,6 +16,9 @@ import { ReportHistoryCard, type ReportRevision, type ReportRow } from "@/compon
 import { EvaluationSummary } from "@/components/evaluation-summary";
 import { ToastForm } from "@/components/ui/toast-form";
 import { MediaFileInput } from "@/components/media-file-input";
+import { CurriculumReportForm } from "@/components/curriculum-report-form";
+import { loadCurriculumData, loadCurriculumMode, loadReportTestResults } from "@/lib/curriculum/loader";
+import { initialFormState, stateFromReport } from "@/lib/curriculum/form-state";
 import { computeMilestoneStatuses, formatMilestoneValue, pickNextTarget } from "@/lib/milestones";
 import { computeLatestAchievement, latestAttendedReport, latestNextFocus } from "@/lib/progress";
 import { formGroups, relevantGroupIds, resolveReportIndicators } from "@/lib/indicators";
@@ -66,10 +69,10 @@ export default async function MuridReportPage({
   searchParams,
 }: {
   params: Promise<{ studentId: string }>;
-  searchParams: Promise<{ error?: string; tanggal?: string; program?: string }>;
+  searchParams: Promise<{ error?: string; tanggal?: string; program?: string; edit?: string }>;
 }) {
   const { studentId } = await params;
-  const { error, tanggal, program: programParam } = await searchParams;
+  const { error, tanggal, program: programParam, edit: editParam } = await searchParams;
   const supabase = await createClient();
   // Independent lookups run together (one round-trip instead of four):
   // session (memoised, shared with the layout), the student, this pengajar's
@@ -138,7 +141,7 @@ export default async function MuridReportPage({
   const goalsMode = program.records_mode === "personal_goals";
   const age = formatAge(student.birth_date);
 
-  const [indicatorConfig, milestones, reportsRes, recordsRes, goalsRes, quotaRes] = await Promise.all([
+  const [indicatorConfig, milestones, reportsRes, recordsRes, goalsRes, quotaRes, curriculumMode] = await Promise.all([
     loadIndicatorConfig(supabase, program.id),
     medals ? loadMilestones(supabase, program.id) : Promise.resolve([]),
     supabase
@@ -157,7 +160,12 @@ export default async function MuridReportPage({
           .eq("enrollment_id", enrollment.id)
       : Promise.resolve({ data: [] as never[] }),
     supabase.rpc("pelatih_session_quota", { p_enrollment_id: enrollment.id }),
+    // Only Kids-style (star) programs can run the level curriculum; for every
+    // other program this stays "legacy" and nothing below changes.
+    usesStars(type) ? loadCurriculumMode(supabase, program.id) : Promise.resolve("legacy" as const),
   ]);
+  const curriculumOn = curriculumMode === "levels_v1";
+  const curriculumData = curriculumOn ? await loadCurriculumData(supabase, { programId: program.id, enrollmentId: enrollment.id }) : null;
   const rawReports = (reportsRes.data ?? []) as unknown as (Omit<ReportRow, "author_name" | "revisions"> & {
     author: { full_name: string | null } | null;
   })[];
@@ -211,7 +219,7 @@ export default async function MuridReportPage({
   // concrete achievement ("Meningkat pada X" / "Sudah baik pada Y") is more
   // meaningful than one averaged number, and simply hides itself (returns
   // null) when there isn't enough data to say something true.
-  const latestAchievement = usesStars(type)
+  const latestAchievement = usesStars(type) && !curriculumOn
     ? computeLatestAchievement(finalReports, indicatorConfig)
     : null;
   const formGroupList = formGroups(indicatorConfig);
@@ -228,9 +236,29 @@ export default async function MuridReportPage({
   // If today's session already has an unfinished draft of the caller's own,
   // resume it instead of trying to create a second row for the same date
   // (progress_reports_enrollment_session_date_unique would refuse that).
-  const todayDraft = reports.find(
+  const todayDraftAny = reports.find(
     (r) => r.session_date === today && r.pelatih_id === session.user.id && r.status === "draft"
   );
+  // On the level curriculum a draft from before the switch cannot be resumed
+  // (it was written with the old indicators); only a curriculum draft can.
+  const todayDraft = curriculumOn && todayDraftAny && todayDraftAny.curriculum_version == null ? undefined : todayDraftAny;
+  const blockedLegacyDraft = curriculumOn && !!todayDraftAny && !todayDraft;
+
+  // A saved curriculum report opens in the same form via ?edit=<id>; so does today's draft.
+  const editReport = curriculumOn && editParam
+    ? reports.find((r) => r.id === editParam && r.pelatih_id === session.user.id && r.curriculum_version != null)
+    : undefined;
+  const formReport = editReport ?? todayDraft;
+  let curriculumInitialState = curriculumData ? initialFormState(curriculumData) : null;
+  if (curriculumData && formReport) {
+    const results = await loadReportTestResults(supabase, formReport.id, formReport.session_date);
+    curriculumInitialState = stateFromReport(
+      curriculumData,
+      { scores: (formReport.scores ?? {}) as Record<string, number>, context: formReport.assessment_context ?? {} },
+      results,
+      { lockLevels: formReport.status === "final" }
+    );
+  }
 
   const revisionsByReport = new Map<string, ReportRevision[]>();
   {
@@ -276,7 +304,7 @@ export default async function MuridReportPage({
     evalLatestIndicatorLabel = pick ? `${pick.group} - ${pick.label}` : null;
   }
   const milestoneStatuses = medals ? computeMilestoneStatuses(performanceRecords, milestones) : [];
-  const nextTarget = medals ? pickNextTarget(milestoneStatuses) : null;
+  const nextTarget = medals && !curriculumOn ? pickNextTarget(milestoneStatuses) : null;
   const nextTargetLabel = nextTarget
     ? `${nextTarget.status.milestone.label} · ${formatMilestoneValue(nextTarget.status.milestone.metric_type, nextTarget.value)}`
     : null;
@@ -379,13 +407,58 @@ export default async function MuridReportPage({
       )}
 
       <GlassCard>
-        <h2 className={`mb-4 ${HEADING}`}>
-          {todayDraft
-            ? "Lanjutkan Draft Sesi Ini"
-            : isObservation
-              ? "Isi Catatan Sesi Aquanatal"
-              : `Isi ${reportTitle(type)} Baru`}
+        <h2 id="form-laporan" className={`mb-4 scroll-mt-20 ${HEADING}`}>
+          {editReport && editReport.status === "final"
+            ? "Ubah Laporan Sesi"
+            : formReport
+              ? "Lanjutkan Draft Sesi Ini"
+              : isObservation
+                ? "Isi Catatan Sesi Aquanatal"
+                : `Isi ${reportTitle(type)} Baru`}
         </h2>
+        {blockedLegacyDraft && (
+          <p className="mb-3 rounded-xl bg-[#FFF8E1] px-3 py-2 text-xs text-[#6b5200]">
+            Ada draft untuk tanggal ini dari sebelum kurikulum level. Draft itu tidak bisa dilanjutkan dengan form baru;
+            hapus dulu dari Riwayat Laporan, lalu isi laporan baru.
+          </p>
+        )}
+        {editReport && (
+          <p className="mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-[#EEF9FB] px-3 py-2 text-xs text-slate-700">
+            Anda sedang mengubah laporan tanggal {formatShortDate(editReport.session_date)}.
+            <Link href={`/pelatih/murid/${studentId}?program=${program.id}`} className="font-semibold text-[#1597A3] underline">
+              Batal, kembali ke form baru
+            </Link>
+          </p>
+        )}
+        {curriculumData && curriculumInitialState ? (
+          <CurriculumReportForm
+            key={formReport?.id ?? "new"}
+            studentId={studentId}
+            enrollmentId={enrollment.id}
+            data={curriculumData}
+            defaultDate={today}
+            defaultSessionNumber={nextSessionNumber}
+            editing={
+              formReport
+                ? {
+                    reportId: formReport.id,
+                    sessionDate: formReport.session_date,
+                    sessionNumber: formReport.session_number,
+                    attendance: formReport.attendance,
+                    lateNotice: formReport.late_notice === true,
+                    notes: formReport.notes,
+                    nextFocus: formReport.next_focus,
+                    isDraft: formReport.status === "draft",
+                  }
+                : null
+            }
+            narrativeDue={narrativeDue}
+            action={formReport ? updateReportAction : createReportAction}
+            initialState={curriculumInitialState}
+            error={error}
+          />
+        ) : (
+        <>
         {todayDraft && (
           <p className="mb-3 rounded-xl bg-[#FFF8E1] px-3 py-2 text-xs text-[#6b5200]">
             Sesi ini punya draft yang belum difinalisasi. Melanjutkan mengisi di bawah akan memperbarui draft yang
@@ -462,9 +535,11 @@ export default async function MuridReportPage({
             </GlassButton>
           </AttendanceProvider>
         </ToastForm>
+        </>
+        )}
       </GlassCard>
 
-      {medals && (
+      {medals && !curriculumOn && (
         <>
           <RecordUnlockCard statuses={milestoneStatuses} />
           <PerformanceRecordsManager
@@ -493,7 +568,7 @@ export default async function MuridReportPage({
         />
       )}
 
-      {!isObservation && (
+      {!isObservation && !curriculumOn && (
         <EvaluationSummary
           indicatorConfig={indicatorConfig}
           reports={finalReports}
@@ -517,6 +592,8 @@ export default async function MuridReportPage({
         correctionAction={submitReportCorrectionAction}
         cyclePositions={cyclePositions}
         draftNarrativeDue={narrativeDue}
+        curriculum={curriculumData}
+        editHref={(id) => `/pelatih/murid/${studentId}?program=${program.id}&edit=${id}#form-laporan`}
       />
     </div>
   );

@@ -8,7 +8,7 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { StarRating } from "@/components/ui/star-rating";
 import { MediaFileInput } from "@/components/media-file-input";
 import { NarrativeField } from "@/components/narrative-field";
-import { AttendanceProvider, AttendanceSelect, PresentOnly, useIsAbsent } from "@/components/report-attendance";
+import { AttendanceProvider, AttendanceSelect, LateNoticeField, PresentOnly, useIsAbsent } from "@/components/report-attendance";
 import { coverageLabel } from "@/lib/curriculum/summary";
 import { indicatorStatus, skillStarted } from "@/lib/curriculum/status";
 import { currentLevel } from "@/lib/curriculum/levels";
@@ -37,9 +37,9 @@ export type CurriculumFormEditing = {
   sessionDate: string;
   sessionNumber: number | null;
   attendance: string | null;
+  lateNotice: boolean;
   notes: string | null;
   nextFocus: string | null;
-  state: FormState;
   isDraft: boolean;
 };
 
@@ -124,7 +124,7 @@ function IndicatorRow({
       {mode === "dinilai" && (
         <div className="flex flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-3">
-            <StarRating value={item.score ?? 0} size={30} label={indicator.label} onChange={(v) => onChange({ mode: "dinilai", score: v, reason: "" })} />
+            <StarRating value={item.score ?? 0} size={30} label={indicator.label} onChange={(v) => onChange({ mode: "dinilai", score: v === 0 ? null : v, reason: "" })} />
             <button
               type="button"
               onClick={() => onChange({ mode: "dinilai", score: 0, reason: "" })}
@@ -536,6 +536,7 @@ export function CurriculumReportForm({
           <div className="flex flex-col gap-1.5">
             <label className="text-sm text-slate-800">Kehadiran</label>
             <AttendanceSelect initial={editing?.attendance ?? "hadir"} />
+            <LateNoticeField initial={editing?.lateNotice === true} />
           </div>
         </div>
 

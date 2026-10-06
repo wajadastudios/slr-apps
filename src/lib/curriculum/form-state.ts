@@ -30,6 +30,9 @@ export type SkillState = {
   selected: boolean;
   // chosen in the form when the child has no recorded level for this stroke yet
   placementLevel: Level | null;
+  // editing a saved report keeps the level (and so the rubric) it was written
+  // at, even if the child has been promoted since
+  lockedLevel?: Level | null;
   items: Record<string, ItemState>;
 };
 
@@ -85,13 +88,19 @@ export function initialFormState(data: CurriculumData): FormState {
 export function stateFromReport(
   data: CurriculumData,
   report: Pick<CurriculumReport, "scores" | "context">,
-  results: TestResult[]
+  results: TestResult[],
+  opts: { lockLevels?: boolean } = {}
 ): FormState {
   const state = initialFormState(data);
   const keySkill = new Map(data.indicators.map((i) => [i.key, i.skillId]));
 
-  for (const id of Object.keys(report.context.skills ?? {})) {
-    if (state.skills[id]) state.skills[id].selected = true;
+  for (const [id, ctx] of Object.entries(report.context.skills ?? {})) {
+    if (!state.skills[id]) continue;
+    state.skills[id].selected = true;
+    if (isLevel(ctx?.level)) {
+      state.skills[id].placementLevel = ctx.level;
+      if (opts.lockLevels) state.skills[id].lockedLevel = ctx.level;
+    }
   }
   for (const [key, score] of Object.entries(report.scores)) {
     const skillId = keySkill.get(key);
@@ -138,7 +147,8 @@ export function parseNumber(s: string): number | null {
 // placement chosen in this form. Skills without levels have none.
 export function skillLevel(data: CurriculumData, skill: CurriculumSkill, state: FormState): Level | null {
   if (!skill.hasLevels) return null;
-  return currentLevel(skill.id, data.levelEvents)?.level ?? state.skills[skill.id]?.placementLevel ?? null;
+  const ss = state.skills[skill.id];
+  return ss?.lockedLevel ?? currentLevel(skill.id, data.levelEvents)?.level ?? ss?.placementLevel ?? null;
 }
 
 export function liveIndicators(data: CurriculumData, skillId: string, level: Level | null): CurriculumIndicator[] {

@@ -1,7 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
+import { CurriculumReportDetail } from "@/components/curriculum-report-detail";
+import { LEGACY_ZERO_LABEL } from "@/lib/curriculum/status";
+import type { AssessmentContext, CurriculumData } from "@/lib/curriculum/types";
 import { GlassButton } from "@/components/ui/glass-button";
 import { GlassInput } from "@/components/ui/glass-input";
 import { GlassTextarea } from "@/components/ui/glass-textarea";
@@ -77,6 +81,9 @@ export type ReportRow = {
   // a draft is only ever visible to the pengajar who wrote it (RLS), so
   // ReportHistoryCard is the one place it can legitimately show up at all.
   status?: "draft" | "final" | "cancelled";
+  // set for reports written on the level curriculum (null/absent = written before it)
+  curriculum_version?: number | null;
+  assessment_context?: AssessmentContext | null;
 };
 
 type ReportAction = (prev: ActionState, formData: FormData) => Promise<ActionState>;
@@ -262,12 +269,16 @@ function ReportEntry({
   correctionAction,
   cyclePosition,
   draftNarrativeDue,
+  curriculum,
+  editHref,
 }: {
   report: ReportRow;
   studentId: string;
   indicatorConfig: IndicatorConfig;
   parentView: boolean;
   editable: boolean;
+  curriculum?: CurriculumData | null;
+  editHref?: (reportId: string) => string;
   viewerId?: string | null;
   updateAction?: ReportAction;
   deleteAction?: ReportAction;
@@ -290,7 +301,12 @@ function ReportEntry({
   // database, this only keeps the UI from offering a control that would
   // fail. Callers that never pass viewerId (admin, who may edit anything;
   // the parent's read-only latest-report card) keep the old blanket flag.
+  // On a level-curriculum program, reports from before the switch keep their
+  // old meaning (read-only here) and curriculum reports edit on the new form.
+  const isCurriculumReport = !!curriculum && report.curriculum_version != null;
+  const isPreCurriculum = !!curriculum && report.curriculum_version == null;
   const canEdit = editable && (viewerId == null || report.pelatih_id === viewerId);
+  const canEditHere = canEdit && !isPreCurriculum && (!isCurriculumReport || !!editHref);
   const isOthersReport = viewerId != null && report.pelatih_id != null && report.pelatih_id !== viewerId;
 
   const scores = (report.scores as Record<string, number>) ?? {};
@@ -307,7 +323,7 @@ function ReportEntry({
   }, []);
   // A missed session (izin/sakit) says nothing about what the child can do.
   const parentGroups =
-    parentView && !isAbsent(report.attendance) && usesStars(type)
+    parentView && !isAbsent(report.attendance) && usesStars(type) && !isCurriculumReport
       ? summarizeReportGroups(scores, report.indicator_snapshot, indicatorConfig)
       : [];
   const parentLevelGroups =
@@ -315,7 +331,7 @@ function ReportEntry({
       ? summarizeLevelGroups(scores, report.indicator_snapshot, indicatorConfig, type)
       : [];
 
-  if (editing && canEdit && updateAction) {
+  if (editing && canEditHere && !isCurriculumReport && updateAction) {
     return (
       <div className="rounded-xl border border-[#35C5D0]/40 bg-white/50 px-4 py-3">
         <ToastForm action={updateAction} className="flex flex-col gap-3">
@@ -521,15 +537,32 @@ function ReportEntry({
         </div>
       )}
 
+      {isPreCurriculum && !isAbsent(report.attendance) && resolved.length > 0 && (
+        <p className="mt-3 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+          Penilaian sebelum kurikulum level
+        </p>
+      )}
+
+      {isCurriculumReport && !isAbsent(report.attendance) && (
+        <CurriculumReportDetail
+          data={curriculum!}
+          report={{
+            id: report.id,
+            scores: (report.scores as Record<string, number>) ?? {},
+            context: report.assessment_context ?? {},
+          }}
+        />
+      )}
+
       {parentView && <ParentIndicatorSummary groups={parentGroups} />}
-      {parentView && (
+      {parentView && !isCurriculumReport && (
         <ParentLevelSummary
           groups={parentLevelGroups}
           title={type === "observation" ? "Catatan observasi" : "Penilaian dukungan & kemandirian"}
         />
       )}
 
-      {!parentView && resolved.length > 0 && (
+      {!parentView && !isCurriculumReport && resolved.length > 0 && (
         <AccordionItem
           variant="ortu"
           chevronSize="sm"
@@ -555,7 +588,9 @@ function ReportEntry({
                 {group.items.map((r) => (
                   <div key={r.key} className="flex items-center justify-between gap-3">
                     <span className="text-sm text-slate-700">{r.label}</span>
-                    {usesStars(type) ? (
+                    {usesStars(type) && isPreCurriculum && r.score === 0 ? (
+                      <span className="text-xs font-medium text-slate-500">{LEGACY_ZERO_LABEL}</span>
+                    ) : usesStars(type) ? (
                       <StarRating value={r.score} size={14} />
                     ) : (
                       <span className="text-xs font-medium text-[#0b5f8a]">{levelLabel(type, r.score)}</span>
@@ -570,13 +605,24 @@ function ReportEntry({
 
       {canEdit && (
         <div className="mt-3 flex justify-end gap-2 border-t border-white/30 pt-2">
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="rounded-xl border border-white/40 bg-white/40 px-3 py-1.5 text-xs font-medium text-[#17263D] transition-colors hover:bg-white/60 active:bg-white/70"
-          >
-            Edit
-          </button>
+          {isCurriculumReport && editHref && canEditHere ? (
+            <Link
+              href={editHref(report.id)}
+              className="rounded-xl border border-white/40 bg-white/40 px-3 py-1.5 text-xs font-medium text-[#17263D] transition-colors hover:bg-white/60 active:bg-white/70"
+            >
+              Edit
+            </Link>
+          ) : (
+            canEditHere && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="rounded-xl border border-white/40 bg-white/40 px-3 py-1.5 text-xs font-medium text-[#17263D] transition-colors hover:bg-white/60 active:bg-white/70"
+              >
+                Edit
+              </button>
+            )
+          )}
           {deleteAction && (
             <ToastForm action={deleteAction} pendingLabel="Menghapus...">
               <input type="hidden" name="report_id" value={report.id} />
@@ -617,9 +663,14 @@ export function ReportHistoryCard({
   correctionAction,
   cyclePositions,
   draftNarrativeDue,
+  curriculum,
+  editHref,
   id,
   title = "Riwayat Laporan",
 }: {
+  // Level-curriculum programs only: how to render and edit curriculum reports.
+  curriculum?: CurriculumData | null;
+  editHref?: (reportId: string) => string;
   reports: ReportRow[];
   indicatorConfig: IndicatorConfig;
   // anchor for deep links (e.g. #riwayat-laporan) and the card heading
@@ -690,6 +741,8 @@ export function ReportHistoryCard({
             correctionAction={correctionAction}
             cyclePosition={cyclePositions?.get(r.id)}
             draftNarrativeDue={draftNarrativeDue}
+            curriculum={curriculum}
+            editHref={editHref}
           />
         ))}
       </div>
@@ -773,9 +826,11 @@ export function LatestReportCard({
   title = "Laporan Terbaru",
   anchorId = "laporan-terbaru",
   cyclePosition,
+  curriculum,
 }: {
   report: ReportRow;
   indicatorConfig: IndicatorConfig;
+  curriculum?: CurriculumData | null;
   title?: string;
   anchorId?: string;
   cyclePosition?: number;
@@ -792,6 +847,7 @@ export function LatestReportCard({
         parentView
         editable={false}
         cyclePosition={cyclePosition}
+        curriculum={curriculum}
       />
     </GlassCard>
   );

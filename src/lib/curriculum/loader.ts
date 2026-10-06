@@ -29,6 +29,38 @@ export async function loadCurriculumMode(supabase: SupabaseClient, programId: st
 }
 
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
+
+const RESULT_COLUMNS =
+  "id, progress_report_id, test_type_id, level, distance_m, duration_s, time_s, assisted, assistance_note, conditions, conditions_comparable, technique_met, steps_passed, validation, target_id, notes, created_at";
+
+function mapResult(r: Record<string, unknown>, sessionDate: string): TestResult {
+  return {
+    id: r.id as string,
+    reportId: r.progress_report_id as string,
+    sessionDate,
+    testTypeId: r.test_type_id as string,
+    level: lvl(r.level),
+    distanceM: num(r.distance_m),
+    durationS: num(r.duration_s),
+    timeS: num(r.time_s),
+    assisted: r.assisted === true,
+    assistanceNote: (r.assistance_note as string | null) ?? null,
+    conditions: (r.conditions as string | null) ?? null,
+    conditionsComparable: r.conditions_comparable !== false,
+    techniqueMet: r.technique_met === true,
+    stepsPassed: Array.isArray(r.steps_passed) ? (r.steps_passed as boolean[]) : null,
+    validation: r.validation as ValidationStatus,
+    targetId: (r.target_id as string | null) ?? null,
+    notes: (r.notes as string | null) ?? null,
+  };
+}
+
+// The tests of ONE report, final or not -- used to reopen a draft or edit a
+// saved report (loadCurriculumData only returns results of final reports).
+export async function loadReportTestResults(supabase: SupabaseClient, reportId: string, sessionDate: string): Promise<TestResult[]> {
+  const { data } = await supabase.from("skill_test_results").select(RESULT_COLUMNS).eq("progress_report_id", reportId);
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => mapResult(r, sessionDate));
+}
 const lvl = (v: unknown): Level | null => (isLevel(Number(v)) ? (Number(v) as Level) : null);
 
 // Everything the level curriculum needs for ONE enrollment (a participant in
@@ -61,12 +93,7 @@ export async function loadCurriculumData(
       .eq("enrollment_id", enrollmentId)
       .eq("status", "final")
       .order("session_date", { ascending: false }),
-    supabase
-      .from("skill_test_results")
-      .select(
-        "id, progress_report_id, test_type_id, level, distance_m, duration_s, time_s, assisted, assistance_note, conditions, conditions_comparable, technique_met, steps_passed, validation, target_id, notes, created_at"
-      )
-      .eq("enrollment_id", enrollmentId),
+    supabase.from("skill_test_results").select(RESULT_COLUMNS).eq("enrollment_id", enrollmentId),
     supabase
       .from("skill_level_events")
       .select("id, group_id, level, kind, effective_on, created_at, note")
@@ -160,25 +187,7 @@ export async function loadCurriculumData(
   // draft can never contribute a record or an achievement
   const results: TestResult[] = ((resultsRes.data ?? []) as Record<string, unknown>[])
     .filter((r) => dateByReport.has(r.progress_report_id as string))
-    .map((r) => ({
-      id: r.id as string,
-      reportId: r.progress_report_id as string,
-      sessionDate: dateByReport.get(r.progress_report_id as string)!,
-      testTypeId: r.test_type_id as string,
-      level: lvl(r.level),
-      distanceM: num(r.distance_m),
-      durationS: num(r.duration_s),
-      timeS: num(r.time_s),
-      assisted: r.assisted === true,
-      assistanceNote: (r.assistance_note as string | null) ?? null,
-      conditions: (r.conditions as string | null) ?? null,
-      conditionsComparable: r.conditions_comparable !== false,
-      techniqueMet: r.technique_met === true,
-      stepsPassed: Array.isArray(r.steps_passed) ? (r.steps_passed as boolean[]) : null,
-      validation: r.validation as ValidationStatus,
-      targetId: (r.target_id as string | null) ?? null,
-      notes: (r.notes as string | null) ?? null,
-    }));
+    .map((r) => mapResult(r, dateByReport.get(r.progress_report_id as string)!));
 
   const levelEvents: LevelEvent[] = ((eventsRes.data ?? []) as Record<string, unknown>[])
     .filter((e) => isLevel(Number(e.level)))

@@ -14,6 +14,9 @@ import { insertRecords } from "@/lib/record-db";
 import { parseRecordInput, type RecordInput } from "@/lib/record-input";
 import { PROGRAM_SELECT, normalizeProgram, type ProgramMeta } from "@/lib/programs";
 import { parseScoresPayload, scorableKeys, sessionAllowsAssessment } from "@/lib/report-scores";
+import { loadCurriculumData, loadCurriculumMode } from "@/lib/curriculum/loader";
+import { levelsOfContext, parseSubmission, type ParsedSubmission } from "@/lib/curriculum/submission";
+import type { CurriculumData } from "@/lib/curriculum/types";
 
 const LATE_NOTICE_REQUIRED = "Pilih kapan kabar izin diterima.";
 
@@ -148,6 +151,56 @@ function parseReportRecords(
   return { rows, error: null };
 }
 
+// Programs on the level curriculum (Kids Swim once the admin switched it on)
+// write reports through a separate, stricter path: only explicitly assessed
+// indicators are stored, tests are saved atomically with the report, and the
+// level of every stroke is recorded.
+async function curriculumActive(supabase: Db, program: ProgramMeta): Promise<boolean> {
+  return program.assessment_type === "score_5" && (await loadCurriculumMode(supabase, program.id)) === "levels_v1";
+}
+
+function rawSubmission(formData: FormData) {
+  return {
+    scores: String(formData.get("scores_json") ?? "[]"),
+    assessment: String(formData.get("assessment_json") ?? "{}"),
+    tests: String(formData.get("tests_json") ?? "[]"),
+  };
+}
+
+// Saves what hangs off a curriculum report: its tests (atomic) and, for a
+// finished report, the first level of a stroke. Returns an error message or null.
+async function persistCurriculum(
+  supabase: Db,
+  a: {
+    reportId: string;
+    enrollmentId: string;
+    sessionDate: string;
+    status: "draft" | "final";
+    value: ParsedSubmission;
+    userId: string;
+  }
+): Promise<string | null> {
+  const { error } = await supabase.rpc("save_report_tests", { p_report_id: a.reportId, p_tests: a.value.tests });
+  if (error) return "Hasil tes tidak dapat disimpan. Coba lagi.";
+
+  if (a.status === "final") {
+    for (const placement of a.value.placements) {
+      const { error: placeError } = await supabase.from("skill_level_events").insert({
+        enrollment_id: a.enrollmentId,
+        group_id: placement.skillId,
+        level: placement.level,
+        kind: "placement",
+        effective_on: a.sessionDate,
+        confirmed_by: a.userId,
+        note: "Asesmen penempatan",
+      });
+      // another report may have placed this stroke a moment ago -- that level stands
+      if (placeError && !placeError.message.includes("placement_exists")) return "Level awal tidak dapat dicatat. Coba lagi.";
+    }
+  }
+  return null;
+}
+
 async function uploadMedia(supabase: Db, student_id: string, files: File[]): Promise<string[]> {
   const urls: string[] = [];
   for (const file of files) {
@@ -202,17 +255,26 @@ async function createReportActionImpl(formData: FormData) {
   const assess = sessionAllowsAssessment(attendance);
 
   const indicatorConfig = await loadIndicatorConfig(supabase, program.id);
-  const scores = assess
-    ? parseScoresPayload(
-        String(formData.get("scores_json") ?? "[]"),
-        scorableKeys(indicatorConfig),
-        program.assessment_type
-      )
-    : {};
+  let curriculum: { data: CurriculumData; value: ParsedSubmission } | null = null;
+  if (await curriculumActive(supabase, program)) {
+    const data = await loadCurriculumData(supabase, { programId: program.id, enrollmentId: enrollment_id });
+    const parsed = parseSubmission(data, rawSubmission(formData), { assess });
+    if (!parsed.ok) redirect(back(student_id, program.id, parsed.error));
+    curriculum = { data, value: parsed.value };
+  }
+  const scores = curriculum
+    ? curriculum.value.scores
+    : assess
+      ? parseScoresPayload(
+          String(formData.get("scores_json") ?? "[]"),
+          scorableKeys(indicatorConfig),
+          program.assessment_type
+        )
+      : {};
   const indicator_snapshot = buildSnapshot(indicatorConfig, Object.keys(scores));
 
   let recordRows: RecordInput[] = [];
-  if (assess && program.records_mode === "medals") {
+  if (!curriculum && assess && program.records_mode === "medals") {
     let parsedRecords: unknown;
     try {
       parsedRecords = JSON.parse(String(formData.get("performance_records_json") ?? "[]"));
@@ -252,12 +314,29 @@ async function createReportActionImpl(formData: FormData) {
       assessment_type: program.assessment_type,
       template_version: program.template_version,
       status,
+      ...(curriculum ? { curriculum_version: 1, assessment_context: curriculum.value.context } : {}),
     })
     .select("id")
     .single();
 
   if (error) {
     redirect(back(student_id, program.id, narrativeErrorMessage(error.message)));
+  }
+
+  if (curriculum && report) {
+    const failure = await persistCurriculum(supabase, {
+      reportId: report.id,
+      enrollmentId: enrollment_id,
+      sessionDate: session_date,
+      status,
+      value: curriculum.value,
+      userId: session.user.id,
+    });
+    if (failure) {
+      // a brand-new report must not stay half saved
+      await supabase.from("progress_reports").delete().eq("id", report.id);
+      redirect(back(student_id, program.id, failure));
+    }
   }
 
   // First report of a confirmed class: the class is now running.
@@ -339,15 +418,42 @@ async function updateReportActionImpl(formData: FormData) {
   const assess = sessionAllowsAssessment(attendance);
   const indicatorConfig = await loadIndicatorConfig(supabase, program.id);
   const existingScores = (existing.scores ?? {}) as Record<string, number>;
+
+  // A report written on the level curriculum is edited on it; once a program is
+  // on levels, a report from before the switch keeps its original meaning and
+  // is not rewritten with the new form (flag it for correction instead).
+  const isCurriculumReport = existing.curriculum_version !== null && existing.curriculum_version !== undefined;
+  if (!isCurriculumReport && (await curriculumActive(supabase, program))) {
+    redirect(
+      back(
+        student_id,
+        program.id,
+        "Laporan ini dibuat sebelum kurikulum level, jadi tidak dapat diubah di sini. Ajukan koreksi ke admin bila ada yang salah."
+      )
+    );
+  }
+  let curriculum: { data: CurriculumData; value: ParsedSubmission } | null = null;
+  if (isCurriculumReport) {
+    const data = await loadCurriculumData(supabase, { programId: program.id, enrollmentId: existing.enrollment_id });
+    const parsed = parseSubmission(data, rawSubmission(formData), {
+      assess,
+      keepLevels: levelsOfContext(existing.assessment_context),
+      keepKeys: Object.keys(existingScores),
+    });
+    if (!parsed.ok) redirect(back(student_id, program.id, parsed.error));
+    curriculum = { data, value: parsed.value };
+  }
   // Editing an old report may keep indicators that have since been
   // deactivated (it already scored them) but never adds inactive ones.
-  const scores = assess
-    ? parseScoresPayload(
-        String(formData.get("scores_json") ?? "[]"),
-        scorableKeys(indicatorConfig, Object.keys(existingScores)),
-        type
-      )
-    : {};
+  const scores = curriculum
+    ? curriculum.value.scores
+    : assess
+      ? parseScoresPayload(
+          String(formData.get("scores_json") ?? "[]"),
+          scorableKeys(indicatorConfig, Object.keys(existingScores)),
+          type
+        )
+      : {};
   // Keep what the report was written with; only newly scored keys are added.
   const previousSnapshot = (existing.indicator_snapshot ?? {}) as IndicatorSnapshot;
   const freshSnapshot = buildSnapshot(
@@ -381,12 +487,27 @@ async function updateReportActionImpl(formData: FormData) {
       next_focus,
       indicator_snapshot,
       status,
+      ...(curriculum ? { assessment_context: curriculum.value.context } : {}),
     })
     .eq("id", report_id)
     .eq("pelatih_id", session.user.id);
 
   if (error) {
     redirect(back(student_id, program.id, narrativeErrorMessage(error.message)));
+  }
+
+  if (curriculum) {
+    const failure = await persistCurriculum(supabase, {
+      reportId: report_id,
+      enrollmentId: existing.enrollment_id,
+      sessionDate: session_date,
+      status,
+      value: curriculum.value,
+      userId: session.user.id,
+    });
+    if (failure) {
+      redirect(back(student_id, program.id, "Laporan diperbarui, tetapi " + failure.charAt(0).toLowerCase() + failure.slice(1)));
+    }
   }
 
   revalidatePath(`/pelatih/murid/${student_id}`);
