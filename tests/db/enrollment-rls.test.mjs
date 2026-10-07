@@ -991,7 +991,7 @@ await db.query(
   [KIDS, adaptasiId, ADMIN]
 );
 await db.query(
-  "insert into public.legacy_indicator_map (program_id, legacy_key, legacy_label, legacy_group, status, target_indicator_id, method, decided_by) values ($1,'Gaya Bebas - Gerakan Kaki','Gerakan Kaki','Gaya Bebas','manual',$2,'manual',$3)",
+  "insert into public.legacy_indicator_map (program_id, legacy_key, legacy_label, legacy_group, status, target_indicator_id, method, decided_by) values ($1,'Gaya Bebas - Gerakan Kaki','Gerakan Kaki','Gaya Bebas','auto',$2,'level_awal',$3)",
   [KIDS, bebasKaki1, ADMIN]
 );
 await db.query("insert into public.legacy_indicator_map (program_id, legacy_key, legacy_label, legacy_group, status) values ($1,'Water Safety - Floating','Floating','Water Safety','review')", [KIDS]);
@@ -1017,7 +1017,7 @@ await db.query(
 );
 check(
   "mapping: re-applying does not overwrite an admin decision or duplicate rows",
-  (await q("select status, legacy_label from public.legacy_indicator_map where program_id=$1 and legacy_key='Gaya Bebas - Gerakan Kaki'", [KIDS]))[0].status === "manual" &&
+  (await q("select status, legacy_label from public.legacy_indicator_map where program_id=$1 and legacy_key='Gaya Bebas - Gerakan Kaki'", [KIDS]))[0].status === "auto" &&
     (await q("select count(*)::int c from public.legacy_indicator_map where program_id=$1", [KIDS]))[0].c === 3
 );
 

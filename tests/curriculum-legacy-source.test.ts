@@ -24,11 +24,11 @@ const keys = [
 ];
 const state = (rows: MapRow[]): MappingState => ({ skills: skills.map((s) => ({ id: s.id, name: s.name, hasLevels: s.hasLevels })), targets, keys, rows, ready: true });
 
-test("before anything is stored: two keys are ready to apply automatically, one needs review", () => {
+test("before anything is stored: every key is ready to apply automatically (strokes at Level 1)", () => {
   const s = summarize(reviewRows(state([])));
   assert.equal(s.keys, 3);
-  assert.equal(s.pendingAuto, 2);
-  assert.equal(s.needsReview, 1);
+  assert.equal(s.pendingAuto, 3);
+  assert.equal(s.needsReview, 0);
   assert.equal(s.done, 0);
   assert.equal(s.scores, 300);
 });

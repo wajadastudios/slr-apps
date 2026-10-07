@@ -24,7 +24,7 @@ create table if not exists public.legacy_indicator_map (
   -- (riwayatnya tetap tampil di "Riwayat kurikulum sebelumnya").
   status text not null default 'review' check (status in ('auto', 'manual', 'review', 'skipped')),
   target_indicator_id uuid references public.indicators (id) on delete restrict,
-  method text check (method in ('kunci_sama', 'nama_sama', 'sinonim', 'manual')),
+  method text check (method in ('kunci_sama', 'nama_sama', 'sinonim', 'level_awal', 'manual')),
   note text,
   decided_by uuid references public.users (id) on delete set null,
   decided_at timestamptz,

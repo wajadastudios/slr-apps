@@ -56,18 +56,29 @@ test("Floating maps in Water Safety, but is left for review when the new Floatin
   assert.ok(gone.candidates.every((c) => c.skillName === "Water Safety"));
 });
 
-test("a stroke indicator exists at three levels, so it is never decided automatically", () => {
+test("an old stroke indicator is shown as the same aspect at Level 1 (every student started there)", () => {
   const p = proposeMapping(legacy("Gaya Bebas - Gerakan Kaki", "Gerakan Kaki", "Gaya Bebas"), allTargets);
+  assert.equal(p.status, "auto");
+  assert.equal(p.method, "level_awal");
+  assert.equal(p.target?.level, 1);
+  assert.equal(p.target?.skillName, "Gaya Bebas");
+  assert.equal(p.target?.label, "Gerakan Kaki");
+  assert.deepEqual(p.candidates.map((c) => c.level).sort(), [1, 2, 3], "the other levels stay available to the admin");
+});
+
+test("if there is no unique Level 1 indicator for the aspect, the stroke indicator waits for the admin", () => {
+  const without = allTargets.filter((t) => !(t.skillName === "Gaya Bebas" && t.label === "Gerakan Kaki" && t.level === 1));
+  const p = proposeMapping(legacy("Gaya Bebas - Gerakan Kaki", "Gerakan Kaki", "Gaya Bebas"), without);
   assert.equal(p.status, "review");
   assert.equal(p.needsLevel, true);
   assert.equal(p.target, null);
-  assert.deepEqual(p.candidates.map((c) => c.level).sort(), [1, 2, 3]);
-  assert.ok(p.candidates.every((c) => c.skillName === "Gaya Bebas" && c.label === "Gerakan Kaki"));
 });
 
-test("the same label in another stroke is never offered: Pernapasan in Dada stays in Dada", () => {
+test("the same label in another stroke is never used: Pernapasan in Dada stays in Dada", () => {
   const p = proposeMapping(legacy("Gaya Dada - Pernapasan", "Pernapasan", "Gaya Dada"), allTargets);
   assert.ok(p.candidates.length === 3 && p.candidates.every((c) => c.skillName === "Gaya Dada"));
+  assert.equal(p.target?.skillName, "Gaya Dada");
+  assert.equal(p.target?.level, 1);
 });
 
 test("an old group that matches no skill is reviewed, never guessed", () => {
@@ -82,11 +93,13 @@ test("dry run counts keys and stored scores separately for automatic and review"
     legacy("Gaya Bebas - Gerakan Kaki", "Gerakan Kaki", "Gaya Bebas", 342, 179),
   ];
   const d = dryRun(set, allTargets);
-  assert.equal(d.auto, 1);
-  assert.equal(d.review, 1);
-  assert.equal(d.scoresAuto, 342);
-  assert.equal(d.nonZeroAuto, 334);
-  assert.equal(d.nonZeroReview, 163);
+  assert.equal(d.auto, 2);
+  assert.equal(d.review, 0);
+  assert.equal(d.scoresAuto, 684);
+  assert.equal(d.nonZeroAuto, 334 + 163);
+  const without = dryRun(set, allTargets.filter((t) => t.level !== 1 || t.skillName !== "Gaya Bebas"));
+  assert.equal(without.review, 1);
+  assert.equal(without.nonZeroReview, 163);
 });
 
 test("reading old reports: labels come from their snapshots and zeros are counted", () => {

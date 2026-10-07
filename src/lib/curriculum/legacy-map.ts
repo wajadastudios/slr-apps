@@ -29,7 +29,13 @@ export type MapTarget = {
   active: boolean;
 };
 
-export type MapMethod = "kunci_sama" | "nama_sama" | "sinonim";
+export type MapMethod = "kunci_sama" | "nama_sama" | "sinonim" | "level_awal";
+
+// Decision of the school (7 Okt 2026): when the level curriculum started, every
+// student was still at Level 1, so an old gaya indicator (which had no level)
+// is shown as the same aspect at Level 1. Changing it per indicator stays
+// possible in the admin tool.
+export const LEGACY_STROKE_LEVEL: Level = 1;
 
 export type Proposal = {
   legacy: LegacyKeyInfo;
@@ -140,9 +146,23 @@ export function proposeMapping(legacy: LegacyKeyInfo, targets: MapTarget[]): Pro
   const matches = skillTargets.filter((t) => canonicalName(t.label) === wanted);
   const hasLevels = skillTargets[0].hasLevels;
 
-  // 3) gaya: one old indicator could mean the same aspect at any of 3 levels,
-  //    so it is never decided automatically
+  // 3) gaya: the aspect exists at three levels. Old scores belong to the level
+  //    every student was at when the curriculum started (Level 1); with no such
+  //    unique indicator the admin has to choose.
   if (hasLevels) {
+    const atStart = matches.filter((t) => t.level === LEGACY_STROKE_LEVEL);
+    if (atStart.length === 1) {
+      return {
+        ...base,
+        status: "auto",
+        method: "level_awal",
+        target: atStart[0],
+        candidates: matches,
+        skillId,
+        needsLevel: false,
+        reason: `Semua siswa saat pembaruan masih Level ${LEGACY_STROKE_LEVEL}, jadi nilai lama ditampilkan sebagai indikator yang sama di Level ${LEGACY_STROKE_LEVEL}.`,
+      };
+    }
     return {
       ...base,
       status: "review",
