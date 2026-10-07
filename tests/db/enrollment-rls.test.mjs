@@ -977,6 +977,94 @@ check("levels: the child's parent can read the levels", (await q("select id from
 await as(P2);
 check("levels: another family cannot", (await q("select id from public.skill_level_events")).length === 0);
 
+// ---------- legacy indicator map (0050) ----------
+await su();
+const oldReport = async () => (await q("select scores, session_date, notes, attendance, pelatih_id, status, curriculum_version from public.progress_reports where id=$1", [uid(300)]))[0];
+const reportBefore = JSON.stringify(await oldReport());
+const adaptasiId = (await q("select id from public.indicators where program_id=$1 and key='Dasar - Adaptasi di Air'", [KIDS]))[0].id;
+const dasarGroupId = (await q("select group_id from public.indicators where id=$1", [adaptasiId]))[0].group_id;
+const bebasKaki1 = (await q("select id from public.indicators where program_id=$1 and seed_key='k1_bebas_l1_gerakan_kaki'", [KIDS]))[0].id;
+
+await as(ADMIN);
+await db.query(
+  "insert into public.legacy_indicator_map (program_id, legacy_key, legacy_label, legacy_group, status, target_indicator_id, method, decided_by) values ($1,'Dasar - Adaptasi di Air','Adaptasi di Air','Dasar','auto',$2,'kunci_sama',$3)",
+  [KIDS, adaptasiId, ADMIN]
+);
+await db.query(
+  "insert into public.legacy_indicator_map (program_id, legacy_key, legacy_label, legacy_group, status, target_indicator_id, method, decided_by) values ($1,'Gaya Bebas - Gerakan Kaki','Gerakan Kaki','Gaya Bebas','manual',$2,'manual',$3)",
+  [KIDS, bebasKaki1, ADMIN]
+);
+await db.query("insert into public.legacy_indicator_map (program_id, legacy_key, legacy_label, legacy_group, status) values ($1,'Water Safety - Floating','Floating','Water Safety','review')", [KIDS]);
+await su();
+check("mapping: automatic, manual and waiting rows can be stored", (await q("select count(*)::int c from public.legacy_indicator_map where program_id=$1", [KIDS]))[0].c === 3);
+
+check(
+  "mapping: an automatic mapping must name its target",
+  (await fails(() => db.query("insert into public.legacy_indicator_map (program_id, legacy_key, legacy_label, status) values ($1,'x','x','auto')", [KIDS]))) !== null
+);
+check(
+  "mapping: a row waiting for review cannot carry a target",
+  (await fails(() => db.query("insert into public.legacy_indicator_map (program_id, legacy_key, legacy_label, status, target_indicator_id) values ($1,'y','y','review',$2)", [KIDS, adaptasiId]))) !== null
+);
+check(
+  "mapping: one row per old indicator per program (no duplicate mappings)",
+  (await fails(() => db.query("insert into public.legacy_indicator_map (program_id, legacy_key, legacy_label, status) values ($1,'Dasar - Adaptasi di Air','dup','review')", [KIDS]))) !== null
+);
+// the idempotent "apply" path: insert ... on conflict do nothing never changes a decision
+await db.query(
+  "insert into public.legacy_indicator_map (program_id, legacy_key, legacy_label, status) values ($1,'Gaya Bebas - Gerakan Kaki','again','review') on conflict (program_id, legacy_key) do nothing",
+  [KIDS]
+);
+check(
+  "mapping: re-applying does not overwrite an admin decision or duplicate rows",
+  (await q("select status, legacy_label from public.legacy_indicator_map where program_id=$1 and legacy_key='Gaya Bebas - Gerakan Kaki'", [KIDS]))[0].status === "manual" &&
+    (await q("select count(*)::int c from public.legacy_indicator_map where program_id=$1", [KIDS]))[0].c === 3
+);
+
+await as(P1);
+check("mapping: a parent can read mappings (needed to show their child's history)", (await q("select id from public.legacy_indicator_map where program_id=$1", [KIDS])).length === 3);
+await db.query("update public.legacy_indicator_map set status='skipped', target_indicator_id=null");
+await db.query("delete from public.legacy_indicator_map");
+await as(PA);
+await db.query("update public.legacy_indicator_map set status='skipped', target_indicator_id=null");
+await db.query("delete from public.legacy_indicator_map");
+check(
+  "mapping: a parent and a pengajar cannot change or delete mappings",
+  (await fails(() => db.query("insert into public.legacy_indicator_map (program_id, legacy_key, legacy_label, status) values ($1,'z','z','review')", [KIDS]))) !== null
+);
+await su();
+check("mapping: ...and nothing changed", (await q("select count(*)::int c from public.legacy_indicator_map where status in ('auto','manual')", []))[0].c === 2);
+
+// deleting indicators
+await as(ADMIN);
+check(
+  "delete: an indicator that is a mapping target cannot be deleted",
+  /indicator in use/.test((await fails(() => db.query("select public.admin_delete_indicator($1)", [bebasKaki1]))) ?? "")
+);
+check(
+  "delete: an indicator already scored in a report cannot be deleted",
+  /indicator in use/.test((await fails(() => db.query("select public.admin_delete_indicator($1)", [adaptasiId]))) ?? "")
+);
+const spare = (await q("insert into public.indicators (program_id, group_id, key, label, sort_order) values ($1,$2,'ind_spare','Cadangan',99) returning id", [KIDS, dasarGroupId]))[0].id;
+await db.query("select public.admin_delete_indicator($1)", [spare]);
+check("delete: an unused, unmapped indicator can still be deleted", (await q("select count(*)::int c from public.indicators where id=$1", [spare]))[0].c === 0);
+await su();
+check(
+  "delete: the database itself refuses to drop a mapped indicator row",
+  (await fails(() => db.query("delete from public.indicators where id=$1", [bebasKaki1]))) !== null
+);
+
+// usage counts (admin only) -- the number behind the "terpakai pada N laporan" warning
+await as(ADMIN);
+const usage = await q("select indicator_key, report_count from public.indicator_usage_counts()");
+check("usage: admin sees how many reports scored a key", Number(usage.find((u) => u.indicator_key === "Dasar - Adaptasi di Air")?.report_count) >= 1);
+await as(PA);
+check("usage: a pengajar gets nothing", (await q("select * from public.indicator_usage_counts()")).length === 0);
+
+// the old report is exactly as it was: mapping reads it, never writes it
+await su();
+check("mapping: the old report (scores, date, notes, attendance, author) is byte-for-byte unchanged", JSON.stringify(await oldReport()) === reportBefore);
+
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
 process.exit(failed.length ? 1 : 0);

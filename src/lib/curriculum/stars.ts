@@ -14,7 +14,7 @@ export const HALF_POINT_NOTE =
   "Setengah poin (mis. 3,5) berarti kemampuan berada di antara dua kategori.";
 
 export function formatStars(score: number): string {
-  return String(score).replace(".", ",");
+  return String(Math.round(score * 100) / 100).replace(".", ",");
 }
 
 // "3,5 — antara Mandiri, belum konsisten dan Baik dan konsisten"

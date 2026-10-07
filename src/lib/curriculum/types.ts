@@ -111,6 +111,30 @@ export type LevelEvent = {
   note: string | null;
 };
 
+// Reports written BEFORE the level curriculum, read only to show history.
+// Nothing here is ever written back.
+export type LegacyReport = {
+  id: string;
+  sessionDate: string;
+  attendance: string | null;
+  scores: Record<string, number>;
+  // label/group each old indicator had when the report was written
+  labels: Record<string, { label: string; group: string | null }>;
+};
+
+export type LegacyMapStatus = "auto" | "manual" | "review" | "skipped";
+
+// One old indicator and what it was mapped to (legacy_indicator_map, 0050).
+export type LegacyMapEntry = {
+  legacyKey: string;
+  legacyLabel: string;
+  legacyGroup: string | null;
+  status: LegacyMapStatus;
+  targetId: string | null;
+};
+
+export type LegacyHistory = { reports: LegacyReport[]; map: LegacyMapEntry[] };
+
 export type CurriculumData = {
   skills: CurriculumSkill[];
   indicators: CurriculumIndicator[];
@@ -120,6 +144,8 @@ export type CurriculumData = {
   reports: CurriculumReport[];
   results: TestResult[];
   levelEvents: LevelEvent[];
+  // absent in fixtures; the loader always fills it
+  legacy?: LegacyHistory;
 };
 
 export const LEVEL_NAMES: Record<Level, string> = {

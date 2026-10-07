@@ -5,7 +5,6 @@ import { GlassButton } from "@/components/ui/glass-button";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { loadMilestones } from "@/lib/milestone-loader";
 import { computeAwards } from "@/lib/milestones";
-import { buildIndicatorConfig } from "@/lib/indicators";
 import {
   ASSESSMENT_LABEL,
   PROGRAM_SELECT,
@@ -19,6 +18,8 @@ import { MilestoneWorkspace } from "../milestone/milestone-workspace";
 import { IndicatorWorkspace, type IndGroup } from "./indicator-workspace";
 import { CurriculumAdmin, type AdminSkill } from "./curriculum-admin";
 import { loadCurriculumMode } from "@/lib/curriculum/loader";
+import { loadMappingState, reviewRows, summarize } from "@/lib/curriculum/legacy-source";
+import { LegacyMappingAdmin, type MapItem, type MapOption } from "./legacy-mapping-admin";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -48,7 +49,14 @@ export default async function PenilaianPage({
     : { count: 0, error: null };
   const hasCurriculum = !seededError && (seededCount ?? 0) > 0;
   const curriculumMode = program && hasCurriculum ? await loadCurriculumMode(supabase, program.id) : "legacy";
-  const tab = tabParam === "rekor" ? "rekor" : tabParam === "kurikulum" && hasCurriculum ? "kurikulum" : "indikator";
+  const tab =
+    tabParam === "rekor"
+      ? "rekor"
+      : tabParam === "kurikulum" && hasCurriculum
+        ? "kurikulum"
+        : tabParam === "riwayat" && hasCurriculum
+          ? "riwayat"
+          : "indikator";
 
   if (!program) {
     return (
@@ -120,6 +128,7 @@ export default async function PenilaianPage({
         <nav aria-label="Bagian penilaian" className="mt-3 inline-flex gap-1 rounded-2xl border border-white/60 bg-white/70 p-1">
           {tabLink("indikator", "Indikator")}
           {hasCurriculum && tabLink("kurikulum", "Kurikulum Level")}
+          {hasCurriculum && tabLink("riwayat", "Riwayat Lama")}
           {tabLink("rekor", "Rekor & Milestone")}
         </nav>
         {error && <p className="mt-3 text-sm text-red-700">{decodeURIComponent(error)}</p>}
@@ -129,13 +138,16 @@ export default async function PenilaianPage({
         <CurriculumTab programId={program.id} programName={program.name} mode={curriculumMode} />
       )}
 
+      {tab === "riwayat" && <LegacyTab programId={program.id} programName={program.name} />}
+
       {tab === "indikator" && (
         <>
           {curriculumMode === "levels_v1" && (
             <GlassCard tone="soft">
               <p className="text-sm text-slate-700">
-                Program ini memakai <strong>kurikulum level</strong>. Indikator di bawah adalah daftar lengkap termasuk indikator lama
-                yang disembunyikan. Atur rubrik, level, dan target di tab <strong>Kurikulum Level</strong>.
+                Program ini memakai <strong>kurikulum level</strong>. Di sini Anda mengelola kelompok (skill) dan indikatornya: nama, urutan, deskripsi, rubrik,
+                aktif/nonaktif. Indikator lama ada di &ldquo;Arsip kurikulum lama&rdquo; dan nilainya tetap tampil di riwayat anak. Aturan lulus dan target tes ada di tab{" "}
+                <strong>Kurikulum Level</strong>; pemetaan nilai lama di tab <strong>Riwayat Lama</strong>.
               </p>
             </GlassCard>
           )}
@@ -155,7 +167,7 @@ export default async function PenilaianPage({
               </ul>
             </GlassCard>
           )}
-          <IndicatorTab programId={program.id} sel={sel} />
+          <IndicatorTab programId={program.id} sel={sel} mode={curriculumMode} />
         </>
       )}
 
@@ -168,6 +180,47 @@ export default async function PenilaianPage({
         />
       )}
     </div>
+  );
+}
+
+// Old indicators -> new curriculum. Reads the old reports (aggregate only) and
+// the stored mapping; writes nothing.
+async function LegacyTab({ programId, programName }: { programId: string; programName: string }) {
+  const supabase = await createClient();
+  const state = await loadMappingState(supabase, programId);
+  const rows = reviewRows(state);
+  const stats = summarize(rows);
+
+  const items: MapItem[] = rows.map(({ key, proposal, saved }) => ({
+    key: key.key,
+    label: key.label,
+    group: key.group,
+    scores: key.scores,
+    zeros: key.zeros,
+    status: saved?.status ?? null,
+    targetId: saved?.targetId ?? null,
+    proposalAuto: proposal.status === "auto",
+    proposalTargetId: proposal.target?.id ?? null,
+    reason: proposal.reason,
+    needsLevel: proposal.needsLevel,
+    skillId: proposal.skillId,
+    candidateIds: proposal.candidates.map((c) => c.id),
+  }));
+  const options: MapOption[] = [...state.targets]
+    .sort((a, b) => a.skillName.localeCompare(b.skillName) || (a.level ?? 0) - (b.level ?? 0) || a.label.localeCompare(b.label))
+    .map((t) => ({ id: t.id, label: t.label, skillName: t.skillName, level: t.level }));
+
+  return (
+    <LegacyMappingAdmin
+      key={programId}
+      programId={programId}
+      programName={programName}
+      ready={state.ready}
+      stats={stats}
+      items={items}
+      options={options}
+      skills={state.skills}
+    />
   );
 }
 
@@ -257,12 +310,16 @@ async function CurriculumTab({
   return <CurriculumAdmin key={programId} programId={programId} programName={programName} mode={mode} skills={skills} />;
 }
 
-async function IndicatorTab({ programId, sel }: { programId: string; sel?: string }) {
+async function IndicatorTab({ programId, sel, mode }: { programId: string; sel?: string; mode: "legacy" | "levels_v1" }) {
   const supabase = await createClient();
-  const [groupsRes, indicatorsRes, usedRes] = await Promise.all([
-    supabase.from("indicator_groups").select("id, name, sort_order, active").eq("program_id", programId),
-    supabase.from("indicators").select("id, key, label, group_id, sort_order, active").eq("program_id", programId),
-    supabase.rpc("used_indicator_keys"),
+  const [groupsRes, indicatorsRes, usageRes, mapRes] = await Promise.all([
+    supabase.from("indicator_groups").select("id, name, sort_order, active, slug, has_levels").eq("program_id", programId),
+    supabase
+      .from("indicators")
+      .select("id, key, label, group_id, sort_order, active, level, description, rubric, required, seed_key")
+      .eq("program_id", programId),
+    supabase.rpc("indicator_usage_counts"),
+    supabase.from("legacy_indicator_map").select("target_indicator_id, status").eq("program_id", programId),
   ]);
 
   if (groupsRes.error) {
@@ -276,36 +333,59 @@ async function IndicatorTab({ programId, sel }: { programId: string; sel?: strin
     );
   }
 
-  const config = buildIndicatorConfig(groupsRes.data ?? [], indicatorsRes.data ?? []);
-  const used = new Set<string>(
-    ((usedRes.data as unknown as (string | { used_indicator_keys?: string })[] | null) ?? []).map((k) =>
-      typeof k === "string" ? k : String(k.used_indicator_keys ?? "")
-    )
-  );
+  // how many saved reports scored each key; before migration 0050 only "used or not" is known
+  const usage = new Map<string, number>();
+  if (!usageRes.error) {
+    for (const row of (usageRes.data ?? []) as { indicator_key: string; report_count: number | string }[]) {
+      usage.set(row.indicator_key, Number(row.report_count));
+    }
+  } else {
+    const { data: usedRows } = await supabase.rpc("used_indicator_keys");
+    for (const k of (usedRows as unknown as (string | { used_indicator_keys?: string })[] | null) ?? []) {
+      usage.set(typeof k === "string" ? k : String(k.used_indicator_keys ?? ""), 1);
+    }
+  }
+  const mappedFrom = new Map<string, number>();
+  for (const m of mapRes.error ? [] : (mapRes.data ?? [])) {
+    if ((m.status === "auto" || m.status === "manual") && m.target_indicator_id) {
+      mappedFrom.set(m.target_indicator_id as string, (mappedFrom.get(m.target_indicator_id as string) ?? 0) + 1);
+    }
+  }
 
-  const groups: IndGroup[] = config.groups.map((g) => ({
-    id: g.id,
-    name: g.name,
-    sort_order: g.sort_order,
-    active: g.active,
-    indicators: g.indicators.map((i) => ({
-      id: i.id,
-      key: i.key,
-      label: i.label,
-      sort_order: i.sort_order,
-      active: i.active,
-      used: used.has(i.key),
-    })),
-  }));
+  const indicators = indicatorsRes.data ?? [];
+  const groups: IndGroup[] = [...(groupsRes.data ?? [])]
+    .sort((a, b) => Number(a.sort_order) - Number(b.sort_order))
+    .map((g) => ({
+      id: g.id as string,
+      name: g.name as string,
+      sort_order: Number(g.sort_order),
+      active: g.active !== false,
+      hasLevels: g.has_levels === true,
+      curriculum: !!g.slug,
+      indicators: indicators
+        .filter((i) => i.group_id === g.id)
+        .map((i) => ({
+          id: i.id as string,
+          key: i.key as string,
+          label: i.label as string,
+          sort_order: Number(i.sort_order),
+          active: i.active !== false,
+          usedCount: usage.get(i.key as string) ?? 0,
+          mappedFrom: mappedFrom.get(i.id as string) ?? 0,
+          level: i.level === null || i.level === undefined ? null : Number(i.level),
+          description: (i.description as string | null) ?? null,
+          rubric: (i.rubric as string | null) ?? null,
+          required: i.required !== false,
+          seeded: !!i.seed_key,
+        })),
+    }));
 
   // key={programId} forces a remount on program switch -- without it React
   // reuses the same component instance and its "closed" accordion state
   // (computed once, lazily, from the FIRST program's group ids) never gets
   // recomputed for the new program's completely different group ids, so
   // every group reads as "open" (none of them match the stale closed list).
-  // This was exactly the audit's "halaman konfigurasi/penilaian admin masih
-  // terasa panjang bila semua kelompok terbuka" finding.
-  return <IndicatorWorkspace key={programId} programId={programId} groups={groups} focus={sel} />;
+  return <IndicatorWorkspace key={programId} programId={programId} groups={groups} focus={sel} mode={mode} />;
 }
 
 async function RecordsTab({

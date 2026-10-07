@@ -54,6 +54,8 @@ export function coverageLabel(s: TechniqueSummary): string {
 }
 
 export type SeriesPoint = {
+  // true for a point taken from a report written before the level curriculum
+  legacy?: boolean;
   reportId: string;
   date: string;
   level: Level | null;
@@ -63,7 +65,7 @@ export type SeriesPoint = {
   complete: boolean;
 };
 
-export type SeriesSegment = { level: Level | null; points: SeriesPoint[] };
+export type SeriesSegment = { level: Level | null; points: SeriesPoint[]; legacy?: boolean };
 
 function asLevel(n: number | undefined): Level | null {
   return n === 1 || n === 2 || n === 3 ? n : null;

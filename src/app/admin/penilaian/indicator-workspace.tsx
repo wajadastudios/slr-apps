@@ -4,6 +4,7 @@ import { useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { GlassInput } from "@/components/ui/glass-input";
+import { GlassTextarea } from "@/components/ui/glass-textarea";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { AccordionItem } from "@/components/ui/accordion";
 import { ToastForm } from "@/components/ui/toast-form";
@@ -22,11 +23,36 @@ import {
   updateIndicatorAction,
 } from "@/app/admin/program/indicator-actions";
 
-export type IndItem = { id: string; key: string; label: string; sort_order: number; active: boolean; used: boolean };
-export type IndGroup = { id: string; name: string; sort_order: number; active: boolean; indicators: IndItem[] };
+export type IndItem = {
+  id: string;
+  key: string;
+  label: string;
+  sort_order: number;
+  active: boolean;
+  // how many saved reports scored it / how many OLD indicators are shown under it
+  usedCount: number;
+  mappedFrom: number;
+  level: number | null;
+  description: string | null;
+  rubric: string | null;
+  required: boolean;
+  // part of the level curriculum (false = an indicator of the old model)
+  seeded: boolean;
+};
+export type IndGroup = {
+  id: string;
+  name: string;
+  sort_order: number;
+  active: boolean;
+  hasLevels: boolean;
+  // a skill of the level curriculum (has a slug)
+  curriculum: boolean;
+  indicators: IndItem[];
+};
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 const UNSAVED_WARNING = "Perubahan belum disimpan. Simpan atau batalkan sebelum berpindah.";
+const FIELD = "text-xs text-slate-600";
 
 // g:<id> group, i:<id> indicator, "new-group", "new-indicator"
 type Selection = string | null;
@@ -39,118 +65,280 @@ function BackArrow() {
   );
 }
 
-function StatusPill({ active }: { active: boolean }) {
+function StatusPill({ active, label }: { active: boolean; label?: string }) {
   return (
     <span
       className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
         active ? "bg-[#55D6A6]/20 text-[#0f6b52]" : "bg-slate-200 text-slate-600"
       }`}
     >
-      {active ? "Aktif" : "Nonaktif"}
+      {label ?? (active ? "Aktif" : "Nonaktif")}
     </span>
   );
 }
 
-// Single-purpose editor: a name, and optionally which group it belongs to.
-// Reports unsaved changes so the workspace can stop the admin from walking
-// away from them.
-function ItemForm({
+const levelText = (l: number | null) => (l ? `Level ${l}` : "");
+
+// The group editor: a name (and, for a new skill, whether it has levels).
+function GroupForm({
   action,
   programId,
   id,
   initialName,
-  nameLabel,
-  groups,
-  initialGroupId,
   submitLabel,
+  askLevels,
   onDirtyChange,
   onCancel,
-  resetOnSuccess,
 }: {
   action: (prev: null, formData: FormData) => Promise<never> | Promise<unknown>;
   programId: string;
   id?: string;
   initialName: string;
-  nameLabel: string;
-  groups?: IndGroup[];
-  initialGroupId?: string;
   submitLabel: string;
+  askLevels?: boolean;
   onDirtyChange: (dirty: boolean) => void;
   onCancel: () => void;
-  resetOnSuccess?: boolean;
 }) {
   const [name, setName] = useState(initialName);
-  const [groupId, setGroupId] = useState(initialGroupId ?? "");
-  const dirty = name !== initialName || groupId !== (initialGroupId ?? "");
-  const nameField = groups ? "label" : "name";
-
+  const dirty = name !== initialName;
   return (
-    <ToastForm
-      action={action as never}
-      resetOnSuccess={resetOnSuccess}
-      className="flex flex-col gap-4"
-    >
+    <ToastForm action={action as never} resetOnSuccess={!id} className="flex flex-col gap-4">
       <input type="hidden" name="program_id" value={programId} />
       {id && <input type="hidden" name="id" value={id} />}
-      {groups && <input type="hidden" name="group_id" value={groupId} />}
-
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-slate-600" htmlFor="item-name">
-          {nameLabel}
+        <label className={FIELD} htmlFor="group-name">
+          Nama kelompok
         </label>
         <GlassInput
-          id="item-name"
-          name={nameField}
+          id="group-name"
+          name="name"
           value={name}
           required
           onChange={(e) => {
             setName(e.target.value);
-            onDirtyChange(e.target.value !== initialName || groupId !== (initialGroupId ?? ""));
+            onDirtyChange(e.target.value !== initialName);
           }}
           className="text-sm"
         />
       </div>
+      {askLevels && (
+        <label className="flex min-h-10 items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" name="has_levels" className="h-5 w-5" />
+          Skill ini memakai Level 1&ndash;3 (seperti gaya renang)
+        </label>
+      )}
+      <SaveBar submitLabel={submitLabel} dirty={dirty} onCancel={onCancel} />
+    </ToastForm>
+  );
+}
 
-      {groups && (
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-600">Kelompok</label>
-          <GlassSelect
-            value={groupId}
-            required
-            onChange={(e) => {
-              setGroupId(e.target.value);
-              onDirtyChange(name !== initialName || e.target.value !== (initialGroupId ?? ""));
-            }}
-            className="text-sm"
-            glassChevron
-          >
-            <option value="" disabled>
-              Pilih kelompok
+function SaveBar({ submitLabel, dirty, onCancel }: { submitLabel: string; dirty: boolean; onCancel: () => void }) {
+  return (
+    <div className="sticky bottom-2 z-10 -mx-1 flex flex-wrap items-center gap-2 rounded-2xl border border-white/60 bg-white/95 p-2 shadow-[0_4px_16px_rgba(23,38,61,0.08)] lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
+      <GlassButton type="submit" className={`${PRIMARY_BUTTON} px-5 py-2 text-sm`}>
+        {submitLabel}
+      </GlassButton>
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={!dirty}
+        className="min-h-10 rounded-xl px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-white/60 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Batalkan perubahan
+      </button>
+      {dirty && <span className="text-xs text-[#8a6900]">Belum disimpan</span>}
+    </div>
+  );
+}
+
+// The indicator editor (new or existing). Level-curriculum indicators also have
+// a description, a rubric and a "required to pass" flag.
+function IndicatorForm({
+  action,
+  programId,
+  item,
+  group,
+  groups,
+  curriculumMode,
+  submitLabel,
+  onDirtyChange,
+  onCancel,
+}: {
+  action: (prev: null, formData: FormData) => Promise<never> | Promise<unknown>;
+  programId: string;
+  item?: IndItem;
+  group?: IndGroup;
+  groups: IndGroup[];
+  curriculumMode: boolean;
+  submitLabel: string;
+  onDirtyChange: (dirty: boolean) => void;
+  onCancel: () => void;
+}) {
+  const initial = {
+    label: item?.label ?? "",
+    groupId: group?.id ?? "",
+    level: item?.level ?? null,
+    description: item?.description ?? "",
+    rubric: item?.rubric ?? "",
+    required: item?.required ?? true,
+  };
+  const [label, setLabel] = useState(initial.label);
+  const [groupId, setGroupId] = useState(initial.groupId);
+  const [level, setLevel] = useState<number | null>(initial.level);
+  const [description, setDescription] = useState(initial.description);
+  const [rubric, setRubric] = useState(initial.rubric);
+  const [required, setRequired] = useState(initial.required);
+
+  const target = groups.find((g) => g.id === groupId);
+  // a curriculum indicator carries the extra fields; so does a new one placed in a curriculum skill
+  const curriculum = item ? item.seeded : curriculumMode && !!target?.curriculum;
+  // an existing curriculum indicator can only move between skills of the same kind
+  const choices = item?.seeded ? groups.filter((g) => g.curriculum && g.hasLevels === group?.hasLevels) : groups;
+  const needsLevel = !item && curriculum && !!target?.hasLevels;
+
+  const dirty =
+    label !== initial.label ||
+    groupId !== initial.groupId ||
+    description !== initial.description ||
+    rubric !== initial.rubric ||
+    required !== initial.required ||
+    (!item && needsLevel && level !== initial.level);
+  const touch = (patch: Partial<{ label: string; groupId: string; description: string; rubric: string; required: boolean }>) => {
+    const next = { label, groupId, description, rubric, required, ...patch };
+    onDirtyChange(
+      next.label !== initial.label ||
+        next.groupId !== initial.groupId ||
+        next.description !== initial.description ||
+        next.rubric !== initial.rubric ||
+        next.required !== initial.required
+    );
+  };
+
+  return (
+    <ToastForm action={action as never} resetOnSuccess={!item} className="flex flex-col gap-4">
+      <input type="hidden" name="program_id" value={programId} />
+      {item && <input type="hidden" name="id" value={item.id} />}
+      <input type="hidden" name="group_id" value={groupId} />
+      {curriculum && <input type="hidden" name="curriculum" value="1" />}
+      {needsLevel && <input type="hidden" name="level" value={level ?? ""} />}
+
+      <div className="flex flex-col gap-1">
+        <label className={FIELD} htmlFor="item-name">
+          Nama indikator
+        </label>
+        <GlassInput
+          id="item-name"
+          name="label"
+          value={label}
+          required
+          onChange={(e) => {
+            setLabel(e.target.value);
+            touch({ label: e.target.value });
+          }}
+          className="text-sm"
+        />
+        {item && item.usedCount > 0 && (
+          <p className="text-[11px] text-slate-500">
+            Nama baru berlaku untuk tampilan ke depan dan riwayat. Nilai dan tanggal laporan lama tidak berubah; nama sebelumnya tetap tercatat di jejak
+            perubahan.
+          </p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className={FIELD}>Kelompok</label>
+        <GlassSelect
+          value={groupId}
+          required
+          onChange={(e) => {
+            setGroupId(e.target.value);
+            touch({ groupId: e.target.value });
+          }}
+          className="text-sm"
+          glassChevron
+        >
+          <option value="" disabled>
+            Pilih kelompok
+          </option>
+          {choices.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+              {g.active ? "" : " (nonaktif)"}
             </option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-                {g.active ? "" : " (nonaktif)"}
+          ))}
+        </GlassSelect>
+        {item?.seeded && <p className="text-[11px] text-slate-500">Indikator kurikulum hanya bisa dipindah antar skill yang sejenis (sama-sama memakai level atau tidak).</p>}
+      </div>
+
+      {needsLevel && (
+        <div className="flex flex-col gap-1">
+          <label className={FIELD}>Level</label>
+          <GlassSelect value={level ?? ""} required onChange={(e) => setLevel(e.target.value ? Number(e.target.value) : null)} className="text-sm" glassChevron>
+            <option value="" disabled>
+              Pilih level
+            </option>
+            {[1, 2, 3].map((l) => (
+              <option key={l} value={l}>
+                Level {l}
               </option>
             ))}
           </GlassSelect>
         </div>
       )}
+      {item?.seeded && item.level && <p className="text-xs text-slate-600">Level: {levelText(item.level)} (tidak bisa diubah; buat indikator baru untuk level lain)</p>}
 
-      <div className="sticky bottom-2 z-10 -mx-1 flex flex-wrap items-center gap-2 rounded-2xl border border-white/60 bg-white/95 p-2 shadow-[0_4px_16px_rgba(23,38,61,0.08)] lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
-        <GlassButton type="submit" className={`${PRIMARY_BUTTON} px-5 py-2 text-sm`}>
-          {submitLabel}
-        </GlassButton>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={!dirty}
-          className="min-h-10 rounded-xl px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-white/60 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Batalkan perubahan
-        </button>
-        {dirty && <span className="text-xs text-[#8a6900]">Belum disimpan</span>}
-      </div>
+      {curriculum && (
+        <>
+          <div className="flex flex-col gap-1">
+            <label className={FIELD} htmlFor="item-desc">
+              Deskripsi singkat
+            </label>
+            <GlassTextarea
+              id="item-desc"
+              name="description"
+              rows={2}
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                touch({ description: e.target.value });
+              }}
+              className="text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className={FIELD} htmlFor="item-rubric">
+              Petunjuk penilaian (rubrik)
+            </label>
+            <GlassTextarea
+              id="item-rubric"
+              name="rubric"
+              rows={4}
+              value={rubric}
+              onChange={(e) => {
+                setRubric(e.target.value);
+                touch({ rubric: e.target.value });
+              }}
+              className="text-sm"
+            />
+            <p className="text-[11px] text-slate-500">Tampil untuk pengajar lewat tombol &ldquo;Lihat rubrik&rdquo;. Perubahan tidak mengubah arti nilai lama.</p>
+          </div>
+          <label className="flex min-h-10 items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              name="required"
+              checked={required}
+              onChange={(e) => {
+                setRequired(e.target.checked);
+                touch({ required: e.target.checked });
+              }}
+              className="h-5 w-5"
+            />
+            Wajib untuk lulus level / dihitung dalam ringkasan
+          </label>
+        </>
+      )}
+
+      <SaveBar submitLabel={submitLabel} dirty={dirty} onCancel={onCancel} />
     </ToastForm>
   );
 }
@@ -160,16 +348,17 @@ export function IndicatorWorkspace({
   programId,
   groups,
   focus,
+  mode,
 }: {
   programId: string;
   groups: IndGroup[];
   focus?: string;
+  mode: "legacy" | "levels_v1";
 }) {
+  const levelsMode = mode === "levels_v1";
   const [selected, setSelected] = useState<Selection>(focus ?? null);
   const [lastFocus, setLastFocus] = useState(focus);
   const [search, setSearch] = useState("");
-  // Only one group is open at first (the one being edited, else the first);
-  // the rest stay folded so a long list never starts as a wall of indicators.
   const [closed, setClosed] = useState<string[]>(() => {
     const focusGroup = focus?.startsWith("g:")
       ? focus.slice(2)
@@ -192,6 +381,12 @@ export function IndicatorWorkspace({
     }
   }
 
+  // What the admin manages here: the curriculum's indicators once the program is
+  // on levels (the old ones move to "Arsip kurikulum lama"); before that only the
+  // old model, because curriculum indicators are still dormant.
+  const managed = (i: IndItem) => (levelsMode ? i.seeded : !i.seeded);
+  const archived = (i: IndItem) => levelsMode && !i.seeded;
+
   const groupById = new Map(groups.map((g) => [g.id, g]));
   const indicatorById = new Map(groups.flatMap((g) => g.indicators.map((i) => [i.id, { item: i, group: g }] as const)));
 
@@ -204,7 +399,6 @@ export function IndicatorWorkspace({
         : null;
   const selGroup = kind === "group" ? groupById.get(selected!.slice(2)) : undefined;
   const selInd = kind === "indicator" ? indicatorById.get(selected!.slice(2)) : undefined;
-  // a selection that no longer exists (deleted) falls back to the list
   const editing: Selection =
     kind === "group" ? (selGroup ? selected : null) : kind === "indicator" ? (selInd ? selected : null) : kind;
 
@@ -232,17 +426,59 @@ export function IndicatorWorkspace({
   };
 
   const query = search.trim().toLowerCase();
+  const matches = (i: IndItem, g: IndGroup) => !query || i.label.toLowerCase().includes(query) || g.name.toLowerCase().includes(query);
   const visible = groups
     .map((g) => ({
       group: g,
-      shown: g.indicators.filter((i) => !query || i.label.toLowerCase().includes(query) || g.name.toLowerCase().includes(query)),
+      shown: g.indicators.filter((i) => managed(i) && matches(i, g)),
+      old: g.indicators.filter((i) => archived(i) && matches(i, g)),
     }))
-    .filter(({ group, shown }) => !query || shown.length > 0 || group.name.toLowerCase().includes(query));
+    .filter(({ group, shown, old }) => !query || shown.length > 0 || old.length > 0 || group.name.toLowerCase().includes(query));
 
   const sortedGroups = [...groups].sort((a, b) => a.sort_order - b.sort_order);
+  // a skill can take new indicators of the new curriculum; a plain group only old-model ones
+  const groupChoices = levelsMode ? sortedGroups.filter((g) => g.curriculum) : sortedGroups;
+
+  const renderRow = (ind: IndItem, group: IndGroup, siblings: IndItem[]) => {
+    const index = siblings.findIndex((x) => x.id === ind.id);
+    const isSel = editing === `i:${ind.id}`;
+    return (
+      <li key={ind.id} className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => go(`i:${ind.id}`)}
+          aria-current={isSel ? "true" : undefined}
+          className={`min-h-12 min-w-0 flex-1 rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C5D0]/70 ${
+            isSel ? "bg-[#35C5D0]/15 ring-2 ring-[#35C5D0]/50" : "hover:bg-[#35C5D0]/10 active:bg-[#35C5D0]/20"
+          } ${ind.active ? "" : "opacity-70"}`}
+        >
+          <span className="flex items-center gap-2">
+            <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${ind.active ? "bg-[#55D6A6]" : "bg-slate-300"}`} />
+            <span className="truncate text-sm font-medium text-[#17263D]">{ind.label}</span>
+            {!ind.active && <span className="shrink-0 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">Nonaktif</span>}
+            {!ind.required && ind.seeded && <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">tidak wajib</span>}
+            {ind.usedCount > 0 && (
+              <span className="shrink-0 rounded-full bg-[#EEF9FB] px-1.5 py-0.5 text-[10px] font-medium text-[#1597A3]">Terpakai {ind.usedCount}</span>
+            )}
+          </span>
+        </button>
+        {!query && !archived(ind) && (
+          <div className="flex shrink-0 gap-1">
+            <MoveButtons
+              action={moveIndicatorAction}
+              id={ind.id}
+              fields={{ program_id: programId, group_id: group.id, level: ind.level === null ? "" : String(ind.level), scope: ind.seeded ? "seeded" : "old" }}
+              canUp={index > 0}
+              canDown={index < siblings.length - 1}
+            />
+          </div>
+        )}
+      </li>
+    );
+  };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:items-start">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:items-start">
       {/* ---------- list ---------- */}
       <GlassCard className={editing ? "hidden lg:block" : ""}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -254,13 +490,20 @@ export function IndicatorWorkspace({
             <GlassButton
               type="button"
               onClick={() => go("new-indicator")}
-              disabled={groups.length === 0}
+              disabled={groupChoices.length === 0}
               className={`${PRIMARY_BUTTON} px-3 py-1.5 text-xs`}
             >
               + Indikator
             </GlassButton>
           </div>
         </div>
+
+        {levelsMode && (
+          <p className="mb-3 rounded-xl bg-[#EEF9FB] px-3 py-2 text-xs text-slate-700">
+            Program ini memakai kurikulum level. Indikator lama tidak hilang: semuanya ada di &ldquo;Arsip kurikulum lama&rdquo; di tiap kelompok, dan nilainya tetap tampil
+            di riwayat.
+          </p>
+        )}
 
         <GlassInput
           type="search"
@@ -276,10 +519,11 @@ export function IndicatorWorkspace({
         )}
 
         <div className="flex flex-col gap-2">
-          {visible.map(({ group, shown }) => {
+          {visible.map(({ group, shown, old }) => {
             const open = !!query || !closed.includes(group.id);
             const groupIndex = sortedGroups.findIndex((g) => g.id === group.id);
-            const sortedInds = [...group.indicators].sort((a, b) => a.sort_order - b.sort_order);
+            const sortedAll = [...group.indicators.filter(managed)].sort((a, b) => (a.level ?? 0) - (b.level ?? 0) || a.sort_order - b.sort_order);
+            const levelsPresent = group.hasLevels && levelsMode ? ([1, 2, 3] as const) : ([null] as const);
             return (
               <AccordionItem
                 key={group.id}
@@ -294,13 +538,12 @@ export function IndicatorWorkspace({
                 header={
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold text-[#17263D]">{group.name}</span>
-                    <span className="rounded-full bg-[#35C5D0]/15 px-2 py-0.5 text-xs font-medium text-[#1597A3]">
-                      {group.indicators.length}
-                    </span>
+                    <span className="rounded-full bg-[#35C5D0]/15 px-2 py-0.5 text-xs font-medium text-[#1597A3]">{sortedAll.length}</span>
+                    {group.hasLevels && levelsMode && (
+                      <span className="rounded-full bg-[#DDF3F6] px-1.5 py-0.5 text-[10px] font-medium text-[#0B6470]">Level 1–3</span>
+                    )}
                     {!group.active && (
-                      <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                        Nonaktif
-                      </span>
+                      <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">Nonaktif</span>
                     )}
                   </span>
                 }
@@ -329,51 +572,34 @@ export function IndicatorWorkspace({
                       </div>
                     )}
                   </li>
-                  {shown.map((ind) => {
-                    const index = sortedInds.findIndex((x) => x.id === ind.id);
-                    const isSel = editing === `i:${ind.id}`;
+
+                  {levelsPresent.map((lv) => {
+                    const siblings = sortedAll.filter((i) => i.level === lv);
+                    const rows = shown.filter((i) => i.level === lv).sort((a, b) => a.sort_order - b.sort_order);
+                    if (rows.length === 0) return null;
                     return (
-                      <li key={ind.id} className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => go(`i:${ind.id}`)}
-                          aria-current={isSel ? "true" : undefined}
-                          className={`min-h-12 min-w-0 flex-1 rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C5D0]/70 ${
-                            isSel ? "bg-[#35C5D0]/15 ring-2 ring-[#35C5D0]/50" : "hover:bg-[#35C5D0]/10 active:bg-[#35C5D0]/20"
-                          } ${ind.active ? "" : "opacity-70"}`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span
-                              aria-hidden="true"
-                              className={`h-2 w-2 shrink-0 rounded-full ${ind.active ? "bg-[#55D6A6]" : "bg-slate-300"}`}
-                            />
-                            <span className="truncate text-sm font-medium text-[#17263D]">{ind.label}</span>
-                            {!ind.active && (
-                              <span className="shrink-0 rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                                Nonaktif
-                              </span>
-                            )}
-                            {ind.used && (
-                              <span className="shrink-0 rounded-full bg-[#EEF9FB] px-1.5 py-0.5 text-[10px] font-medium text-[#1597A3]">
-                                Terpakai
-                              </span>
-                            )}
-                          </span>
-                        </button>
-                        {!query && (
-                          <div className="flex shrink-0 gap-1">
-                            <MoveButtons
-                              action={moveIndicatorAction}
-                              id={ind.id}
-                              fields={{ program_id: programId, group_id: group.id }}
-                              canUp={index > 0}
-                              canDown={index < sortedInds.length - 1}
-                            />
-                          </div>
-                        )}
+                      <li key={String(lv)} className="flex flex-col gap-1">
+                        {lv && <p className="mt-1 px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Level {lv}</p>}
+                        <ul className="flex flex-col gap-1">
+                          {rows.map((ind) => renderRow(ind, group, siblings))}
+                        </ul>
                       </li>
                     );
                   })}
+
+                  {old.length > 0 && (
+                    <li>
+                      <details className="mt-1 rounded-xl border border-white/50 bg-white/40">
+                        <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 px-3 text-xs font-medium text-slate-600 [&::-webkit-details-marker]:hidden">
+                          <span>Arsip kurikulum lama ({old.length})</span>
+                          <span className="text-slate-400">Lihat</span>
+                        </summary>
+                        <ul className="flex flex-col gap-1 px-1 pb-1">
+                          {old.map((ind) => renderRow(ind, group, []))}
+                        </ul>
+                      </details>
+                    </li>
+                  )}
                 </ul>
               </AccordionItem>
             );
@@ -417,13 +643,13 @@ export function IndicatorWorkspace({
               {editing === "new-group" && (
                 <>
                   <h2 className={`mb-4 ${HEADING}`}>Kelompok baru</h2>
-                  <ItemForm
+                  <GroupForm
                     key={editorKey}
                     action={createGroupAction as never}
                     programId={programId}
                     initialName=""
-                    nameLabel="Nama kelompok"
                     submitLabel="Tambah Kelompok"
+                    askLevels={levelsMode}
                     onDirtyChange={onDirty}
                     onCancel={discard}
                   />
@@ -433,14 +659,13 @@ export function IndicatorWorkspace({
               {editing === "new-indicator" && (
                 <>
                   <h2 className={`mb-4 ${HEADING}`}>Indikator baru</h2>
-                  <ItemForm
+                  <IndicatorForm
                     key={editorKey}
                     action={createIndicatorAction as never}
                     programId={programId}
-                    initialName=""
-                    nameLabel="Nama indikator"
-                    groups={sortedGroups}
-                    initialGroupId={sortedGroups.find((g) => g.active)?.id ?? sortedGroups[0]?.id}
+                    groups={groupChoices}
+                    group={groupChoices.find((g) => g.active) ?? groupChoices[0]}
+                    curriculumMode={levelsMode}
                     submitLabel="Tambah Indikator"
                     onDirtyChange={onDirty}
                     onCancel={discard}
@@ -453,17 +678,16 @@ export function IndicatorWorkspace({
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <h2 className={HEADING}>{selGroup.name}</h2>
-                      <p className="text-xs text-slate-600">{selGroup.indicators.length} indikator</p>
+                      <p className="text-xs text-slate-600">{selGroup.indicators.filter(managed).length} indikator</p>
                     </div>
                     <StatusPill active={selGroup.active} />
                   </div>
-                  <ItemForm
+                  <GroupForm
                     key={editorKey}
                     action={renameGroupAction as never}
                     programId={programId}
                     id={selGroup.id}
                     initialName={selGroup.name}
-                    nameLabel="Nama kelompok"
                     submitLabel="Simpan Perubahan"
                     onDirtyChange={onDirty}
                     onCancel={discard}
@@ -478,8 +702,8 @@ export function IndicatorWorkspace({
                       </GlassButton>
                     </ToastForm>
                     <p className="text-xs text-slate-500">
-                      Menonaktifkan kelompok menyembunyikannya dari laporan baru. Indikator dan seluruh riwayat nilai
-                      tetap aman.
+                      Menonaktifkan kelompok menyembunyikannya dari laporan baru. Indikator dan seluruh riwayat nilai tetap aman dan tetap tampil di
+                      riwayat anak.
                     </p>
                   </div>
                 </>
@@ -492,47 +716,68 @@ export function IndicatorWorkspace({
                       <h2 className={HEADING}>{selInd.item.label}</h2>
                       <p className="text-xs text-slate-600">
                         {selInd.group.name}
-                        {selInd.item.used ? " · sudah dipakai pada laporan" : " · belum pernah dipakai"}
+                        {selInd.item.level ? ` · ${levelText(selInd.item.level)}` : ""}
+                        {archived(selInd.item) ? " · kurikulum lama (arsip)" : ""}
                       </p>
                     </div>
-                    <StatusPill active={selInd.item.active} />
+                    <StatusPill active={selInd.item.active} label={archived(selInd.item) ? "Arsip" : undefined} />
                   </div>
-                  <ItemForm
+
+                  {selInd.item.usedCount > 0 || selInd.item.mappedFrom > 0 ? (
+                    <div className="mb-4 rounded-xl bg-[#FFF8E1] px-3 py-2 text-xs text-[#6b5200]" role="note">
+                      <p className="font-semibold">Indikator ini punya riwayat</p>
+                      <ul className="mt-0.5 list-disc pl-4">
+                        {selInd.item.usedCount > 0 && <li>Sudah dipakai pada {selInd.item.usedCount} laporan.</li>}
+                        {selInd.item.mappedFrom > 0 && <li>Menampilkan nilai lama dari {selInd.item.mappedFrom} indikator lama.</li>}
+                        <li>Mengubah nama atau urutan tidak mengubah nilai dan tanggal lama. Untuk berhenti memakainya, gunakan Nonaktifkan.</li>
+                      </ul>
+                    </div>
+                  ) : (
+                    <p className="mb-4 text-xs text-slate-500">Belum pernah dipakai pada laporan.</p>
+                  )}
+
+                  <IndicatorForm
                     key={editorKey}
                     action={updateIndicatorAction as never}
                     programId={programId}
-                    id={selInd.item.id}
-                    initialName={selInd.item.label}
-                    nameLabel="Nama indikator"
+                    item={selInd.item}
+                    group={selInd.group}
                     groups={sortedGroups}
-                    initialGroupId={selInd.group.id}
+                    curriculumMode={levelsMode}
                     submitLabel="Simpan Perubahan"
                     onDirtyChange={onDirty}
                     onCancel={discard}
                   />
+
                   <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/40 pt-3">
-                    <ToastForm action={toggleIndicatorActiveAction} pendingLabel="Memproses...">
-                      <input type="hidden" name="program_id" value={programId} />
-                      <input type="hidden" name="id" value={selInd.item.id} />
-                      <input type="hidden" name="next_active" value={(!selInd.item.active).toString()} />
-                      <GlassButton type="submit" className={`${SECONDARY_BUTTON} px-3 py-1.5 text-sm`}>
-                        {selInd.item.active ? "Nonaktifkan" : "Aktifkan"}
-                      </GlassButton>
-                    </ToastForm>
-                    {selInd.item.used ? (
+                    {archived(selInd.item) ? (
                       <span className="text-xs text-slate-500">
-                        Tidak bisa dihapus karena sudah dipakai pada laporan &mdash; nonaktifkan saja.
+                        Indikator kurikulum lama disimpan sebagai arsip dan tidak dipakai untuk laporan baru. Nilainya tetap ada di riwayat.
                       </span>
                     ) : (
-                      <ToastForm action={deleteIndicatorAction} pendingLabel="Menghapus...">
-                        <input type="hidden" name="program_id" value={programId} />
-                        <input type="hidden" name="id" value={selInd.item.id} />
-                        <DeleteConfirm
-                          message={`Hapus indikator "${selInd.item.label}"? Tindakan ini tidak bisa dibatalkan.`}
-                        >
-                          Hapus
-                        </DeleteConfirm>
-                      </ToastForm>
+                      <>
+                        <ToastForm action={toggleIndicatorActiveAction} pendingLabel="Memproses...">
+                          <input type="hidden" name="program_id" value={programId} />
+                          <input type="hidden" name="id" value={selInd.item.id} />
+                          <input type="hidden" name="next_active" value={(!selInd.item.active).toString()} />
+                          <GlassButton type="submit" className={`${SECONDARY_BUTTON} px-3 py-1.5 text-sm`}>
+                            {selInd.item.active ? "Nonaktifkan (arsipkan)" : "Aktifkan"}
+                          </GlassButton>
+                        </ToastForm>
+                        {selInd.item.usedCount > 0 || selInd.item.mappedFrom > 0 ? (
+                          <span className="text-xs text-slate-500">
+                            Tidak bisa dihapus permanen karena punya riwayat. Nonaktifkan agar tidak muncul di laporan baru; riwayat tetap tampil.
+                          </span>
+                        ) : (
+                          <ToastForm action={deleteIndicatorAction} pendingLabel="Menghapus...">
+                            <input type="hidden" name="program_id" value={programId} />
+                            <input type="hidden" name="id" value={selInd.item.id} />
+                            <DeleteConfirm message={`Hapus indikator "${selInd.item.label}" secara permanen? Indikator ini belum pernah dipakai. Tindakan ini tidak bisa dibatalkan.`}>
+                              Hapus
+                            </DeleteConfirm>
+                          </ToastForm>
+                        )}
+                      </>
                     )}
                   </div>
                 </>

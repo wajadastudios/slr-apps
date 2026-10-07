@@ -12,6 +12,7 @@ const PLOT_H = H - M.t - M.b;
 const TEAL = "#1597A3";
 const INK = "#17263D";
 const MUTED = "#64748B";
+const LEGACY = "#6B7FA3";
 
 const num = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
 
@@ -44,7 +45,7 @@ function xAt(i: number, count: number): number {
 // is not joined to its neighbours -- it covers fewer indicators, so it is not
 // comparable.
 export function TechniqueChart({ segments, name }: { segments: SeriesSegment[]; name: string }) {
-  const flat = segments.flatMap((seg, s) => seg.points.map((p, i) => ({ ...p, seg: s, first: i === 0 })));
+  const flat = segments.flatMap((seg, s) => seg.points.map((p, i) => ({ ...p, legacy: seg.legacy === true, seg: s, first: i === 0 })));
   if (flat.length === 0) return null;
   const y = (pct: number) => M.t + PLOT_H * (1 - pct / 100);
   const every = flat.length > 7 ? 2 : 1;
@@ -74,18 +75,35 @@ export function TechniqueChart({ segments, name }: { segments: SeriesSegment[]; 
           const prev = flat[i - 1];
           const x = xAt(i, flat.length);
           const join = prev && prev.seg === p.seg && prev.complete && p.complete;
+          const color = p.legacy ? LEGACY : TEAL;
           return (
-            <g key={p.reportId}>
-              {p.first && i > 0 && (
+            <g key={`${p.reportId}-${p.level ?? 0}`}>
+              {p.first && (i > 0 || p.legacy) && (
                 <g>
-                  <line x1={x} x2={x} y1={M.t} y2={M.t + PLOT_H} stroke="#94A3B8" strokeDasharray="2 4" />
-                  <text x={x + 4} y={M.t + 10} fontSize="11" fontWeight="600" fill={INK}>
-                    {p.level ? `Mulai ${levelLabel(p.level).split(" — ")[0]}` : "Mulai rubrik baru"}
+                  {i > 0 && <line x1={x} x2={x} y1={M.t} y2={M.t + PLOT_H} stroke="#94A3B8" strokeDasharray="2 4" />}
+                  <text x={x + (i > 0 ? 4 : -4)} y={M.t + 10} fontSize="11" fontWeight="600" fill={INK}>
+                    {p.legacy
+                      ? p.level
+                        ? `Sebelum pembaruan \u00b7 L${p.level}`
+                        : "Sebelum pembaruan"
+                      : p.level
+                        ? `Mulai ${levelLabel(p.level).split(" \u2014 ")[0]}`
+                        : "Mulai rubrik baru"}
                   </text>
                 </g>
               )}
-              {join && <line x1={xAt(i - 1, flat.length)} y1={y(prev.percent)} x2={x} y2={y(p.percent)} stroke={TEAL} strokeWidth={2.5} />}
-              {p.complete ? (
+              {join && <line x1={xAt(i - 1, flat.length)} y1={y(prev.percent)} x2={x} y2={y(p.percent)} stroke={color} strokeWidth={2.5} />}
+              {p.legacy ? (
+                p.complete ? (
+                  <rect x={x - 4.5} y={y(p.percent) - 4.5} width={9} height={9} fill={LEGACY}>
+                    <title>{`${formatShortDate(p.date)}: ${p.percent}% (${p.assessed}/${p.required} indikator) \u2014 riwayat sebelum pembaruan kurikulum`}</title>
+                  </rect>
+                ) : (
+                  <rect x={x - 5} y={y(p.percent) - 5} width={10} height={10} fill="#fff" stroke={LEGACY} strokeWidth={2} strokeDasharray="2.5 2">
+                    <title>{`${formatShortDate(p.date)}: ${p.percent}% \u2014 sebagian indikator (${p.assessed}/${p.required}), riwayat sebelum pembaruan kurikulum`}</title>
+                  </rect>
+                )
+              ) : p.complete ? (
                 <circle cx={x} cy={y(p.percent)} r={5} fill={TEAL}>
                   <title>{`${formatShortDate(p.date)}: ${p.percent}% (${p.assessed}/${p.required} indikator)`}</title>
                 </circle>
@@ -119,6 +137,14 @@ export function TechniqueChart({ segments, name }: { segments: SeriesSegment[]; 
           </svg>
           penilaian sebagian (tidak dihubungkan)
         </span>
+        {flat.some((p) => p.legacy) && (
+          <span className="inline-flex items-center gap-1">
+            <svg width="12" height="12" aria-hidden="true">
+              <rect x="1.5" y="1.5" width="9" height="9" fill={LEGACY} />
+            </svg>
+            riwayat sebelum pembaruan kurikulum
+          </span>
+        )}
         <span>Skor bisa turun; titik baru hanya ada bila ada penilaian baru.</span>
       </figcaption>
     </figure>

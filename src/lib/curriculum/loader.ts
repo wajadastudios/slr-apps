@@ -5,6 +5,9 @@ import type {
   CurriculumIndicator,
   CurriculumReport,
   CurriculumSkill,
+  LegacyHistory,
+  LegacyMapEntry,
+  LegacyMapStatus,
   Level,
   LevelEvent,
   SkillKind,
@@ -29,6 +32,27 @@ export async function loadCurriculumMode(supabase: SupabaseClient, programId: st
 }
 
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
+
+function cleanScores(v: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    for (const [k, raw] of Object.entries(v as Record<string, unknown>)) {
+      const n = Number(raw);
+      if (Number.isFinite(n)) out[k] = n;
+    }
+  }
+  return out;
+}
+
+function cleanLabels(v: unknown): Record<string, { label: string; group: string | null }> {
+  const out: Record<string, { label: string; group: string | null }> = {};
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    for (const [k, raw] of Object.entries(v as Record<string, { label?: unknown; group?: unknown }>)) {
+      if (raw && typeof raw.label === "string") out[k] = { label: raw.label, group: typeof raw.group === "string" ? raw.group : null };
+    }
+  }
+  return out;
+}
 
 const RESULT_COLUMNS =
   "id, progress_report_id, test_type_id, level, distance_m, duration_s, time_s, assisted, assistance_note, conditions, conditions_comparable, technique_met, steps_passed, validation, target_id, notes, created_at";
@@ -72,7 +96,7 @@ export async function loadCurriculumData(
 ): Promise<CurriculumData> {
   const { programId, enrollmentId } = args;
 
-  const [groupsRes, indicatorsRes, typesRes, reportsRes, resultsRes, eventsRes] = await Promise.all([
+  const [groupsRes, indicatorsRes, typesRes, reportsRes, resultsRes, eventsRes, mapRes] = await Promise.all([
     supabase
       .from("indicator_groups")
       .select("id, slug, name, skill_kind, has_levels, sort_order")
@@ -89,7 +113,7 @@ export async function loadCurriculumData(
       .eq("program_id", programId),
     supabase
       .from("progress_reports")
-      .select("id, session_date, attendance, scores, curriculum_version, assessment_context, notes, pelatih_id")
+      .select("id, session_date, attendance, scores, curriculum_version, assessment_context, notes, pelatih_id, indicator_snapshot")
       .eq("enrollment_id", enrollmentId)
       .eq("status", "final")
       .order("session_date", { ascending: false }),
@@ -98,6 +122,11 @@ export async function loadCurriculumData(
       .from("skill_level_events")
       .select("id, group_id, level, kind, effective_on, created_at, note")
       .eq("enrollment_id", enrollmentId),
+    // missing until migration 0050 has run: then there is simply no mapping yet
+    supabase
+      .from("legacy_indicator_map")
+      .select("legacy_key, legacy_label, legacy_group, status, target_indicator_id")
+      .eq("program_id", programId),
   ]);
 
   const skills: CurriculumSkill[] = (groupsRes.data ?? []).map((g) => ({
@@ -201,5 +230,28 @@ export async function loadCurriculumData(
       note: (e.note as string | null) ?? null,
     }));
 
-  return { skills, indicators, rules, testTypes, targets, reports, results, levelEvents };
+  const legacy: LegacyHistory = {
+    reports: reportRows
+      .filter((r) => r.curriculum_version === null || r.curriculum_version === undefined)
+      .map((r) => ({
+        id: r.id as string,
+        sessionDate: r.session_date as string,
+        attendance: (r.attendance as string | null) ?? null,
+        scores: cleanScores(r.scores),
+        labels: cleanLabels(r.indicator_snapshot),
+      })),
+    map: mapRes.error
+      ? []
+      : ((mapRes.data ?? []) as Record<string, unknown>[]).map(
+          (m): LegacyMapEntry => ({
+            legacyKey: m.legacy_key as string,
+            legacyLabel: m.legacy_label as string,
+            legacyGroup: (m.legacy_group as string | null) ?? null,
+            status: m.status as LegacyMapStatus,
+            targetId: (m.target_indicator_id as string | null) ?? null,
+          })
+        ),
+  };
+
+  return { skills, indicators, rules, testTypes, targets, reports, results, levelEvents, legacy };
 }

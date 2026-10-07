@@ -5,6 +5,7 @@ import { StarRating } from "@/components/ui/star-rating";
 import { AbilityChart, TechniqueChart } from "@/components/curriculum/charts";
 import { formatShortDate } from "@/lib/format-date";
 import { buildProfile, currentAssessment, type SkillProfile } from "@/lib/curriculum/profile";
+import { LEGACY_LABEL, hasLegacyHistory, legacyLatest, legacyRows, legacySeries, skillHasLegacy } from "@/lib/curriculum/legacy-view";
 import { abilitySeries } from "@/lib/curriculum/series";
 import { coverageLabel, techniqueSeries, techniqueSummary } from "@/lib/curriculum/summary";
 import { achievementTimeline, formatMeasure, personalRecords } from "@/lib/curriculum/results";
@@ -24,7 +25,7 @@ const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text
 const num = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
 
 // ---------- the six skills side by side (no combined score) ----------
-function ProfileCard({ p }: { p: SkillProfile }) {
+function ProfileCard({ p, legacy }: { p: SkillProfile; legacy: boolean }) {
   const { skill } = p;
   return (
     <li className="flex flex-col gap-1.5 rounded-2xl border border-white/60 bg-white/70 p-3.5 shadow-[0_2px_10px_rgba(23,38,61,0.05)]">
@@ -38,7 +39,11 @@ function ProfileCard({ p }: { p: SkillProfile }) {
       </div>
 
       {!p.started ? (
-        <p className="text-sm text-slate-500">{STATUS_LABEL.belum_dimulai}</p>
+        legacy ? (
+          <p className="text-sm text-slate-600">{LEGACY_LABEL} tersedia</p>
+        ) : (
+          <p className="text-sm text-slate-500">{STATUS_LABEL.belum_dimulai}</p>
+        )
       ) : p.mastery ? (
         <>
           <p className="text-sm text-[#17263D]">
@@ -66,6 +71,18 @@ function ProfileCard({ p }: { p: SkillProfile }) {
       )}
       {p.lastAssessed && <p className="text-[11px] text-slate-400">Terakhir dinilai {formatShortDate(p.lastAssessed)}</p>}
     </li>
+  );
+}
+
+// "Nilai terakhir sebelum pembaruan: 4/5 · 6 Okt 2025" -- shown only where the
+// new curriculum has no assessment of the indicator yet.
+function LegacyNote({ data, indicatorKey }: { data: CurriculumData; indicatorKey: string }) {
+  const last = legacyLatest(data, indicatorKey);
+  if (!last) return null;
+  return (
+    <span className="block text-[11px] text-slate-400">
+      Sebelumnya (sebelum pembaruan kurikulum): {formatStars(last.score)}/5 &middot; {formatShortDate(last.date)}
+    </span>
   );
 }
 
@@ -102,7 +119,8 @@ function SkillSection({
   const level = currentLevel(skill.id, data.levelEvents)?.level ?? null;
   const current = currentAssessment(data, skill, skill.hasLevels ? level : null);
   const latest = latestSummary(data, skill);
-  const series = techniqueSeries(data.indicators, skill.id, data.reports);
+  const series = [...legacySeries(data, skill), ...techniqueSeries(data.indicators, skill.id, data.reports)];
+  const hasLegacy = skillHasLegacy(data, skill);
   const abilities = abilitySeries(data, skill.id);
   const records = personalRecords(data.results, data.testTypes).filter((r) =>
     data.testTypes.some((t) => t.id === r.testTypeId && t.skillId === skill.id)
@@ -134,7 +152,9 @@ function SkillSection({
         </span>
         <span className="text-xs text-slate-500">
           {!profile.started
-            ? STATUS_LABEL.belum_dimulai
+            ? hasLegacy
+              ? LEGACY_LABEL
+              : STATUS_LABEL.belum_dimulai
             : latest
               ? `Ringkasan penilaian ${latest.summary.percent}% · ${coverageLabel(latest.summary)}`
               : "Sudah dimulai, belum dinilai"}
@@ -167,7 +187,10 @@ function SkillSection({
                   ) : status.state === "tidak_berlaku" ? (
                     <span className="text-xs text-slate-500">Tidak berlaku ({status.reason})</span>
                   ) : (
-                    <span className="text-xs text-slate-500">{STATUS_LABEL[status.state]}</span>
+                    <span className="text-xs text-slate-500">
+                      {legacyLatest(data, indicator.key) ? "Belum dinilai dengan kurikulum baru" : STATUS_LABEL[status.state]}
+                      <LegacyNote data={data} indicatorKey={indicator.key} />
+                    </span>
                   )}
                 </li>
               ))}
@@ -176,6 +199,9 @@ function SkillSection({
         </div>
 
         {/* mastery lists for skills without levels */}
+        {profile.mastery && profile.mastery.total > 0 && hasLegacy && (
+          <p className="-mb-2 text-[11px] text-slate-500">Dihitung dari penilaian kurikulum baru. Riwayat sebelum pembaruan ada di grafik di bawah dan di &ldquo;Riwayat kurikulum sebelumnya&rdquo;.</p>
+        )}
         {profile.mastery && profile.mastery.total > 0 && (
           <div className="grid gap-2 text-xs text-slate-700 sm:grid-cols-3">
             <div className="rounded-xl bg-[#E9FBF3] px-3 py-2">
@@ -278,6 +304,70 @@ function SkillSection({
         )}
       </div>
     </details>
+  );
+}
+
+// Old indicators with their history, grouped as they were. Mapped ones say where
+// they are drawn now; the rest stay visible here instead of disappearing.
+export function LegacyHistoryCard({ data }: { data: CurriculumData }) {
+  if (!hasLegacyHistory(data)) return null;
+  const rows = legacyRows(data);
+  const groups = new Map<string, typeof rows>();
+  for (const r of rows) groups.set(r.group ?? "Lainnya", [...(groups.get(r.group ?? "Lainnya") ?? []), r]);
+  const unmapped = rows.filter((r) => !r.mappedTo).length;
+
+  return (
+    <GlassCard>
+      <details className="group">
+        <summary className="flex min-h-12 cursor-pointer list-none flex-wrap items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+          <span>
+            <span className={HEADING}>Riwayat kurikulum sebelumnya</span>
+            <span className="block text-xs text-slate-500">
+              {LEGACY_LABEL} &middot; {rows.length} indikator{unmapped > 0 ? `, ${unmapped} belum punya padanan di kurikulum baru` : ""}
+            </span>
+          </span>
+          <span className="text-xs text-slate-400 group-open:hidden">Lihat</span>
+          <span className="hidden text-xs text-slate-400 group-open:inline">Tutup</span>
+        </summary>
+        <p className="mt-2 text-xs text-slate-500">
+          Penilaian ini dibuat dengan indikator sebelum pembaruan. Tanggal dan nilainya tetap seperti saat dicatat. Nilai 0 pada riwayat
+          lama ditandai &ldquo;belum dapat dipastikan&rdquo; karena dulu semua indikator otomatis berisi 0.
+        </p>
+        <div className="mt-3 flex flex-col gap-4">
+          {[...groups.entries()].map(([group, list]) => (
+            <div key={group}>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{group}</p>
+              <ul className="mt-1 flex flex-col gap-2">
+                {list.map((r) => (
+                  <li key={r.key} className="rounded-xl border border-white/60 bg-white/60 px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <span className="text-sm font-medium text-[#17263D]">{r.label}</span>
+                      <span className="text-[11px] text-slate-500">
+                        {r.mappedTo
+                          ? `Ditampilkan sebagai ${r.mappedTo.skillName}${r.mappedTo.level ? ` L${r.mappedTo.level}` : ""} \u203a ${r.mappedTo.label}`
+                          : "Belum ada padanan di kurikulum baru"}
+                      </span>
+                    </div>
+                    {r.entries.length > 0 ? (
+                      <p className="mt-1 text-xs text-slate-600">
+                        {r.entries
+                          .slice(-8)
+                          .map((e) => `${formatShortDate(e.date)}: ${formatStars(e.score)}`)
+                          .join(" \u00b7 ")}
+                        {r.entries.length > 8 ? ` (${r.entries.length} penilaian, 8 terakhir)` : ""}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-400">Belum ada nilai di atas 0.</p>
+                    )}
+                    {r.zeros > 0 && <p className="text-[11px] text-slate-400">{r.zeros} catatan bernilai 0: belum dapat dipastikan (data lama)</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </details>
+    </GlassCard>
   );
 }
 
@@ -416,7 +506,7 @@ export function CurriculumProgress({
         </p>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {profiles.map((p) => (
-            <ProfileCard key={p.skill.id} p={p} />
+            <ProfileCard key={p.skill.id} p={p} legacy={skillHasLegacy(data, p.skill)} />
           ))}
         </ul>
         <p className="mt-3 rounded-xl bg-[#FFF8E1] px-3 py-2 text-xs text-[#6b5200]" role="note">
@@ -456,6 +546,7 @@ export function CurriculumProgress({
       </GlassCard>
 
       <AchievementsCard data={data} limit={8} />
+      <LegacyHistoryCard data={data} />
     </>
   );
 }
