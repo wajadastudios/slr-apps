@@ -81,9 +81,9 @@ function ChooseTarget({
   preferred: string[];
   label: string;
 }) {
-  const bySkill = new Map<string, MapOption[]>();
-  for (const o of options) bySkill.set(o.skillName, [...(bySkill.get(o.skillName) ?? []), o]);
-  const preferredOptions = options.filter((o) => preferred.includes(o.id));
+  // the dropdown only lists plain options (it has no groups), so every entry names its skill and level;
+  // the likeliest targets come first
+  const ordered = [...options.filter((o) => preferred.includes(o.id)), ...options.filter((o) => !preferred.includes(o.id))];
 
   return (
     <ToastForm action={setLegacyMappingAction} pendingLabel="Menyimpan..." className="mt-2 flex flex-wrap items-end gap-2">
@@ -95,24 +95,10 @@ function ChooseTarget({
           <option value="" disabled>
             Pilih indikator tujuan
           </option>
-          {preferredOptions.length > 0 && (
-            <optgroup label="Paling sesuai">
-              {preferredOptions.map((o) => (
-                <option key={`p-${o.id}`} value={o.id}>
-                  {describe(o)}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {[...bySkill.entries()].map(([skill, list]) => (
-            <optgroup key={skill} label={skill}>
-              {list.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.level ? `Level ${o.level} · ` : ""}
-                  {o.label}
-                </option>
-              ))}
-            </optgroup>
+          {ordered.map((o) => (
+            <option key={o.id} value={o.id}>
+              {describe(o)}
+            </option>
           ))}
         </GlassSelect>
       </label>
