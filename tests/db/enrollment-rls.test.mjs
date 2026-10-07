@@ -1080,6 +1080,19 @@ check("restore: running it again adds nothing", (await floatingRows()).length ==
 check("restore: other programs got nothing", (await q("select count(*)::int c from public.indicators where seed_key='k1_water_safety_floating' and program_id<>$1", [KIDS]))[0].c === 0);
 check("restore: no score or report was touched", JSON.stringify(await oldReport()) === reportBefore);
 
+// ---------- mapping traceability (0052) ----------
+await su();
+const sourceSql = fs.readFileSync(path.join(dir, "0052_legacy_map_source.sql"), "utf8");
+const beforeRow = (await q("select legacy_indicator_id, note from public.legacy_indicator_map where program_id=$1 and legacy_key='Dasar - Adaptasi di Air'", [KIDS]))[0];
+check("source: a mapping made before 0052 has no source reference yet", beforeRow.legacy_indicator_id === null);
+await db.exec(sourceSql);
+const afterRow = (await q("select legacy_indicator_id, note from public.legacy_indicator_map where program_id=$1 and legacy_key='Dasar - Adaptasi di Air'", [KIDS]))[0];
+check("source: 0052 links the mapping to the old indicator row and writes the reason", afterRow.legacy_indicator_id === adaptasiId && /sama/.test(afterRow.note ?? ""), JSON.stringify(afterRow));
+await db.exec(sourceSql);
+check("source: running 0052 again changes nothing", JSON.stringify((await q("select legacy_indicator_id, note from public.legacy_indicator_map where program_id=$1 and legacy_key='Dasar - Adaptasi di Air'", [KIDS]))[0]) === JSON.stringify(afterRow));
+check("source: a mapping without an old indicator row simply keeps no reference", (await q("select legacy_indicator_id from public.legacy_indicator_map where program_id=$1 and legacy_key='Water Safety - Floating'", [KIDS]))[0].legacy_indicator_id === null);
+check("source: the old report is still byte-for-byte unchanged", JSON.stringify(await oldReport()) === reportBefore);
+
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
 process.exit(failed.length ? 1 : 0);

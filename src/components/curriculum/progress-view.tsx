@@ -23,7 +23,7 @@ import type { ActionState } from "@/lib/action-result";
 export const WATER_DISCLAIMER =
   "Penilaian menunjukkan kemampuan dalam kondisi latihan yang dicatat. Anak tetap memerlukan pengawasan di sekitar air.";
 
-type Audience = "parent" | "pelatih";
+type Audience = "parent" | "pelatih" | "admin";
 type ConfirmAction = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
@@ -125,7 +125,7 @@ function SkillSection({
   const current = currentAssessment(data, skill, skill.hasLevels ? level : null);
   const latest = latestSummary(data, skill);
   const series = [...legacySeries(data, skill), ...techniqueSeries(data.indicators, skill.id, data.reports)];
-  const hasLegacy = skillHasLegacy(data, skill);
+  const hasLegacy = audience === "admin" && skillHasLegacy(data, skill);
   const abilities = abilitySeries(data, skill.id);
   const records = personalRecords(data.results, data.testTypes).filter((r) =>
     data.testTypes.some((t) => t.id === r.testTypeId && t.skillId === skill.id)
@@ -193,8 +193,8 @@ function SkillSection({
                     <span className="text-xs text-slate-500">Tidak berlaku ({status.reason})</span>
                   ) : (
                     <span className="text-xs text-slate-500">
-                      {legacyLatest(data, indicator.key) ? "Belum dinilai dengan kurikulum baru" : STATUS_LABEL[status.state]}
-                      <LegacyNote data={data} indicatorKey={indicator.key} />
+                      {audience === "admin" && legacyLatest(data, indicator.key) ? "Belum dinilai dengan kurikulum baru" : STATUS_LABEL[status.state]}
+                      {audience === "admin" && <LegacyNote data={data} indicatorKey={indicator.key} />}
                     </span>
                   )}
                 </li>
@@ -227,7 +227,7 @@ function SkillSection({
         {series.length > 0 && (
           <div>
             <h3 className="mb-1 text-sm font-semibold text-[#17263D]">Ringkasan penilaian teknik</h3>
-            <SeriesRibbons series={[{ key: skill.id, name: skill.name, points: ribbonPoints(series) }]} />
+            <SeriesRibbons series={[{ key: skill.id, name: skill.name, points: ribbonPoints(series, audience === "admin") }]} />
           </div>
         )}
 
@@ -484,24 +484,36 @@ export function StarMeaningCard() {
 // A series of sessions as ribbon points: the average star score (0-5) of what
 // was assessed, with a short note on where the point comes from and an
 // annotation where the rubric or the curriculum changes.
-function ribbonPoints(segments: SeriesSegment[]): RibbonPoint[] {
+function ribbonPoints(segments: SeriesSegment[], showLegacy = false): RibbonPoint[] {
   const out: RibbonPoint[] = [];
   segments.forEach((seg, i) => {
     seg.points.forEach((p, n) => {
-      const source = seg.legacy ? "Riwayat sebelum pembaruan kurikulum" : "Kurikulum level";
       const coverage = p.complete ? `${p.assessed} indikator` : `sebagian: ${p.assessed}/${p.required} indikator`;
+      const source = showLegacy ? (seg.legacy ? "Riwayat sebelum pembaruan kurikulum" : "Kurikulum level") : null;
+      const marker =
+        i > 0 && n === 0
+          ? seg.legacy
+            ? showLegacy
+              ? "Sebelum pembaruan"
+              : null
+            : seg.level
+              ? `Mulai ${levelLabel(seg.level).split(" \u2014 ")[0]}`
+              : showLegacy
+                ? "Mulai kurikulum baru"
+                : null
+          : null;
       out.push({
         date: p.date,
         score: Math.round((p.percent / 20) * 10) / 10,
-        note: `${source} \u00b7 ${coverage}`,
-        marker: i > 0 && n === 0 ? (seg.legacy ? "Sebelum pembaruan" : seg.level ? `Mulai ${levelLabel(seg.level).split(" \u2014 ")[0]}` : "Mulai kurikulum baru") : null,
+        note: source ? `${source} \u00b7 ${coverage}` : coverage,
+        marker,
       });
     });
   });
   return out;
 }
 
-export function OverallCard({ data }: { data: CurriculumData }) {
+export function OverallCard({ data, showLegacy = false }: { data: CurriculumData; showLegacy?: boolean }) {
   const segments = overallSeries(data);
   return (
     <GlassCard>
@@ -513,13 +525,13 @@ export function OverallCard({ data }: { data: CurriculumData }) {
       {segments.length === 0 ? (
         <p className="text-sm text-slate-500">Belum ada penilaian untuk digambarkan.</p>
       ) : (
-        <SeriesRibbons series={[{ key: "overall", name: "Seluruh proses belajar", points: ribbonPoints(segments) }]} />
+        <SeriesRibbons series={[{ key: "overall", name: "Seluruh proses belajar", points: ribbonPoints(segments, showLegacy) }]} />
       )}
     </GlassCard>
   );
 }
 
-export function SkillChartsCard({ data }: { data: CurriculumData }) {
+export function SkillChartsCard({ data, showLegacy = false }: { data: CurriculumData; showLegacy?: boolean }) {
   const skills = [...data.skills].sort((a, b) => a.sortOrder - b.sortOrder);
   const series = skills.map((skill) => {
     const level = currentLevel(skill.id, data.levelEvents)?.level ?? null;
@@ -527,7 +539,7 @@ export function SkillChartsCard({ data }: { data: CurriculumData }) {
       key: skill.id,
       name: skill.name,
       badge: level ? levelLabel(level).split(" \u2014 ")[0] : null,
-      points: ribbonPoints([...legacySeries(data, skill), ...techniqueSeries(data.indicators, skill.id, data.reports)]),
+      points: ribbonPoints([...legacySeries(data, skill), ...techniqueSeries(data.indicators, skill.id, data.reports)], showLegacy),
     };
   });
   return (
@@ -594,13 +606,13 @@ export function CurriculumProgress({
         </p>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {profiles.map((p) => (
-            <ProfileCard key={p.skill.id} p={p} legacy={skillHasLegacy(data, p.skill)} />
+            <ProfileCard key={p.skill.id} p={p} legacy={audience === "admin" && skillHasLegacy(data, p.skill)} />
           ))}
         </ul>
         <p className="mt-3 rounded-xl bg-[#FFF8E1] px-3 py-2 text-xs text-[#6b5200]" role="note">
           {WATER_DISCLAIMER}
         </p>
-        {hasPreCurriculum && (
+        {hasPreCurriculum && audience === "admin" && (
           <p className="mt-2 text-xs text-slate-500">
             Laporan sebelum kurikulum level tetap ada di riwayat dengan label &ldquo;Penilaian sebelum kurikulum level&rdquo; dan tidak dipetakan ke Level 1&ndash;3.
           </p>
@@ -615,8 +627,8 @@ export function CurriculumProgress({
         </GlassCard>
       )}
 
-      <OverallCard data={data} />
-      <SkillChartsCard data={data} />
+      <OverallCard data={data} showLegacy={audience === "admin"} />
+      <SkillChartsCard data={data} showLegacy={audience === "admin"} />
       {trend && <ProgressOverview indicatorConfig={trend.config} reports={trend.reports} />}
       {trend && <IndicatorDetail trend={trend} />}
 
@@ -639,7 +651,7 @@ export function CurriculumProgress({
       </GlassCard>
 
       <AchievementsCard data={data} limit={8} />
-      <LegacyHistoryCard data={data} />
+      {audience === "admin" && <LegacyHistoryCard data={data} />}
     </>
   );
 }

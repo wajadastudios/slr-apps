@@ -19,7 +19,7 @@ import { IndicatorWorkspace, type IndGroup } from "./indicator-workspace";
 import { CurriculumAdmin, type AdminSkill } from "./curriculum-admin";
 import { loadCurriculumMode } from "@/lib/curriculum/loader";
 import { loadMappingState, reviewRows, summarize } from "@/lib/curriculum/legacy-source";
-import { LegacyMappingAdmin, type MapItem, type MapOption } from "./legacy-mapping-admin";
+import { LegacyMappingAdmin, type MapItem, type MapOption, type MapReport } from "./legacy-mapping-admin";
 
 const HEADING = "font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]";
 
@@ -191,6 +191,23 @@ async function LegacyTab({ programId, programName }: { programId: string; progra
   const rows = reviewRows(state);
   const stats = summarize(rows);
 
+  // who is affected by what is still waiting (names are for the admin only)
+  const waiting = rows.filter((r) => r.saved?.status !== "auto" && r.saved?.status !== "manual");
+  const affectedIds = [...new Set(waiting.flatMap((r) => state.studentsByKey[r.key.key] ?? []))];
+  const { data: studentRows } = affectedIds.length
+    ? await supabase.from("students").select("id, full_name").in("id", affectedIds)
+    : { data: [] as { id: string; full_name: string }[] };
+  const nameOf = new Map((studentRows ?? []).map((s) => [s.id as string, s.full_name as string]));
+  const report: MapReport = {
+    autoScores: stats.nonZeroAuto,
+    manualScores: stats.nonZeroManual,
+    waitingScores: stats.nonZeroWaiting,
+    unmapped: waiting.map((r) => ({ label: r.key.label, group: r.key.group, scores: r.key.scores - r.key.zeros, state: r.saved?.status === "skipped" ? "tidak dipetakan" : "menunggu" })),
+    students: affectedIds
+      .map((id) => ({ name: nameOf.get(id) ?? "Murid", count: waiting.filter((r) => (state.studentsByKey[r.key.key] ?? []).includes(id)).length }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  };
+
   const items: MapItem[] = rows.map(({ key, proposal, saved }) => ({
     key: key.key,
     label: key.label,
@@ -217,6 +234,7 @@ async function LegacyTab({ programId, programName }: { programId: string; progra
       programName={programName}
       ready={state.ready}
       stats={stats}
+      report={report}
       items={items}
       options={options}
       skills={state.skills}

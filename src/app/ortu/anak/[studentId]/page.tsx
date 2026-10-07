@@ -7,9 +7,10 @@ import { DataRow } from "@/components/ui/data-row";
 import { ProgressOverview, ProgressTrend } from "@/components/progress-trend";
 import { LatestReportCard, ReportHistoryCard, type ReportRow } from "@/components/report-history-card";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
-import { AchievementsCard, CurriculumProgress, StarMeaningCard } from "@/components/curriculum/progress-view";
+import { AchievementsCard } from "@/components/curriculum/progress-view";
+import { ParentProgressView } from "@/components/curriculum/parent-progress";
+import { buildParentProgress } from "@/lib/curriculum/parent-view";
 import { mergedRecords } from "@/lib/curriculum/record-bridge";
-import { trendInput } from "@/lib/curriculum/trend-adapter";
 import { loadCurriculumData, loadCurriculumMode } from "@/lib/curriculum/loader";
 import { RecordUnlockCard } from "@/components/record-unlock-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
@@ -285,12 +286,11 @@ export default async function AnakDetailPage({
     curriculumOn && (tab === "laporan" || tab === "perkembangan" || tab === "record")
       ? await loadCurriculumData(supabase, { programId: program.id, enrollmentId: enrollment.id })
       : null;
-  const hasPreCurriculum = curriculumOn && allReports.some((r) => r.curriculum_version == null && r.attendance === "hadir");
 
   // record / goals data only for the tab that needs it
   let records: PerformanceRecordRow[] = [];
   let milestones: Awaited<ReturnType<typeof loadMilestones>> = [];
-  if (tab === "record" && medals) {
+  if ((tab === "record" || (tab === "perkembangan" && curriculumOn)) && medals) {
     const [recordsRes, ms] = await Promise.all([
       supabase.from("performance_records").select("*").eq("enrollment_id", enrollment.id),
       loadMilestones(supabase, program.id),
@@ -444,16 +444,13 @@ export default async function AnakDetailPage({
       {(tab === "laporan" || tab === "catatan") && reportsTab}
 
       {tab === "perkembangan" && curriculumOn && curriculumData && (
-        <>
-          <CurriculumProgress
-            data={curriculumData}
-            audience="parent"
-            hasPreCurriculum={hasPreCurriculum}
-            trend={trendInput(curriculumData, allReports)}
-          />
-          <AttendanceConsistencyCard reports={allReports} />
-          <StarMeaningCard />
-        </>
+        <ParentProgressView
+          model={buildParentProgress(
+            curriculumData,
+            allReports,
+            medals ? computeMilestoneStatuses(mergedRecords(records, curriculumData), milestones) : []
+          )}
+        />
       )}
 
       {tab === "perkembangan" && !curriculumOn && (

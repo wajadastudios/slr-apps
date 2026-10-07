@@ -178,13 +178,20 @@ function SkillRibbon({
   events,
   progress,
   badge,
+  compact = false,
+  valueFormat,
 }: {
   name: string;
   events: SessionEvent[];
   progress: SkillProgress;
   // undefined = the usual "Sedang dilatih"; a string replaces it; null hides it
   badge?: string | null;
+  // a small chart for a card: no title row, lower height
+  compact?: boolean;
+  // how a value is written ("62%"); default is "4/5"
+  valueFormat?: (score: number) => string;
 }) {
+  const fmt = valueFormat ?? ((v: number) => `${v}/5`);
   const gradientId = useId().replace(/:/g, "");
   const [active, setActive] = useState<number | null>(null);
   const mastered = progress.status === "mastered";
@@ -203,6 +210,7 @@ function SkillRibbon({
 
   return (
     <div>
+      {!compact && (
       <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
         <p className={`text-sm ${mastered ? "text-slate-600" : "font-medium text-[#17263D]"}`}>
           {name}
@@ -217,7 +225,8 @@ function SkillRibbon({
           </span>
         )}
       </div>
-      {mastered ? (
+      )}
+      {compact ? null : mastered ? (
         <p className="mb-1 text-xs leading-relaxed text-[#2F6F57]">
           Konsisten mendapat 5/5 dalam {progress.streak} penilaian terakhir. Siap
           melanjutkan ke kemampuan berikutnya.
@@ -230,7 +239,7 @@ function SkillRibbon({
         )
       )}
       <div
-        className={`relative ${mastered ? "h-16" : "h-24"}`}
+        className={`relative ${mastered || compact ? "h-16" : "h-24"}`}
         onClick={() => setActive(null)}
         onMouseLeave={() => setActive(null)}
       >
@@ -388,7 +397,7 @@ function SkillRibbon({
               }}
             />
             <span className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap text-sm font-bold text-[#17263D]">
-              {latest.score}/5
+              {fmt(latest.score as number)}
             </span>
           </div>
         )}
@@ -402,7 +411,7 @@ function SkillRibbon({
               {activeEvent.sessionNumber ? ` · Sesi ${activeEvent.sessionNumber}` : ""}
             </p>
             {activeEvent.score !== null ? (
-              <p className="mt-0.5 text-[#0f8a94]">Skor {activeEvent.score}/5</p>
+              <p className="mt-0.5 text-[#0f8a94]">{valueFormat ? fmt(activeEvent.score as number) : `Skor ${activeEvent.score}/5`}</p>
             ) : (
               <p className="mt-0.5 text-slate-500">
                 Tidak berlatih, skor tetap
@@ -436,7 +445,15 @@ export type RibbonSeries = { key: string; name: string; points: RibbonPoint[]; b
 // The very same ribbons as the per-indicator trend above (step line, glow,
 // end bubble, hover card), fed with a series of average scores instead of one
 // indicator. All series share one time axis so they can be read side by side.
-export function SeriesRibbons({ series }: { series: RibbonSeries[] }) {
+export function SeriesRibbons({
+  series,
+  compact = false,
+  valueFormat,
+}: {
+  series: RibbonSeries[];
+  compact?: boolean;
+  valueFormat?: (score: number) => string;
+}) {
   const times = series.flatMap((s) => s.points.map((p) => new Date(p.date).getTime()));
   const minT = Math.min(...times);
   const maxT = Math.max(...times);
@@ -474,7 +491,7 @@ export function SeriesRibbons({ series }: { series: RibbonSeries[] }) {
           streak: 0,
           afterMastered: null,
         };
-        return <SkillRibbon key={s.key} name={s.name} events={events} progress={progress} badge={s.badge ?? null} />;
+        return <SkillRibbon key={s.key} name={s.name} events={events} progress={progress} badge={s.badge ?? null} compact={compact} valueFormat={valueFormat} />;
       })}
     </div>
   );
@@ -644,12 +661,17 @@ function ProgressOverviewCard({ overview }: { overview: MasteryOverview }) {
 export function ProgressTrend({
   indicatorConfig,
   reports,
+  bare = false,
 }: {
   indicatorConfig: IndicatorConfig;
   reports: Report[];
+  // render the charts only, without the card and heading around them
+  bare?: boolean;
 }) {
   if (reports.length === 0) {
-    return (
+    return bare ? (
+      <p className="text-sm text-slate-600">Belum ada data skor untuk ditampilkan sebagai tren.</p>
+    ) : (
       <GlassCard>
         <p className="text-sm text-slate-600">
           Belum ada data skor untuk ditampilkan sebagai tren.
@@ -679,24 +701,36 @@ export function ProgressTrend({
   const training = overview.training.map(ribbon);
   const mastered = overview.mastered.map(ribbon);
 
-  return (
-    <GlassCard className="relative">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl"
-        style={{
-          backgroundImage: `${WAVE_BG}, ${GRID_BG}`,
-          backgroundSize: "160px 28px, 100% 28px",
-        }}
-      />
+  const wrap = (children: React.ReactNode) =>
+    bare ? (
+      <div className="relative">{children}</div>
+    ) : (
+      <GlassCard className="relative">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl"
+          style={{
+            backgroundImage: `${WAVE_BG}, ${GRID_BG}`,
+            backgroundSize: "160px 28px, 100% 28px",
+          }}
+        />
+        <div className="relative">{children}</div>
+      </GlassCard>
+    );
+
+  return wrap(
       <div className="relative">
-        <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
-          Tren Perkembangan
-        </h2>
-        <p className="mb-4 text-xs text-slate-500">
-          Sumbu waktu mengikuti tanggal sesi. Sesi izin/sakit ditandai dan tidak
-          menurunkan skor.
-        </p>
+        {!bare && (
+          <>
+            <h2 className="font-[family-name:var(--font-quicksand)] text-lg font-bold text-[#17263D]">
+              Tren Perkembangan
+            </h2>
+            <p className="mb-4 text-xs text-slate-500">
+              Sumbu waktu mengikuti tanggal sesi. Sesi izin/sakit ditandai dan tidak
+              menurunkan skor.
+            </p>
+          </>
+        )}
         {training.length > 0 ? (
           <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
             {training.slice(0, MAIN_RIBBONS).map(({ progress, events }) => (
@@ -712,6 +746,5 @@ export function ProgressTrend({
         <NotStartedSkills skills={overview.notStarted} />
         <MasteredSkills items={mastered} />
       </div>
-    </GlassCard>
   );
 }

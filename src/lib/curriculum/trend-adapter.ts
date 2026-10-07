@@ -42,8 +42,14 @@ const asScores = (v: unknown): Record<string, number> => {
   return out;
 };
 
-export function trendInput(data: CurriculumData, raw: RawReport[]): { config: IndicatorConfig; reports: TrendReport[] } {
-  const known = new Set(data.indicators.map((i) => i.key));
+// `skillId` narrows everything to one skill (the detail of one skill card).
+export function trendInput(
+  data: CurriculumData,
+  raw: RawReport[],
+  opts: { skillId?: string } = {}
+): { config: IndicatorConfig; reports: TrendReport[] } {
+  const scope = opts.skillId ? data.indicators.filter((i) => i.skillId === opts.skillId) : data.indicators;
+  const known = new Set(scope.map((i) => i.key));
   const map = mappedTargets(data);
 
   const reports: TrendReport[] = raw.map((r) => {
@@ -62,6 +68,7 @@ export function trendInput(data: CurriculumData, raw: RawReport[]): { config: In
     }
     const perTarget = new Map<string, number[]>();
     for (const [legacyKey, m] of map) {
+      if (!known.has(m.target.key)) continue;
       const v = scores[legacyKey];
       if (typeof v !== "number" || v <= 0) continue;
       perTarget.set(m.target.key, [...(perTarget.get(m.target.key) ?? []), v]);
@@ -69,12 +76,16 @@ export function trendInput(data: CurriculumData, raw: RawReport[]): { config: In
     return { ...base, scores: Object.fromEntries([...perTarget].map(([k, list]) => [k, halves(list.reduce((n, v) => n + v, 0) / list.length)])) };
   });
 
+  // one skill: only the sessions that assessed it (a chart of nothing is not shown)
+  if (opts.skillId) {
+    for (let i = reports.length - 1; i >= 0; i--) if (Object.keys(reports[i].scores ?? {}).length === 0) reports.splice(i, 1);
+  }
   const used = new Set(reports.flatMap((r) => Object.keys(r.scores ?? {})));
   const skillById = new Map(data.skills.map((s) => [s.id, s]));
   const levelOf = new Map(data.skills.map((s) => [s.id, currentLevel(s.id, data.levelEvents)?.level ?? null]));
 
   // what shows up: everything that has a score, plus what the child is working on now
-  const include = data.indicators.filter((i) => {
+  const include = scope.filter((i) => {
     if (used.has(i.key)) return true;
     const skill = skillById.get(i.skillId);
     if (!skill || !i.active) return false;
@@ -88,7 +99,7 @@ export function trendInput(data: CurriculumData, raw: RawReport[]): { config: In
     id: i.id,
     key: i.key,
     // the same aspect exists at three levels: say which one this line is
-    label: skillById.get(i.skillId)?.hasLevels && i.level ? `${i.label} · Level ${i.level}` : i.label,
+    label: !opts.skillId && skillById.get(i.skillId)?.hasLevels && i.level ? `${i.label} · Level ${i.level}` : i.label,
     group_id: i.skillId,
     sort_order: (i.level ?? 0) * 100 + i.sortOrder,
     active: i.active || used.has(i.key),

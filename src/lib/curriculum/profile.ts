@@ -2,6 +2,7 @@ import type { CurriculumData, CurriculumIndicator, CurriculumSkill, Level } from
 import { indicatorStatus, skillStarted, type IndicatorStatus } from "./status";
 import { currentLevel, masteryStats, type MasteryStats } from "./levels";
 import { checkTarget, formatMeasure, personalRecords, targetOf, type PersonalRecord, type TargetCheck } from "./results";
+import { legacySeries } from "./legacy-view";
 
 // One entry per skill, side by side. There is deliberately NO combined or
 // average figure across skills: adding a skill must never lower what a child
@@ -49,11 +50,15 @@ export function buildProfile(data: CurriculumData): SkillProfile[] {
 
   return skills.map((skill) => {
     const keys = skillKeys(data.indicators, skill.id);
-    const started = skillStarted(skill.id, keys, data.reports, data.levelEvents);
+    // assessments from before the level curriculum count once they are mapped
+    const mapped = legacySeries(data, skill);
+    const started = skillStarted(skill.id, keys, data.reports, data.levelEvents) || mapped.length > 0;
+    const lastMapped = mapped.flatMap((seg) => seg.points.map((p) => p.date)).sort().at(-1) ?? null;
+    const lastOwn = lastAssessedDate(data, skill.id);
     const base: SkillProfile = {
       skill,
       started,
-      lastAssessed: lastAssessedDate(data, skill.id),
+      lastAssessed: [lastOwn, lastMapped].filter((d): d is string => !!d).sort().at(-1) ?? null,
       mastery: null,
       level: null,
       latestTest: null,

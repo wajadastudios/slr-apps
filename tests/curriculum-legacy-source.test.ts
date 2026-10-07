@@ -22,7 +22,7 @@ const keys = [
   k("Gaya Bebas - Gerakan Kaki", "Gerakan Kaki", "Gaya Bebas", 100, 60),
   k("Water Safety - Water Trappen", "Water Trappen", "Water Safety", 100, 90),
 ];
-const state = (rows: MapRow[]): MappingState => ({ skills: skills.map((s) => ({ id: s.id, name: s.name, hasLevels: s.hasLevels })), targets, keys, rows, ready: true });
+const state = (rows: MapRow[]): MappingState => ({ skills: skills.map((s) => ({ id: s.id, name: s.name, hasLevels: s.hasLevels })), targets, keys, rows, ready: true, legacyIndicatorIds: {}, studentsByKey: {} });
 
 test("before anything is stored: every key is ready to apply automatically (strokes at Level 1)", () => {
   const s = summarize(reviewRows(state([])));

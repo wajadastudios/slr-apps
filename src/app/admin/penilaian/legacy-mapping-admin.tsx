@@ -32,6 +32,15 @@ export type MapItem = {
 
 export type MapSkill = { id: string; name: string; hasLevels: boolean };
 
+// The admin-only migration report: nothing here is ever shown to parents or pengajar.
+export type MapReport = {
+  autoScores: number;
+  manualScores: number;
+  waitingScores: number;
+  unmapped: { label: string; group: string | null; scores: number; state: string }[];
+  students: { name: string; count: number }[];
+};
+
 export type MapStats = {
   keys: number;
   done: number;
@@ -132,6 +141,7 @@ export function LegacyMappingAdmin({
   programName,
   ready,
   stats,
+  report,
   items,
   options,
   skills,
@@ -140,6 +150,7 @@ export function LegacyMappingAdmin({
   programName: string;
   ready: boolean;
   stats: MapStats;
+  report: MapReport;
   items: MapItem[];
   options: MapOption[];
   skills: MapSkill[];
@@ -208,6 +219,52 @@ export function LegacyMappingAdmin({
               confirmLabel="Ya, terapkan"
             />
           </ToastForm>
+        )}
+      </GlassCard>
+
+      <GlassCard>
+        <h2 className={HEADING}>Laporan Pemetaan</h2>
+        <p className="text-xs text-slate-500">Khusus admin. Orang tua dan pengajar tidak melihat laporan ini maupun data mentah lama.</p>
+        <dl className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="rounded-2xl bg-[#E9FBF3] px-3.5 py-2.5">
+            <dt className="text-xs text-slate-600">Nilai dipetakan otomatis</dt>
+            <dd className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">{report.autoScores}</dd>
+          </div>
+          <div className="rounded-2xl bg-[#EEF9FB] px-3.5 py-2.5">
+            <dt className="text-xs text-slate-600">Nilai dipetakan manual</dt>
+            <dd className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">{report.manualScores}</dd>
+          </div>
+          <div className="rounded-2xl bg-[#FFF8E1] px-3.5 py-2.5">
+            <dt className="text-xs text-slate-600">Nilai yang masih perlu review</dt>
+            <dd className="font-[family-name:var(--font-quicksand)] text-2xl font-bold text-[#17263D]">{report.waitingScores}</dd>
+          </div>
+        </dl>
+        <p className="mt-1 text-[11px] text-slate-500">Yang dihitung adalah nilai di atas 0 yang tampil di grafik. Nilai 0 pada data lama tidak dapat dibedakan dari &ldquo;belum dinilai&rdquo;.</p>
+        {report.unmapped.length > 0 ? (
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div>
+              <h3 className="text-sm font-semibold text-[#17263D]">Indikator lama tanpa padanan ({report.unmapped.length})</h3>
+              <ul className="mt-1 flex flex-col gap-1 text-xs text-slate-700">
+                {report.unmapped.map((u) => (
+                  <li key={`${u.group}-${u.label}`}>
+                    {u.label} <span className="text-slate-500">({u.group ?? "-"}) &middot; {u.scores} nilai &middot; {u.state}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-[#17263D]">Murid terdampak ({report.students.length})</h3>
+              <ul className="mt-1 flex flex-col gap-1 text-xs text-slate-700">
+                {report.students.map((s) => (
+                  <li key={s.name}>
+                    {s.name} <span className="text-slate-500">&middot; {s.count} indikator belum dipetakan</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-[#1a8f6f]">Semua indikator lama sudah punya padanan. Tidak ada murid terdampak.</p>
         )}
       </GlassCard>
 

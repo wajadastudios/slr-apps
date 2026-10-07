@@ -271,7 +271,9 @@ function ReportEntry({
   draftNarrativeDue,
   curriculum,
   editBase,
+  legacyLabels = false,
 }: {
+  legacyLabels?: boolean;
   report: ReportRow;
   studentId: string;
   indicatorConfig: IndicatorConfig;
@@ -310,7 +312,12 @@ function ReportEntry({
   const canEditHere = canEdit && !isPreCurriculum && (!isCurriculumReport || !!editBase);
   const isOthersReport = viewerId != null && report.pelatih_id != null && report.pelatih_id !== viewerId;
 
-  const scores = (report.scores as Record<string, number>) ?? {};
+  const rawScores = (report.scores as Record<string, number>) ?? {};
+  // A 0 in a report from before the level curriculum cannot be told from "not
+  // assessed" (the old form posted every indicator with a default of 0), so
+  // outside the admin view it is simply not shown.
+  const scores =
+    isPreCurriculum && !legacyLabels ? Object.fromEntries(Object.entries(rawScores).filter(([, v]) => v > 0)) : rawScores;
   const type: AssessmentType = report.assessment_type ?? "score_5";
   const levels = levelsFor(type);
   // Snapshot first (how the report looked when written), then the current
@@ -538,7 +545,7 @@ function ReportEntry({
         </div>
       )}
 
-      {isPreCurriculum && !isAbsent(report.attendance) && resolved.length > 0 && (
+      {isPreCurriculum && legacyLabels && !isAbsent(report.attendance) && resolved.length > 0 && (
         <p className="mt-3 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
           Penilaian sebelum kurikulum level
         </p>
@@ -589,7 +596,7 @@ function ReportEntry({
                 {group.items.map((r) => (
                   <div key={r.key} className="flex items-center justify-between gap-3">
                     <span className="text-sm text-slate-700">{r.label}</span>
-                    {usesStars(type) && isPreCurriculum && r.score === 0 ? (
+                    {usesStars(type) && isPreCurriculum && legacyLabels && r.score === 0 ? (
                       <span className="text-xs font-medium text-slate-500">{LEGACY_ZERO_LABEL}</span>
                     ) : usesStars(type) ? (
                       <StarRating value={r.score} size={14} />
@@ -666,9 +673,12 @@ export function ReportHistoryCard({
   draftNarrativeDue,
   curriculum,
   editBase,
+  legacyLabels = false,
   id,
   title = "Riwayat Laporan",
 }: {
+  // admin only: mark and spell out reports from before the level curriculum
+  legacyLabels?: boolean;
   // Level-curriculum programs only: how to render and edit curriculum reports.
   curriculum?: CurriculumData | null;
   // base URL of the form page; "&edit=<id>" is appended for a curriculum report
@@ -745,6 +755,7 @@ export function ReportHistoryCard({
             draftNarrativeDue={draftNarrativeDue}
             curriculum={curriculum}
             editBase={editBase}
+            legacyLabels={legacyLabels}
           />
         ))}
       </div>

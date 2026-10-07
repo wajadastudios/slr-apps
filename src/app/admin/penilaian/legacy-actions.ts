@@ -55,13 +55,15 @@ async function applyAutoImpl(formData: FormData) {
         status: auto ? "auto" : "review",
         target_indicator_id: auto ? proposal.target!.id : null,
         method: auto ? proposal.method : null,
+        note: proposal.reason,
+        legacy_indicator_id: state.legacyIndicatorIds[key.key] ?? null,
         decided_by: auto ? session.user.id : null,
         decided_at: auto ? now : null,
       });
     } else if (saved.status === "review" && auto) {
       const { error } = await supabase
         .from("legacy_indicator_map")
-        .update({ status: "auto", target_indicator_id: proposal.target!.id, method: proposal.method, decided_by: session.user.id, decided_at: now, updated_at: now })
+        .update({ status: "auto", target_indicator_id: proposal.target!.id, method: proposal.method, note: proposal.reason, decided_by: session.user.id, decided_at: now, updated_at: now })
         .eq("program_id", programId)
         .eq("legacy_key", key.key)
         .eq("status", "review");
@@ -104,7 +106,18 @@ async function setMappingImpl(formData: FormData) {
     values = { status: "manual", target_indicator_id: target, method: "manual" };
   }
   const { error } = await supabase.from("legacy_indicator_map").upsert(
-    { program_id: programId, legacy_key: legacyKey, legacy_label: label, legacy_group: group, decided_by: session.user.id, decided_at: now, updated_at: now, ...values },
+    {
+      program_id: programId,
+      legacy_key: legacyKey,
+      legacy_label: label,
+      legacy_group: group,
+      legacy_indicator_id: state.legacyIndicatorIds[legacyKey] ?? null,
+      note: target === "skip" || target === "reset" ? null : "Dipilih admin.",
+      decided_by: session.user.id,
+      decided_at: now,
+      updated_at: now,
+      ...values,
+    },
     { onConflict: "program_id,legacy_key" }
   );
   if (error) fail(programId, "Pemetaan belum tersimpan. Silakan coba lagi.");
@@ -141,6 +154,8 @@ async function setSkillLevelImpl(formData: FormData) {
       status: "manual",
       target_indicator_id: target.id,
       method: "manual",
+      note: `Dipilih admin: seluruh indikator ${proposal.candidates[0]?.skillName ?? "gaya"} ke Level ${level}.`,
+      legacy_indicator_id: state.legacyIndicatorIds[key.key] ?? null,
       decided_by: session.user.id,
       decided_at: now,
       updated_at: now,

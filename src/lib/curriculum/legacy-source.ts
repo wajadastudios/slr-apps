@@ -16,6 +16,10 @@ export type MapRow = {
 };
 
 export type MappingState = {
+  // old indicator rows by key (the source reference of a mapping)
+  legacyIndicatorIds: Record<string, string>;
+  // students with a score (above 0) on an old indicator, by key
+  studentsByKey: Record<string, string[]>;
   skills: { id: string; name: string; hasLevels: boolean }[];
   targets: MapTarget[];
   keys: LegacyKeyInfo[];
@@ -36,10 +40,11 @@ async function pageAll<T>(fetchPage: (from: number, to: number) => PromiseLike<{
 }
 
 export async function loadMappingState(supabase: SupabaseClient, programId: string): Promise<MappingState> {
-  const [groupsRes, indRes, mapRes] = await Promise.all([
+  const [groupsRes, indRes, mapRes, allIndRes] = await Promise.all([
     supabase.from("indicator_groups").select("id, name, has_levels, sort_order").eq("program_id", programId).not("slug", "is", null).order("sort_order"),
     supabase.from("indicators").select("id, key, label, group_id, level, active").eq("program_id", programId).not("seed_key", "is", null),
     supabase.from("legacy_indicator_map").select("legacy_key, legacy_label, legacy_group, status, target_indicator_id, method, note").eq("program_id", programId),
+    supabase.from("indicators").select("id, key").eq("program_id", programId),
   ]);
 
   const skills = (groupsRes.data ?? []).map((g) => ({ id: g.id as string, name: g.name as string, hasLevels: g.has_levels === true }));
@@ -60,10 +65,10 @@ export async function loadMappingState(supabase: SupabaseClient, programId: stri
       };
     });
 
-  const reports = await pageAll<{ id: string; session_date: string; attendance: string | null; scores: unknown; indicator_snapshot: unknown }>((from, to) =>
+  const reports = await pageAll<{ id: string; student_id: string; session_date: string; attendance: string | null; scores: unknown; indicator_snapshot: unknown }>((from, to) =>
     supabase
       .from("progress_reports")
-      .select("id, session_date, attendance, scores, indicator_snapshot")
+      .select("id, student_id, session_date, attendance, scores, indicator_snapshot")
       .eq("program_id", programId)
       .is("curriculum_version", null)
       .eq("status", "final")
@@ -74,6 +79,16 @@ export async function loadMappingState(supabase: SupabaseClient, programId: stri
     reports.filter((r) => r.attendance === "hadir"),
     Object.fromEntries(reports.map((r) => [r.id, r.session_date]))
   );
+
+  const studentSets = new Map<string, Set<string>>();
+  for (const r of reports) {
+    if (r.attendance !== "hadir" || !r.scores || typeof r.scores !== "object") continue;
+    for (const [key, v] of Object.entries(r.scores as Record<string, unknown>)) {
+      if (Number(v) > 0) studentSets.set(key, (studentSets.get(key) ?? new Set()).add(r.student_id));
+    }
+  }
+  const studentsByKey = Object.fromEntries([...studentSets].map(([k, set]) => [k, [...set]]));
+  const legacyIndicatorIds = Object.fromEntries((allIndRes.data ?? []).map((i) => [i.key as string, i.id as string]));
 
   const rows: MapRow[] = mapRes.error
     ? []
@@ -87,7 +102,7 @@ export async function loadMappingState(supabase: SupabaseClient, programId: stri
         note: (m.note as string | null) ?? null,
       }));
 
-  return { skills, targets, keys, rows, ready: !mapRes.error };
+  return { skills, targets, keys, rows, ready: !mapRes.error, legacyIndicatorIds, studentsByKey };
 }
 
 export type Row = { key: LegacyKeyInfo; proposal: Proposal; saved: MapRow | null };
@@ -104,7 +119,12 @@ export function summarize(rows: Row[]) {
   const count = (f: (r: Row) => boolean) => rows.filter(f).length;
   const sum = (f: (r: Row) => boolean, nonZero = false) => rows.filter(f).reduce((n, r) => n + r.key.scores - (nonZero ? r.key.zeros : 0), 0);
   const isDone = (r: Row) => status(r) === "auto" || status(r) === "manual";
+  const nonZero = (f: (r: Row) => boolean) => rows.filter(f).reduce((n, r) => n + r.key.scores - r.key.zeros, 0);
   return {
+    // stored scores above 0 (the ones that can be drawn), by who decided
+    nonZeroAuto: nonZero((r) => status(r) === "auto"),
+    nonZeroManual: nonZero((r) => status(r) === "manual"),
+    nonZeroWaiting: nonZero((r) => !isDone(r)),
     keys: rows.length,
     done: count(isDone),
     auto: count((r) => status(r) === "auto"),

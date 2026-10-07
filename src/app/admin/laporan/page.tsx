@@ -179,7 +179,7 @@ export default async function AdminLaporanPage({
         {curriculumData && (
           <CurriculumProgress
             data={curriculumData}
-            audience="parent"
+            audience="admin"
             hasPreCurriculum={reports.some((r) => r.curriculum_version == null && r.attendance === "hadir")}
             trend={trendInput(
               curriculumData,
@@ -233,6 +233,7 @@ export default async function AdminLaporanPage({
           reports={reports}
           indicatorConfig={indicatorConfig}
           curriculum={curriculumData}
+          legacyLabels
           title={program.assessment_type === "observation" ? "Riwayat Catatan" : "Riwayat Laporan"}
         />
       </>
