@@ -18,7 +18,8 @@ import { ToastForm } from "@/components/ui/toast-form";
 import { MediaFileInput } from "@/components/media-file-input";
 import { CurriculumReportForm } from "@/components/curriculum-report-form";
 import { CurriculumProgress } from "@/components/curriculum/progress-view";
-import { PerformanceRecordsCard } from "@/components/performance-records-card";
+import { mergedRecords } from "@/lib/curriculum/record-bridge";
+import { trendInput } from "@/lib/curriculum/trend-adapter";
 import { confirmLevelUpAction } from "./level-actions";
 import { loadCurriculumData, loadCurriculumMode, loadReportTestResults } from "@/lib/curriculum/loader";
 import { initialFormState, stateFromReport } from "@/lib/curriculum/form-state";
@@ -306,8 +307,10 @@ export default async function MuridReportPage({
     const pick = resolvedLatest.find((r) => changedKeys.includes(r.key)) ?? resolvedLatest[resolvedLatest.length - 1];
     evalLatestIndicatorLabel = pick ? `${pick.group} - ${pick.label}` : null;
   }
-  const milestoneStatuses = medals ? computeMilestoneStatuses(performanceRecords, milestones) : [];
-  const nextTarget = medals && !curriculumOn ? pickNextTarget(milestoneStatuses) : null;
+  // on the level curriculum, validated test results count as records too
+  const allRecords = curriculumData ? mergedRecords(performanceRecords, curriculumData) : performanceRecords;
+  const milestoneStatuses = medals ? computeMilestoneStatuses(allRecords, milestones) : [];
+  const nextTarget = medals ? pickNextTarget(milestoneStatuses) : null;
   const nextTargetLabel = nextTarget
     ? `${nextTarget.status.milestone.label} · ${formatMilestoneValue(nextTarget.status.milestone.metric_type, nextTarget.value)}`
     : null;
@@ -551,16 +554,14 @@ export default async function MuridReportPage({
             enrollmentId={enrollment.id}
             confirmAction={confirmLevelUpAction}
             hasPreCurriculum={reports.some((r) => r.curriculum_version == null && r.attendance === "hadir")}
+            trend={trendInput(curriculumData, finalReports)}
           />
-          {medals && performanceRecords.length > 0 && (
-            <PerformanceRecordsCard records={performanceRecords} title="Rekor lama (sebelum kurikulum level)" />
-          )}
         </>
       )}
 
-      {medals && !curriculumOn && (
+      {medals && (
         <>
-          <RecordUnlockCard statuses={milestoneStatuses} />
+          <RecordUnlockCard statuses={milestoneStatuses} listAchieved={curriculumOn} />
           <PerformanceRecordsManager
             records={performanceRecords}
             studentId={studentId}

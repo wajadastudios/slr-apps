@@ -6,7 +6,7 @@ import { formatShortDate } from "@/lib/format-date";
 // a narrow canvas so text stays readable when the chart shrinks to a phone
 const W = 480;
 const H = 240;
-const M = { l: 42, r: 24, t: 28, b: 46 };
+const M = { l: 42, r: 24, t: 40, b: 46 };
 const PLOT_W = W - M.l - M.r;
 const PLOT_H = H - M.t - M.b;
 const TEAL = "#1597A3";
@@ -33,8 +33,46 @@ function niceScale(max: number): { top: number; ticks: number[] } {
   return { top, ticks };
 }
 
+// which date labels fit: always the first and last, and evenly spaced ones between
+function showTick(i: number, count: number): boolean {
+  const step = Math.max(1, Math.ceil(count / 6));
+  return i === 0 || i === count - 1 || (i % step === 0 && i >= step && count - 1 - i >= step);
+}
+
 function xAt(i: number, count: number): number {
   return count <= 1 ? M.l + PLOT_W / 2 : M.l + (PLOT_W * i) / (count - 1);
+}
+
+// One legend, shared by every technique chart that wants it.
+export function TechniqueLegend({ segments }: { segments: SeriesSegment[] }) {
+  const flat = segments.flatMap((seg) => seg.points.map((p) => ({ ...p, legacy: seg.legacy === true })));
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
+      <span className="inline-flex items-center gap-1">
+        <svg width="12" height="12" aria-hidden="true">
+          <circle cx="6" cy="6" r="5" fill={TEAL} />
+        </svg>
+        penilaian lengkap
+      </span>
+      {flat.some((p) => !p.complete) && (
+        <span className="inline-flex items-center gap-1">
+          <svg width="12" height="12" aria-hidden="true">
+            <circle cx="6" cy="6" r="4.5" fill="#fff" stroke={TEAL} strokeWidth="1.8" strokeDasharray="2.5 2" />
+          </svg>
+          penilaian sebagian (tidak dihubungkan)
+        </span>
+      )}
+      {flat.some((p) => p.legacy) && (
+        <span className="inline-flex items-center gap-1">
+          <svg width="12" height="12" aria-hidden="true">
+            <rect x="1.5" y="1.5" width="9" height="9" fill={LEGACY} />
+          </svg>
+          riwayat sebelum pembaruan kurikulum
+        </span>
+      )}
+      <span>Skor bisa turun; titik baru hanya ada bila ada penilaian baru.</span>
+    </p>
+  );
 }
 
 // ---------- technique ("Ringkasan penilaian") ----------
@@ -44,11 +82,10 @@ function xAt(i: number, count: number): number {
 // segment, "Mulai Level 2"), and a partial assessment is a hollow marker that
 // is not joined to its neighbours -- it covers fewer indicators, so it is not
 // comparable.
-export function TechniqueChart({ segments, name }: { segments: SeriesSegment[]; name: string }) {
+export function TechniqueChart({ segments, name, legend = true }: { segments: SeriesSegment[]; name: string; legend?: boolean }) {
   const flat = segments.flatMap((seg, s) => seg.points.map((p, i) => ({ ...p, legacy: seg.legacy === true, seg: s, first: i === 0 })));
   if (flat.length === 0) return null;
   const y = (pct: number) => M.t + PLOT_H * (1 - pct / 100);
-  const every = flat.length > 7 ? 2 : 1;
   const axis = axisDates(flat.map((p) => p.date));
 
   return (
@@ -81,14 +118,21 @@ export function TechniqueChart({ segments, name }: { segments: SeriesSegment[]; 
               {p.first && (i > 0 || p.legacy) && (
                 <g>
                   {i > 0 && <line x1={x} x2={x} y1={M.t} y2={M.t + PLOT_H} stroke="#94A3B8" strokeDasharray="2 4" />}
-                  <text x={x + (i > 0 ? 4 : -4)} y={M.t + 10} fontSize="11" fontWeight="600" fill={INK}>
+                  <text
+                    x={i > 0 ? (x > W * 0.6 ? x - 4 : x + 4) : x - 4}
+                    textAnchor={i > 0 && x > W * 0.6 ? "end" : "start"}
+                    y={M.t - 8}
+                    fontSize="11"
+                    fontWeight="600"
+                    fill={INK}
+                  >
                     {p.legacy
                       ? p.level
                         ? `Sebelum pembaruan \u00b7 L${p.level}`
                         : "Sebelum pembaruan"
                       : p.level
                         ? `Mulai ${levelLabel(p.level).split(" \u2014 ")[0]}`
-                        : "Mulai rubrik baru"}
+                        : "Mulai kurikulum baru"}
                   </text>
                 </g>
               )}
@@ -115,8 +159,8 @@ export function TechniqueChart({ segments, name }: { segments: SeriesSegment[]; 
               <text x={x} y={y(p.percent) - 10} textAnchor="middle" fontSize="11" fill={INK}>
                 {p.percent}
               </text>
-              {i % every === 0 && (
-                <text x={x} y={H - 24} textAnchor="middle" fontSize="11" fill={MUTED}>
+              {showTick(i, flat.length) && (
+                <text x={x} y={H - 24} textAnchor={i === 0 ? "start" : i === flat.length - 1 ? "end" : "middle"} fontSize="11" fill={MUTED}>
                   {axis(p.date)}
                 </text>
               )}
@@ -124,29 +168,7 @@ export function TechniqueChart({ segments, name }: { segments: SeriesSegment[]; 
           );
         })}
       </svg>
-      <figcaption className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
-        <span className="inline-flex items-center gap-1">
-          <svg width="12" height="12" aria-hidden="true">
-            <circle cx="6" cy="6" r="5" fill={TEAL} />
-          </svg>
-          penilaian lengkap
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <svg width="12" height="12" aria-hidden="true">
-            <circle cx="6" cy="6" r="4.5" fill="#fff" stroke={TEAL} strokeWidth="1.8" strokeDasharray="2.5 2" />
-          </svg>
-          penilaian sebagian (tidak dihubungkan)
-        </span>
-        {flat.some((p) => p.legacy) && (
-          <span className="inline-flex items-center gap-1">
-            <svg width="12" height="12" aria-hidden="true">
-              <rect x="1.5" y="1.5" width="9" height="9" fill={LEGACY} />
-            </svg>
-            riwayat sebelum pembaruan kurikulum
-          </span>
-        )}
-        <span>Skor bisa turun; titik baru hanya ada bila ada penilaian baru.</span>
-      </figcaption>
+      {legend && <TechniqueLegend segments={segments} />}
     </figure>
   );
 }
@@ -157,7 +179,6 @@ export function AbilityChart({ series, name }: { series: AbilitySeries; name: st
   const maxValue = Math.max(...points.map((p) => p.value), target?.value ?? 0);
   const { top, ticks } = niceScale(maxValue);
   const y = (v: number) => M.t + PLOT_H * (1 - v / top);
-  const every = points.length > 7 ? 2 : 1;
   const axis = axisDates(points.map((p) => p.date));
 
   return (
@@ -219,8 +240,8 @@ export function AbilityChart({ series, name }: { series: AbilitySeries; name: st
               <text x={x} y={y(p.value) - 13} textAnchor="middle" fontSize="11" fill={INK}>
                 {num(p.value)}
               </text>
-              {i % every === 0 && (
-                <text x={x} y={H - 24} textAnchor="middle" fontSize="11" fill={MUTED}>
+              {showTick(i, points.length) && (
+                <text x={x} y={H - 24} textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"} fontSize="11" fill={MUTED}>
                   {axis(p.date)}
                 </text>
               )}

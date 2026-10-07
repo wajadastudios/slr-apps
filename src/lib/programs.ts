@@ -110,11 +110,7 @@ export const RECORDS_LABEL: Record<RecordsMode, string> = {
 // ---------- what a participant sees ----------
 export type ChildTab = "laporan" | "perkembangan" | "record" | "target" | "catatan" | "perjalanan";
 
-export function tabsFor(
-  program: Pick<ProgramMeta, "assessment_type" | "records_mode">,
-  // level curriculum on: the Record tab becomes "Pencapaian" (medals no longer apply)
-  curriculumLevels = false
-): { id: ChildTab; label: string }[] {
+export function tabsFor(program: Pick<ProgramMeta, "assessment_type" | "records_mode">): { id: ChildTab; label: string }[] {
   if (program.assessment_type === "observation") {
     return [
       { id: "catatan", label: "Catatan Sesi" },
@@ -125,8 +121,7 @@ export function tabsFor(
     { id: "laporan", label: "Laporan" },
     { id: "perkembangan", label: "Perkembangan" },
   ];
-  if (curriculumLevels) tabs.push({ id: "record", label: "Pencapaian" });
-  else if (program.records_mode === "medals") tabs.push({ id: "record", label: "Record" });
+  if (program.records_mode === "medals") tabs.push({ id: "record", label: "Record" });
   if (program.records_mode === "personal_goals") tabs.push({ id: "target", label: "Target Pribadi" });
   return tabs;
 }

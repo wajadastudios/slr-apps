@@ -7,7 +7,9 @@ import { DataRow } from "@/components/ui/data-row";
 import { ProgressOverview, ProgressTrend } from "@/components/progress-trend";
 import { LatestReportCard, ReportHistoryCard, type ReportRow } from "@/components/report-history-card";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
-import { AchievementsCard, CurriculumProgress, PersonalRecordsCard, StarMeaningCard } from "@/components/curriculum/progress-view";
+import { AchievementsCard, CurriculumProgress, StarMeaningCard } from "@/components/curriculum/progress-view";
+import { mergedRecords } from "@/lib/curriculum/record-bridge";
+import { trendInput } from "@/lib/curriculum/trend-adapter";
 import { loadCurriculumData, loadCurriculumMode } from "@/lib/curriculum/loader";
 import { RecordUnlockCard } from "@/components/record-unlock-card";
 import { AssessmentGuideCard } from "@/components/assessment-guide-card";
@@ -175,7 +177,7 @@ export default async function AnakDetailPage({
   // Level curriculum (Kids Swim after the admin switched it on): a separate
   // progress and achievement view; every other program is untouched.
   const curriculumOn = usesStars(program.assessment_type) && (await loadCurriculumMode(supabase, program.id)) === "levels_v1";
-  const tabs = tabsFor(program, curriculumOn);
+  const tabs = tabsFor(program);
   const tab = parseTab(tabParam, tabs);
   const medals = program.records_mode === "medals";
   const goalsMode = program.records_mode === "personal_goals";
@@ -291,7 +293,7 @@ export default async function AnakDetailPage({
   if (tab === "record" && medals) {
     const [recordsRes, ms] = await Promise.all([
       supabase.from("performance_records").select("*").eq("enrollment_id", enrollment.id),
-      curriculumOn ? Promise.resolve([]) : loadMilestones(supabase, program.id),
+      loadMilestones(supabase, program.id),
     ]);
     records = (recordsRes.data ?? []) as PerformanceRecordRow[];
     milestones = ms;
@@ -443,7 +445,12 @@ export default async function AnakDetailPage({
 
       {tab === "perkembangan" && curriculumOn && curriculumData && (
         <>
-          <CurriculumProgress data={curriculumData} audience="parent" hasPreCurriculum={hasPreCurriculum} />
+          <CurriculumProgress
+            data={curriculumData}
+            audience="parent"
+            hasPreCurriculum={hasPreCurriculum}
+            trend={trendInput(curriculumData, allReports)}
+          />
           <AttendanceConsistencyCard reports={allReports} />
           <StarMeaningCard />
         </>
@@ -461,9 +468,11 @@ export default async function AnakDetailPage({
 
       {tab === "record" && curriculumOn && curriculumData && (
         <>
-          <PersonalRecordsCard data={curriculumData} />
+          {medals && (
+            <RecordUnlockCard statuses={computeMilestoneStatuses(mergedRecords(records, curriculumData), milestones)} listAchieved />
+          )}
           <AchievementsCard data={curriculumData} />
-          {medals && <PerformanceRecordsCard records={records} title="Rekor lama (sebelum kurikulum level)" />}
+          {medals && <PerformanceRecordsCard records={mergedRecords(records, curriculumData)} defaultOpen />}
         </>
       )}
 

@@ -11,9 +11,9 @@ import { techniqueSummary, type SeriesPoint, type SeriesSegment } from "./summar
 
 export const LEGACY_LABEL = "Riwayat sebelum pembaruan kurikulum";
 
-type Mapped = { entry: LegacyMapEntry; target: CurriculumIndicator };
+export type Mapped = { entry: LegacyMapEntry; target: CurriculumIndicator };
 
-function mappedTargets(data: CurriculumData): Map<string, Mapped> {
+export function mappedTargets(data: CurriculumData): Map<string, Mapped> {
   const byId = new Map(data.indicators.map((i) => [i.id, i]));
   const out = new Map<string, Mapped>();
   for (const entry of data.legacy?.map ?? []) {
@@ -25,8 +25,8 @@ function mappedTargets(data: CurriculumData): Map<string, Mapped> {
   return out;
 }
 
-const attended = (r: { attendance: string | null }) => r.attendance === "hadir";
-const halves = (n: number) => Math.round(n * 2) / 2;
+export const attended = (r: { attendance: string | null }) => r.attendance === "hadir";
+export const halves = (n: number) => Math.round(n * 2) / 2;
 
 // Technique history of one skill taken from mapped old scores: one point per
 // old report (and per level the mapped indicators sit at), through the same

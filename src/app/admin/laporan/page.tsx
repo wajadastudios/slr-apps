@@ -12,6 +12,8 @@ import { AssessmentGuideCard } from "@/components/assessment-guide-card";
 import { StarScoreLegend } from "@/components/star-score-legend";
 import { computeLatestAchievement } from "@/lib/progress";
 import { CurriculumProgress, StarMeaningCard } from "@/components/curriculum/progress-view";
+import { mergedRecords } from "@/lib/curriculum/record-bridge";
+import { trendInput } from "@/lib/curriculum/trend-adapter";
 import { loadCurriculumData, loadCurriculumMode } from "@/lib/curriculum/loader";
 import { computeMilestoneStatuses } from "@/lib/milestones";
 import { formatAge } from "@/lib/performance";
@@ -179,12 +181,19 @@ export default async function AdminLaporanPage({
             data={curriculumData}
             audience="parent"
             hasPreCurriculum={reports.some((r) => r.curriculum_version == null && r.attendance === "hadir")}
+            trend={trendInput(
+              curriculumData,
+              reports.filter((r) => (r.status ?? "final") === "final")
+            )}
           />
         )}
 
-        {medals && !curriculumOn && (
+        {medals && (
           <>
-            <RecordUnlockCard statuses={computeMilestoneStatuses(records, milestones)} />
+            <RecordUnlockCard
+              statuses={computeMilestoneStatuses(curriculumData ? mergedRecords(records, curriculumData) : records, milestones)}
+              listAchieved={curriculumOn}
+            />
             <PerformanceRecordsManager
               records={records}
               studentId={student.id}

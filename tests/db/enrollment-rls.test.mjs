@@ -1065,6 +1065,21 @@ check("usage: a pengajar gets nothing", (await q("select * from public.indicator
 await su();
 check("mapping: the old report (scores, date, notes, attendance, author) is byte-for-byte unchanged", JSON.stringify(await oldReport()) === reportBefore);
 
+// ---------- restore Water Safety Floating (0051) ----------
+await su();
+const floatingRows = async () => q("select label, active, level, required, seed_key, key from public.indicators where program_id=$1 and seed_key='k1_water_safety_floating'", [KIDS]);
+await db.exec("delete from public.indicators where seed_key='k1_water_safety_floating'");
+check("restore: (setup) the seeded Floating is gone, as after the admin deleted it", (await floatingRows()).length === 0);
+const restoreSql = fs.readFileSync(path.join(dir, "0051_restore_water_safety_floating.sql"), "utf8");
+await db.exec(restoreSql);
+const restored = await floatingRows();
+check("restore: Floating is back in Water Safety, once, as a curriculum indicator", restored.length === 1 && restored[0].label === "Floating" && restored[0].level === null && restored[0].required === true && restored[0].key === "k1_water_safety_floating");
+check("restore: while the program is still on the old model it stays dormant (inactive)", restored[0].active === false);
+await db.exec(restoreSql);
+check("restore: running it again adds nothing", (await floatingRows()).length === 1);
+check("restore: other programs got nothing", (await q("select count(*)::int c from public.indicators where seed_key='k1_water_safety_floating' and program_id<>$1", [KIDS]))[0].c === 0);
+check("restore: no score or report was touched", JSON.stringify(await oldReport()) === reportBefore);
+
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
 process.exit(failed.length ? 1 : 0);

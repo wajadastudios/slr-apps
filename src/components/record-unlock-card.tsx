@@ -196,12 +196,16 @@ function LevelGroup({
 // Summary of the milestones for parents, pengajar and admin: the newest top
 // medal, the next goal and a count, with the full list folded behind
 // accordions (everything closed until opened).
-export function RecordUnlockCard({ statuses }: { statuses: MilestoneStatus[] }) {
+export function RecordUnlockCard({ statuses, listAchieved = false }: { statuses: MilestoneStatus[]; listAchieved?: boolean }) {
   const [allOpen, setAllOpen] = useState(false);
   const unlocked = statuses.filter((s) => s.tier).length;
   const next = pickNextTarget(statuses);
   const top = latestTopMedal(statuses);
-  const groups = groupStatusesByLevel(statuses);
+  // With listAchieved the records already reached are always on screen and only
+  // the ones not reached yet are folded away.
+  const achieved = statuses.filter((s) => s.tier);
+  const folded = listAchieved ? statuses.filter((s) => !s.tier) : statuses;
+  const groups = groupStatusesByLevel(folded);
 
   return (
     <GlassCard>
@@ -268,13 +272,32 @@ export function RecordUnlockCard({ statuses }: { statuses: MilestoneStatus[] }) 
             )}
           </div>
 
+          {listAchieved && (
+            <div className="mt-3">
+              <h3 className="mb-1.5 text-sm font-semibold text-[#17263D]">Rekor yang sudah tercapai</h3>
+              {achieved.length === 0 ? (
+                <p className="text-sm text-slate-600">Belum ada rekor yang tercapai. Hasil tes yang valid akan muncul di sini.</p>
+              ) : (
+                <ul className="flex flex-col gap-1.5">
+                  {achieved.map((s, i) => (
+                    <RecordRow key={s.milestone.id} status={s} caption={s.milestone.level || `Rekor ${i + 1}`} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {folded.length > 0 && (
           <AccordionItem
             variant="ortu"
             open={allOpen}
             onToggle={() => setAllOpen((v) => !v)}
             className="mt-3 rounded-2xl border border-white/60 bg-white/55"
             headerClassName="min-h-14 rounded-2xl px-4 py-2"
-            header={<span className="text-sm font-medium text-[#17263D]">Lihat semua record</span>}
+            header={
+              <span className="text-sm font-medium text-[#17263D]">
+                {listAchieved ? `Lihat target yang belum tercapai (${folded.length})` : "Lihat semua record"}
+              </span>
+            }
           >
             <div className="flex flex-col gap-2 px-3 pb-3 pt-1">
               {groups.map(({ level, statuses: levelStatuses }) => (
@@ -282,6 +305,7 @@ export function RecordUnlockCard({ statuses }: { statuses: MilestoneStatus[] }) 
               ))}
             </div>
           </AccordionItem>
+          )}
         </>
       )}
     </GlassCard>

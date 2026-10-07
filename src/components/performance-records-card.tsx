@@ -15,11 +15,14 @@ import {
 export function PerformanceRecordsCard({
   records,
   title = "Riwayat Rekor",
+  defaultOpen = false,
 }: {
   records: PerformanceRecordRow[];
   title?: string;
+  // the history is shown open (for programs where records should never be tucked away)
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
 
   if (records.length === 0) return null;
 

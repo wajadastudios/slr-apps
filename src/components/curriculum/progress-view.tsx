@@ -2,7 +2,11 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { ToastForm } from "@/components/ui/toast-form";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import { StarRating } from "@/components/ui/star-rating";
-import { AbilityChart, TechniqueChart } from "@/components/curriculum/charts";
+import { AbilityChart, TechniqueChart, TechniqueLegend } from "@/components/curriculum/charts";
+import { ProgressOverview, ProgressTrend } from "@/components/progress-trend";
+import { overallSeries } from "@/lib/curriculum/overall";
+import type { TrendReport } from "@/lib/curriculum/trend-adapter";
+import type { IndicatorConfig } from "@/lib/indicators";
 import { formatShortDate } from "@/lib/format-date";
 import { buildProfile, currentAssessment, type SkillProfile } from "@/lib/curriculum/profile";
 import { LEGACY_LABEL, hasLegacyHistory, legacyLatest, legacyRows, legacySeries, skillHasLegacy } from "@/lib/curriculum/legacy-view";
@@ -475,6 +479,76 @@ export function StarMeaningCard() {
   );
 }
 
+// ---------- overall + per skill charts ----------
+export function OverallCard({ data }: { data: CurriculumData }) {
+  const segments = overallSeries(data);
+  return (
+    <GlassCard>
+      <h2 className={HEADING}>Perkembangan Keseluruhan (Overall)</h2>
+      <p className="mb-2 text-xs text-slate-500">
+        Seluruh proses belajar dalam satu garis: tiap titik adalah rata-rata nilai semua indikator yang dinilai pada sesi itu. Menambah skill baru tidak menurunkan titik
+        sebelumnya.
+      </p>
+      {segments.length === 0 ? (
+        <p className="text-sm text-slate-500">Belum ada penilaian untuk digambarkan.</p>
+      ) : (
+        <TechniqueChart segments={segments} name="Overall" />
+      )}
+    </GlassCard>
+  );
+}
+
+export function SkillChartsCard({ data }: { data: CurriculumData }) {
+  const skills = [...data.skills].sort((a, b) => a.sortOrder - b.sortOrder);
+  const skillSegments = (skill: CurriculumSkill) => [...legacySeries(data, skill), ...techniqueSeries(data.indicators, skill.id, data.reports)];
+  const allSegments = skills.flatMap(skillSegments);
+  return (
+    <GlassCard>
+      <h2 className={HEADING}>Perkembangan per Skill</h2>
+      <p className="mb-3 text-xs text-slate-500">Ringkasan penilaian tiap skill. Riwayat sebelum pembaruan kurikulum ikut digambar bila sudah dipetakan.</p>
+      <TechniqueLegend segments={allSegments} />
+      <div className="mt-3 flex flex-col gap-4">
+        {skills.map((skill) => {
+          const segments = skillSegments(skill);
+          const level = currentLevel(skill.id, data.levelEvents)?.level ?? null;
+          return (
+            <section key={skill.id} aria-label={skill.name} className="rounded-2xl border border-white/60 bg-white/55 p-3">
+              <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[#17263D]">
+                {skill.name}
+                {level && <span className="rounded-full bg-[#DDF3F6] px-2 py-0.5 text-[11px] font-semibold text-[#0B6470]">{levelLabel(level).split(" \u2014 ")[0]}</span>}
+              </h3>
+              {segments.length === 0 ? (
+                <p className="mt-2 text-xs text-slate-500">Belum ada penilaian untuk skill ini.</p>
+              ) : (
+                <TechniqueChart segments={segments} name={skill.name} legend={false} />
+              )}
+            </section>
+          );
+        })}
+      </div>
+    </GlassCard>
+  );
+}
+
+// The familiar per-indicator charts, folded away behind one dropdown.
+export function IndicatorDetail({ trend }: { trend: { config: IndicatorConfig; reports: TrendReport[] } }) {
+  return (
+    <details className="group">
+      <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-2 rounded-3xl border border-white/60 bg-white/70 px-5 py-3 shadow-[0_2px_10px_rgba(23,38,61,0.05)] [&::-webkit-details-marker]:hidden">
+        <span>
+          <span className={HEADING}>Lihat detail perkembangan</span>
+          <span className="block text-xs text-slate-500">Grafik tiap indikator</span>
+        </span>
+        <span className="text-xs text-slate-400 group-open:hidden">Buka</span>
+        <span className="hidden text-xs text-slate-400 group-open:inline">Tutup</span>
+      </summary>
+      <div className="mt-3 flex flex-col gap-4">
+        <ProgressTrend indicatorConfig={trend.config} reports={trend.reports} />
+      </div>
+    </details>
+  );
+}
+
 // ---------- everything ----------
 export function CurriculumProgress({
   data,
@@ -483,6 +557,7 @@ export function CurriculumProgress({
   enrollmentId,
   confirmAction,
   hasPreCurriculum = false,
+  trend,
 }: {
   data: CurriculumData;
   audience: Audience;
@@ -491,6 +566,8 @@ export function CurriculumProgress({
   confirmAction?: ConfirmAction;
   // reports written before the level curriculum exist for this child
   hasPreCurriculum?: boolean;
+  // inputs for the familiar per-indicator charts (see trend-adapter)
+  trend?: { config: IndicatorConfig; reports: TrendReport[] };
 }) {
   const profiles = buildProfile(data);
   const lastNote = [...data.reports]
@@ -527,8 +604,13 @@ export function CurriculumProgress({
         </GlassCard>
       )}
 
+      <OverallCard data={data} />
+      <SkillChartsCard data={data} />
+      {trend && <ProgressOverview indicatorConfig={trend.config} reports={trend.reports} />}
+      {trend && <IndicatorDetail trend={trend} />}
+
       <GlassCard id="level" className="scroll-mt-20">
-        <h2 className={HEADING}>Per Skill</h2>
+        <h2 className={HEADING}>Rincian Per Skill</h2>
         <div className="mt-3 flex flex-col gap-3">
           {profiles.map((p) => (
             <SkillSection
