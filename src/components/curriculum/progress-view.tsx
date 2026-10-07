@@ -2,10 +2,11 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { ToastForm } from "@/components/ui/toast-form";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-button";
 import { StarRating } from "@/components/ui/star-rating";
-import { AbilityChart, TechniqueChart, TechniqueLegend } from "@/components/curriculum/charts";
-import { ProgressOverview, ProgressTrend } from "@/components/progress-trend";
+import { AbilityChart } from "@/components/curriculum/charts";
+import { ProgressOverview, ProgressTrend, SeriesRibbons, type RibbonPoint } from "@/components/progress-trend";
 import { overallSeries } from "@/lib/curriculum/overall";
 import type { TrendReport } from "@/lib/curriculum/trend-adapter";
+import type { SeriesSegment } from "@/lib/curriculum/summary";
 import type { IndicatorConfig } from "@/lib/indicators";
 import { formatShortDate } from "@/lib/format-date";
 import { buildProfile, currentAssessment, type SkillProfile } from "@/lib/curriculum/profile";
@@ -226,7 +227,7 @@ function SkillSection({
         {series.length > 0 && (
           <div>
             <h3 className="mb-1 text-sm font-semibold text-[#17263D]">Ringkasan penilaian teknik</h3>
-            <TechniqueChart segments={series} name={skill.name} />
+            <SeriesRibbons series={[{ key: skill.id, name: skill.name, points: ribbonPoints(series) }]} />
           </div>
         )}
 
@@ -480,6 +481,26 @@ export function StarMeaningCard() {
 }
 
 // ---------- overall + per skill charts ----------
+// A series of sessions as ribbon points: the average star score (0-5) of what
+// was assessed, with a short note on where the point comes from and an
+// annotation where the rubric or the curriculum changes.
+function ribbonPoints(segments: SeriesSegment[]): RibbonPoint[] {
+  const out: RibbonPoint[] = [];
+  segments.forEach((seg, i) => {
+    seg.points.forEach((p, n) => {
+      const source = seg.legacy ? "Riwayat sebelum pembaruan kurikulum" : "Kurikulum level";
+      const coverage = p.complete ? `${p.assessed} indikator` : `sebagian: ${p.assessed}/${p.required} indikator`;
+      out.push({
+        date: p.date,
+        score: Math.round((p.percent / 20) * 10) / 10,
+        note: `${source} \u00b7 ${coverage}`,
+        marker: i > 0 && n === 0 ? (seg.legacy ? "Sebelum pembaruan" : seg.level ? `Mulai ${levelLabel(seg.level).split(" \u2014 ")[0]}` : "Mulai kurikulum baru") : null,
+      });
+    });
+  });
+  return out;
+}
+
 export function OverallCard({ data }: { data: CurriculumData }) {
   const segments = overallSeries(data);
   return (
@@ -492,7 +513,7 @@ export function OverallCard({ data }: { data: CurriculumData }) {
       {segments.length === 0 ? (
         <p className="text-sm text-slate-500">Belum ada penilaian untuk digambarkan.</p>
       ) : (
-        <TechniqueChart segments={segments} name="Overall" />
+        <SeriesRibbons series={[{ key: "overall", name: "Seluruh proses belajar", points: ribbonPoints(segments) }]} />
       )}
     </GlassCard>
   );
@@ -500,32 +521,22 @@ export function OverallCard({ data }: { data: CurriculumData }) {
 
 export function SkillChartsCard({ data }: { data: CurriculumData }) {
   const skills = [...data.skills].sort((a, b) => a.sortOrder - b.sortOrder);
-  const skillSegments = (skill: CurriculumSkill) => [...legacySeries(data, skill), ...techniqueSeries(data.indicators, skill.id, data.reports)];
-  const allSegments = skills.flatMap(skillSegments);
+  const series = skills.map((skill) => {
+    const level = currentLevel(skill.id, data.levelEvents)?.level ?? null;
+    return {
+      key: skill.id,
+      name: skill.name,
+      badge: level ? levelLabel(level).split(" \u2014 ")[0] : null,
+      points: ribbonPoints([...legacySeries(data, skill), ...techniqueSeries(data.indicators, skill.id, data.reports)]),
+    };
+  });
   return (
     <GlassCard>
       <h2 className={HEADING}>Perkembangan per Skill</h2>
-      <p className="mb-3 text-xs text-slate-500">Ringkasan penilaian tiap skill. Riwayat sebelum pembaruan kurikulum ikut digambar bila sudah dipetakan.</p>
-      <TechniqueLegend segments={allSegments} />
-      <div className="mt-3 flex flex-col gap-4">
-        {skills.map((skill) => {
-          const segments = skillSegments(skill);
-          const level = currentLevel(skill.id, data.levelEvents)?.level ?? null;
-          return (
-            <section key={skill.id} aria-label={skill.name} className="rounded-2xl border border-white/60 bg-white/55 p-3">
-              <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[#17263D]">
-                {skill.name}
-                {level && <span className="rounded-full bg-[#DDF3F6] px-2 py-0.5 text-[11px] font-semibold text-[#0B6470]">{levelLabel(level).split(" \u2014 ")[0]}</span>}
-              </h3>
-              {segments.length === 0 ? (
-                <p className="mt-2 text-xs text-slate-500">Belum ada penilaian untuk skill ini.</p>
-              ) : (
-                <TechniqueChart segments={segments} name={skill.name} legend={false} />
-              )}
-            </section>
-          );
-        })}
-      </div>
+      <p className="mb-3 text-xs text-slate-500">
+        Rata-rata nilai tiap skill dari waktu ke waktu. Riwayat sebelum pembaruan kurikulum ikut digambar bila sudah dipetakan.
+      </p>
+      <SeriesRibbons series={series} />
     </GlassCard>
   );
 }

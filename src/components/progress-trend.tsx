@@ -177,10 +177,13 @@ function SkillRibbon({
   name,
   events,
   progress,
+  badge,
 }: {
   name: string;
   events: SessionEvent[];
   progress: SkillProgress;
+  // undefined = the usual "Sedang dilatih"; a string replaces it; null hides it
+  badge?: string | null;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const [active, setActive] = useState<number | null>(null);
@@ -206,11 +209,11 @@ function SkillRibbon({
         </p>
         {mastered ? (
           <MasteredBadge />
-        ) : (
+        ) : badge === null ? null : (
           <span
             className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${TRAINING_PILL}`}
           >
-            Sedang dilatih
+            {badge ?? "Sedang dilatih"}
           </span>
         )}
       </div>
@@ -414,6 +417,65 @@ function SkillRibbon({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------- the same ribbon for a whole series (Overall, one skill) ----------
+export type RibbonPoint = {
+  date: string;
+  // average stars, 0-5
+  score: number;
+  // shown in the hover card (e.g. "Riwayat sebelum pembaruan kurikulum")
+  note?: string | null;
+  // a small annotation under the point (e.g. "Mulai Level 2")
+  marker?: string | null;
+};
+export type RibbonSeries = { key: string; name: string; points: RibbonPoint[]; badge?: string | null };
+
+// The very same ribbons as the per-indicator trend above (step line, glow,
+// end bubble, hover card), fed with a series of average scores instead of one
+// indicator. All series share one time axis so they can be read side by side.
+export function SeriesRibbons({ series }: { series: RibbonSeries[] }) {
+  const times = series.flatMap((s) => s.points.map((p) => new Date(p.date).getTime()));
+  const minT = Math.min(...times);
+  const maxT = Math.max(...times);
+  const xFor = (iso: string) => (maxT === minT ? 50 : X_MIN + ((new Date(iso).getTime() - minT) / (maxT - minT)) * (X_MAX - X_MIN));
+
+  return (
+    <div className={series.length > 1 ? "grid gap-x-6 gap-y-5 sm:grid-cols-2" : "grid"}>
+      {series.map((s) => {
+        if (s.points.length === 0) {
+          return (
+            <div key={s.key}>
+              <p className="text-sm font-medium text-[#17263D]">{s.name}</p>
+              <p className="mt-1 text-xs text-slate-500">Belum ada penilaian untuk skill ini.</p>
+            </div>
+          );
+        }
+        const events: SessionEvent[] = [...s.points]
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .map((p) => ({
+            x: xFor(p.date),
+            y: scoreToY(p.score),
+            score: p.score,
+            date: p.date,
+            sessionNumber: null,
+            notes: p.note ?? null,
+            marker: p.marker ?? null,
+          }));
+        const progress: SkillProgress = {
+          key: s.key,
+          name: s.name,
+          label: s.name,
+          status: "training",
+          scores: events.map((e) => e.score as number),
+          latest: events[events.length - 1].score,
+          streak: 0,
+          afterMastered: null,
+        };
+        return <SkillRibbon key={s.key} name={s.name} events={events} progress={progress} badge={s.badge ?? null} />;
+      })}
     </div>
   );
 }
