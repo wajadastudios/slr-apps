@@ -1093,6 +1093,25 @@ check("source: running 0052 again changes nothing", JSON.stringify((await q("sel
 check("source: a mapping without an old indicator row simply keeps no reference", (await q("select legacy_indicator_id from public.legacy_indicator_map where program_id=$1 and legacy_key='Water Safety - Floating'", [KIDS]))[0].legacy_indicator_id === null);
 check("source: the old report is still byte-for-byte unchanged", JSON.stringify(await oldReport()) === reportBefore);
 
+// ---------- Baby Swim one-time benefits (0053) ----------
+await su();
+const BABY = await prog("Baby Swim");
+await db.query(
+  "insert into public.program_packages (program_id, name, sessions_count, price, benefits) values ($1,'Baby Swim One-TIme Session',1,150000,$2), ($1,'Standar Grup',4,450000,$3)",
+  [BABY, ["1 Sesi pengenalan air bersama coach", "*belum termasuk tiket masuk kolam"], ["1 bulan 4 sesi, 4-5 anak"]]
+);
+const benefitSql = fs.readFileSync(path.join(dir, "0053_baby_swim_one_time_benefits.sql"), "utf8");
+await db.exec(benefitSql);
+const oneTime = (await q("select benefits from public.program_packages where program_id=$1 and sessions_count=1", [BABY]))[0].benefits;
+check(
+  "benefits: the Baby Swim one-time package has exactly the four agreed lines",
+  JSON.stringify(oneTime) === JSON.stringify(["1 sesi pengenalan air bersama coach", "Didampingi orang tua atau pendamping di area kolam", "Observasi kesiapan air dan rekomendasi latihan dari coach", "Belum termasuk tiket masuk kolam"]),
+  JSON.stringify(oneTime)
+);
+check("benefits: other packages are untouched", JSON.stringify((await q("select benefits from public.program_packages where program_id=$1 and name='Standar Grup'", [BABY]))[0].benefits) === JSON.stringify(["1 bulan 4 sesi, 4-5 anak"]));
+await db.exec(benefitSql);
+check("benefits: running it again changes nothing", JSON.stringify((await q("select benefits from public.program_packages where program_id=$1 and sessions_count=1", [BABY]))[0].benefits) === JSON.stringify(oneTime));
+
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
 process.exit(failed.length ? 1 : 0);

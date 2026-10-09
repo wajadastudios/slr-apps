@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { GlassCard } from "@/components/ui/glass-card";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
+import { BenefitList } from "@/components/benefit-list";
 import { ProgressOverview, ProgressTrend } from "@/components/progress-trend";
 import { LatestReportCard, ReportHistoryCard, type ReportRow } from "@/components/report-history-card";
 import { PerformanceRecordsCard } from "@/components/performance-records-card";
@@ -421,9 +422,7 @@ export default async function AnakDetailPage({
                         {Number(pkg.price).toLocaleString("id-ID")}
                       </>
                     }
-                    secondary={
-                      pkg.benefits && pkg.benefits.length > 0 ? pkg.benefits.join(" · ") : undefined
-                    }
+                    secondary={pkg.benefits && pkg.benefits.length > 0 ? <BenefitList items={pkg.benefits} compact className="mt-1.5" /> : undefined}
                     action={
                       <GlassButton
                         type="submit"

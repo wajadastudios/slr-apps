@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AccordionItem } from "@/components/ui/accordion";
+import { BenefitList } from "@/components/benefit-list";
 
 const PACKAGE_BADGES: Record<string, { label: string; className: string }> = {
   promo: { label: "Promo", className: "bg-[#FFC800] text-[#5c4400]" },
@@ -82,13 +83,7 @@ export function PriceAccordion({ groups }: { groups: PriceGroup[] }) {
                   <p className="text-lg font-semibold text-[#17263D]">
                     Rp{Number(pkg.price).toLocaleString("id-ID")}
                   </p>
-                  {pkg.benefits && pkg.benefits.length > 0 && (
-                    <ul className="mt-1 list-inside list-disc text-sm text-slate-600">
-                      {pkg.benefits.map((b, i) => (
-                        <li key={i}>{b}</li>
-                      ))}
-                    </ul>
-                  )}
+                  <BenefitList items={pkg.benefits} className="mt-2" />
                 </div>
               ))}
             </div>

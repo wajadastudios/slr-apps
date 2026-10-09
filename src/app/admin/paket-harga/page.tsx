@@ -4,6 +4,7 @@ import { GlassInput } from "@/components/ui/glass-input";
 import { GlassSelect } from "@/components/ui/glass-select";
 import { GlassButton } from "@/components/ui/glass-button";
 import { DataRow } from "@/components/ui/data-row";
+import { BenefitList } from "@/components/benefit-list";
 import { EditableListField } from "@/components/ui/editable-list-field";
 import { DeleteConfirm } from "@/components/admin/impact-confirm";
 import { formatDate, rupiah } from "@/lib/admin/format";
@@ -249,11 +250,7 @@ export default async function PaketHargaPage({
                         )}
                       </>
                     }
-                    secondary={
-                      pkg.benefits && pkg.benefits.length > 0
-                        ? pkg.benefits.join(" · ")
-                        : undefined
-                    }
+                    secondary={pkg.benefits && pkg.benefits.length > 0 ? <BenefitList items={pkg.benefits} compact className="mt-1.5" /> : undefined}
                     action={
                       <>
                         <a
