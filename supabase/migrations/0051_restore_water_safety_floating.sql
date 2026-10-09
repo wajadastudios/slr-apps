@@ -23,6 +23,7 @@ select
 from public.indicator_groups g
 join public.programs p on p.id = g.program_id
 where g.slug = 'water_safety'
+  and p.name = 'Kids Swim'
   and not exists (
     select 1 from public.indicators i
     where i.program_id = g.program_id

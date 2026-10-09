@@ -72,7 +72,7 @@ export const SKILLS: SeedSkill[] = [
 // Generic anchors; each indicator adds concrete examples for stars 5 and 3.
 const generic3 = "Sebagian kriteria bintang 5 terlihat dan dapat dilakukan mandiri, tetapi belum konsisten.";
 
-function indicator(
+export function indicator(
   skill: SkillSlug,
   level: 1 | 2 | 3 | null,
   slug: string,

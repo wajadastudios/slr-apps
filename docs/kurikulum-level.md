@@ -51,3 +51,19 @@ Seluruhnya usulan awal, dapat diubah admin tanpa migrasi:
 - Milestone "Tahan Nafas Terkontrol" (Kids 3/5/8 detik; Teen & Adult 5/10/20 detik) tidak dipakai di kurikulum
   baru dan tidak dihapus.
 - Program lain (Teen & Adult, Adaptive, Aquanatal) belum memakai kurikulum level.
+
+## Teen & Adult Swim
+
+Kurikulum yang sama (6 skill, Level 1-3 untuk empat gaya, bintang 1-5, Progress %, tes, rekor) dengan indikator
+berbahasa dewasa. Sumbernya `src/lib/curriculum/definition-adult.ts`; migrasi `0054_curriculum_adult_seed.sql` dihasilkan
+oleh `scripts/gen-curriculum-seed.ts` dan dijaga sinkron oleh tes.
+
+- 90 indikator: Dasar 7 (Kenyamanan dan Kepercayaan Diri di Air menggantikan "Sikap dan Keberanian"), Water Safety 8,
+  dan gaya renang 75. Indikator teknik gaya renang **sama persis** dengan Kids (aspek, rubrik, slug) supaya laporan
+  konsisten dan bisa dibandingkan bila peserta berpindah kategori; ditambah dua indikator khusus dewasa
+  (Ritme dan Konsistensi Teknik di Level 2-3, Teknik Saat Jarak Bertambah di Level 3).
+- Target jarak per level: Bebas/Dada/Punggung 10/25/50 m, Kupu-kupu 5/10/25 m. Rekor (medali) dikelola di tab Rekor;
+  migrasi hanya mengubah milestone yang masih bernilai awal, sehingga koreksi admin tidak pernah ditimpa.
+- Dorman sampai admin menekan Aktifkan di Atur Program. Indikator lama diarsipkan (tidak dihapus) dan nilainya dapat
+  dipetakan di tab Riwayat Lama.
+- Backup: `supabase/maintenance/backup-before-adult-curriculum.sql`. Rollback: `rollback-adult-curriculum.sql`.

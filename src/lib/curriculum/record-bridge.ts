@@ -13,6 +13,14 @@ import { isValidResult } from "./results";
 // help or tools stays in the test history but is not a record.
 
 const STROKE_BY_SLUG: Record<string, string> = { bebas: "Bebas", dada: "Dada", punggung: "Punggung", kupu: "Kupu-kupu" };
+// a distance test is named after what it measures (Teen & Adult also records how far a push glides)
+const STROKE_BY_CODE: Record<string, string> = {
+  jarak_bebas: "Bebas",
+  jarak_dada: "Dada",
+  jarak_punggung: "Punggung",
+  jarak_kupu: "Kupu-kupu",
+  jarak_meluncur: "Meluncur",
+};
 
 export function recordsFromResults(data: CurriculumData): PerformanceRecordRow[] {
   const typeById = new Map(data.testTypes.map((t) => [t.id, t]));
@@ -23,12 +31,12 @@ export function recordsFromResults(data: CurriculumData): PerformanceRecordRow[]
     if (!isValidResult(r) || r.assisted) continue;
     const type = typeById.get(r.testTypeId);
     if (!type) continue;
-    const stroke = STROKE_BY_SLUG[skillById.get(type.skillId)?.slug ?? ""] ?? null;
+    const stroke = STROKE_BY_CODE[type.code] ?? STROKE_BY_SLUG[skillById.get(type.skillId)?.slug ?? ""] ?? null;
     const base = { recorded_at: r.sessionDate, pelatih_id: null, awards: null };
 
     if (type.measure === "distance_m" && r.distanceM !== null && stroke) {
       rows.push({ ...base, id: `test-${r.id}-jarak`, metric_type: "jarak_tempuh", stroke, distance_m: r.distanceM, duration_seconds: null });
-      if (r.timeS !== null) {
+      if (r.timeS !== null && stroke !== "Meluncur") {
         rows.push({ ...base, id: `test-${r.id}-waktu`, metric_type: "waktu_tempuh", stroke, distance_m: r.distanceM, duration_seconds: r.timeS });
       }
     } else if (type.measure === "duration_s" && r.durationS !== null) {

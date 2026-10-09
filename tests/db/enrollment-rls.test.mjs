@@ -106,13 +106,15 @@ check("Adaptive: support_level + personal_goals", meta["Adaptive Swim"].assessme
 check("Aquanatal: observation + none + acknowledgement", meta["Aquanatal"].assessment_type === "observation" && meta["Aquanatal"].records_mode === "none" && meta["Aquanatal"].requires_acknowledgement);
 check("Adult + Aquanatal are open for self registration, Adaptive is not", meta["Teen & Adult Swim"].self_registration && meta["Aquanatal"].self_registration && !meta["Adaptive Swim"].self_registration);
 const groupsOf = async (pid) => (await q("select name from public.indicator_groups where program_id=$1 and active order by sort_order", [pid])).map((r) => r.name);
-check("Adult groups", JSON.stringify(await groupsOf(ADULT)) === JSON.stringify(["Water Confidence", "Independent Swimming", "Technique", "Stamina & Water Safety"]), JSON.stringify(await groupsOf(ADULT)));
+// the four original groups stay; the level curriculum (0054) adds its six skills beside them, dormant
+const adultGroups = await groupsOf(ADULT);
+check("Adult groups", ["Water Confidence", "Independent Swimming", "Technique", "Stamina & Water Safety"].every((g) => adultGroups.includes(g)), JSON.stringify(adultGroups));
 check("Adaptive groups (6)", (await groupsOf(ADAPT)).length === 6 && (await groupsOf(ADAPT))[0] === "Kenyamanan & Regulasi di Air");
 check("Aquanatal groups (5)", (await groupsOf(AQUA)).length === 5);
 check("Kids groups untouched (6)", (await groupsOf(KIDS)).length === 6, JSON.stringify(await groupsOf(KIDS)));
 check("old Adult flat config archived, not deleted", (await q("select count(*)::int c from public.indicators where program_id=$1 and not active and key not like 'tpl\\_%'", [ADULT]))[0].c >= 1);
 const ms = await q("select program_id, count(*)::int c from public.milestones group by program_id");
-check("14 Kids milestones + 6 Adult milestones, none unassigned", ms.find((m) => m.program_id === KIDS)?.c === 14 && ms.find((m) => m.program_id === ADULT)?.c === 6 && ms.length === 2, JSON.stringify(ms));
+check("14 Kids milestones + 10 Adult milestones (6 starter + 4 from 0054), none unassigned", ms.find((m) => m.program_id === KIDS)?.c === 14 && ms.find((m) => m.program_id === ADULT)?.c === 10 && ms.length === 2, JSON.stringify(ms));
 const snap = (await q("select indicator_snapshot from public.progress_reports where id=$1", [uid(300)]))[0].indicator_snapshot;
 check("old report got an indicator snapshot from the 0030 backfill", snap && snap["Dasar - Adaptasi di Air"]?.label === "Adaptasi di Air", JSON.stringify(snap));
 
@@ -851,18 +853,18 @@ check(
   slugs.length === 6 && (await q("select count(*)::int c from public.indicator_groups where program_id=$1", [KIDS]))[0].c === 6,
   JSON.stringify(slugs)
 );
-check("curriculum seed: other programs got nothing", (await q("select count(*)::int c from public.indicators where seed_key is not null and program_id<>$1", [KIDS]))[0].c === 0);
+check("curriculum seed: programs other than Kids and Teen & Adult got nothing", (await q("select count(*)::int c from public.indicators where seed_key is not null and program_id not in ($1,$2)", [KIDS, ADULT]))[0].c === 0);
 check(
   "curriculum seed: 7 test types, 12 versioned targets, 14 rules",
-  (await q("select count(*)::int c from public.skill_test_types"))[0].c === 7 &&
-    (await q("select count(*)::int c from public.skill_test_targets"))[0].c === 12 &&
-    (await q("select count(*)::int c from public.skill_rules"))[0].c === 14
+  (await q("select count(*)::int c from public.skill_test_types where program_id=$1", [KIDS]))[0].c === 7 &&
+    (await q("select count(*)::int c from public.skill_test_targets g join public.skill_test_types t on t.id=g.test_type_id where t.program_id=$1", [KIDS]))[0].c === 12 &&
+    (await q("select count(*)::int c from public.skill_rules r join public.indicator_groups g on g.id=r.group_id where g.program_id=$1", [KIDS]))[0].c === 14
 );
-const bebasL2 = (await q("select g.id, g.target_value, g.version from public.skill_test_targets g join public.skill_test_types t on t.id=g.test_type_id where t.code='jarak_bebas' and g.level=2"))[0];
+const bebasL2 = (await q("select g.id, g.target_value, g.version from public.skill_test_targets g join public.skill_test_types t on t.id=g.test_type_id where t.program_id=$1 and t.code='jarak_bebas' and g.level=2", [KIDS]))[0];
 check(
   "curriculum seed: Bebas Level 2 target is 25 m and Kupu-kupu Level 1 is 5 m",
   Number(bebasL2.target_value) === 25 &&
-    Number((await q("select g.target_value from public.skill_test_targets g join public.skill_test_types t on t.id=g.test_type_id where t.code='jarak_kupu' and g.level=1"))[0].target_value) === 5
+    Number((await q("select g.target_value from public.skill_test_targets g join public.skill_test_types t on t.id=g.test_type_id where t.program_id=$1 and t.code='jarak_kupu' and g.level=1", [KIDS]))[0].target_value) === 5
 );
 check("curriculum seed: Floating/Treading/Rangkaian have no default target", (await q("select count(*)::int c from public.skill_test_targets g join public.skill_test_types t on t.id=g.test_type_id where t.measure<>'distance_m'"))[0].c === 0);
 
@@ -883,11 +885,11 @@ await db.query("select public.set_curriculum_mode($1,'legacy')", [KIDS]);
 await su();
 check("switch off restores exactly the previously active indicators", JSON.stringify((await q("select key from public.indicators where program_id=$1 and active order by key", [KIDS])).map((r) => r.key)) === JSON.stringify(kidsActiveBefore));
 await as(ADMIN);
-check("switch refuses a program that has no prepared curriculum", /not prepared/.test((await fails(() => db.query("select public.set_curriculum_mode($1,'levels_v1')", [ADULT]))) ?? ""));
+check("switch refuses a program that has no prepared curriculum", /not prepared/.test((await fails(() => db.query("select public.set_curriculum_mode($1,'levels_v1')", [AQUA]))) ?? ""));
 
 // results: saved atomically with the report, derived (never stored) achievements
 await su();
-const tt = Object.fromEntries((await q("select code, id from public.skill_test_types")).map((r) => [r.code, r.id]));
+const tt = Object.fromEntries((await q("select code, id from public.skill_test_types where program_id=$1", [KIDS])).map((r) => [r.code, r.id]));
 const bebasGroup = (await q("select id from public.indicator_groups where program_id=$1 and slug='bebas'", [KIDS]))[0].id;
 const dadaGroup = (await q("select id from public.indicator_groups where program_id=$1 and slug='dada'", [KIDS]))[0].id;
 const punggungGroup = (await q("select id from public.indicator_groups where program_id=$1 and slug='punggung'", [KIDS]))[0].id;
@@ -1111,6 +1113,37 @@ check(
 check("benefits: other packages are untouched", JSON.stringify((await q("select benefits from public.program_packages where program_id=$1 and name='Standar Grup'", [BABY]))[0].benefits) === JSON.stringify(["1 bulan 4 sesi, 4-5 anak"]));
 await db.exec(benefitSql);
 check("benefits: running it again changes nothing", JSON.stringify((await q("select benefits from public.program_packages where program_id=$1 and sessions_count=1", [BABY]))[0].benefits) === JSON.stringify(oneTime));
+
+// ---------- Teen & Adult curriculum (0054) ----------
+await su();
+const adultCount = async (sql, params = []) => (await q(sql, [ADULT, ...params]))[0].c;
+check("adult seed: 90 indicators (7 Dasar + 8 Water Safety + 75 strokes), none active yet", (await adultCount("select count(*)::int c from public.indicators where program_id=$1 and seed_key like 'ta1\\_%'")) === 90 && (await adultCount("select count(*)::int c from public.indicators where program_id=$1 and seed_key like 'ta1\\_%' and active")) === 0);
+check("adult seed: six skills with slugs, new groups beside the four old ones", (await adultCount("select count(*)::int c from public.indicator_groups where program_id=$1 and slug is not null")) === 6 && (await adultCount("select count(*)::int c from public.indicator_groups where program_id=$1")) >= 6);
+check("adult seed: the old Teen & Adult indicators are untouched and still active", (await adultCount("select count(*)::int c from public.indicators where program_id=$1 and seed_key is null and active")) >= 1);
+check("adult seed: 8 test types, 12 targets (Meluncur and the durations have none), 14 rules", (await adultCount("select count(*)::int c from public.skill_test_types where program_id=$1")) === 8 && (await adultCount("select count(*)::int c from public.skill_test_targets g join public.skill_test_types t on t.id=g.test_type_id where t.program_id=$1")) === 12 && (await adultCount("select count(*)::int c from public.skill_rules r join public.indicator_groups g on g.id=r.group_id where g.program_id=$1")) === 14);
+check("adult seed: Kids still has exactly its own 77", (await q("select count(*)::int c from public.indicators where program_id=$1 and seed_key like 'k1\\_%'", [KIDS]))[0].c === 77);
+const adultMs = async (key) => (await q("select bronze::int b, silver::int s, gold::int g, active from public.milestones where seed_key=$1", [key]))[0];
+check("adult records: Mengapung Mandiri 15/30/60 and Treading Water 15/30/60", JSON.stringify(await adultMs("adult-mengapung")) === JSON.stringify({ b: 15, s: 30, g: 60, active: true }) && JSON.stringify(await adultMs("adult-treading")) === JSON.stringify({ b: 15, s: 30, g: 60, active: true }));
+check("adult records: Tahan Nafas is switched off, not deleted", (await adultMs("adult-tahan-nafas"))?.active === false);
+check("adult records: four new distance records (Meluncur 5/10/15, Dada and Punggung 10/25/50, Kupu-kupu 5/10/25)", JSON.stringify(await adultMs("adult-meluncur-jarak")) === JSON.stringify({ b: 5, s: 10, g: 15, active: true }) && JSON.stringify(await adultMs("adult-dada-jarak")) === JSON.stringify({ b: 10, s: 25, g: 50, active: true }) && JSON.stringify(await adultMs("adult-punggung-jarak")) === JSON.stringify({ b: 10, s: 25, g: 50, active: true }) && JSON.stringify(await adultMs("adult-kupu-jarak")) === JSON.stringify({ b: 5, s: 10, g: 25, active: true }));
+check("adult records: Gaya Bebas 25/50/100 and the two time records are kept", JSON.stringify(await adultMs("adult-bebas-jarak")) === JSON.stringify({ b: 25, s: 50, g: 100, active: true }) && (await adultMs("adult-waktu-25-bebas")).active === true && (await adultMs("adult-waktu-50-bebas")).active === true);
+
+// a correction made in the admin screen survives a re-run; nothing is duplicated
+await db.exec("update public.milestones set bronze=12, silver=24, gold=48 where seed_key='adult-mengapung'; update public.milestones set active=true where seed_key='adult-tahan-nafas'");
+const adultMilestonesBefore = await adultCount("select count(*)::int c from public.milestones where program_id=$1");
+const adultSql = fs.readFileSync(path.join(dir, "0054_curriculum_adult_seed.sql"), "utf8");
+await db.exec(adultSql);
+const again = [await adultCount("select count(*)::int c from public.indicators where program_id=$1 and seed_key like 'ta1\_%'"), await adultCount("select count(*)::int c from public.skill_test_types where program_id=$1"), await adultCount("select count(*)::int c from public.milestones where program_id=$1")];
+check("adult seed: running it again adds no indicator, test, target, rule or record", JSON.stringify(again) === JSON.stringify([90, 8, adultMilestonesBefore]), JSON.stringify(again));
+check("adult records: an admin's correction is not overwritten by a re-run", JSON.stringify(await adultMs("adult-mengapung")) === JSON.stringify({ b: 12, s: 24, g: 48, active: true }));
+check("adult seed: no report, score or old record was touched", JSON.stringify(await oldReport()) === reportBefore);
+// rollback (the part that removes the new curriculum) leaves Kids and every old indicator alone, and the seed can be applied again
+const rollbackSql = fs.readFileSync(path.join(dir, "../maintenance/rollback-adult-curriculum.sql"), "utf8").split("-- 2) rekor kembali")[0];
+await db.exec(rollbackSql);
+check("adult rollback: the new indicators, tests and rules are gone", (await adultCount("select count(*)::int c from public.indicators where program_id=$1 and seed_key like 'ta1\_%'")) === 0 && (await adultCount("select count(*)::int c from public.skill_test_types where program_id=$1")) === 0);
+check("adult rollback: old Teen & Adult indicators and Kids are untouched", (await adultCount("select count(*)::int c from public.indicators where program_id=$1 and seed_key is null")) >= 1 && (await q("select count(*)::int c from public.indicators where program_id=$1 and seed_key like 'k1\_%'", [KIDS]))[0].c === 77 && JSON.stringify(await oldReport()) === reportBefore);
+await db.exec(adultSql);
+check("adult rollback: the seed can be applied again afterwards", (await adultCount("select count(*)::int c from public.indicators where program_id=$1 and seed_key like 'ta1\_%'")) === 90);
 
 const failed = results.filter((r) => !r[0]);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);

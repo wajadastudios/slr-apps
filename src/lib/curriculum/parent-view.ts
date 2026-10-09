@@ -59,7 +59,7 @@ export function recordLinesFor(statuses: MilestoneStatus[], skill: CurriculumSki
       const m = s.milestone;
       if (stroke) return m.stroke === stroke;
       if (skill.slug === "water_safety") return m.metric_type === "treading_water" || m.metric_type === "mengapung_telentang";
-      if (skill.slug === "dasar") return m.metric_type === "tahan_nafas";
+      if (skill.slug === "dasar") return m.metric_type === "tahan_nafas" || m.stroke === "Meluncur";
       return false;
     })
     .map((s) => `${s.milestone.label} · Medali ${TIER_LABELS[s.tier!]}${s.bestValue !== null ? ` (${formatMilestoneValue(s.milestone.metric_type, s.bestValue)})` : ""}`);
